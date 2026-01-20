@@ -1,0 +1,408 @@
+/*************************************************
+ * Day10 – ค้นทุกช่วง (search_every_slot.gs)
+ * step เวลา = 60 นาที
+ *************************************************/
+
+// ====== CONFIG ======
+const SEARCH_OPEN_TIME = '16:00';
+const SEARCH_CLOSE_TIME = '24:00';
+const SEARCH_STEP_MIN = 60;
+const ADMIN_PHONE = '0839144000'; // แก้เป็นเบอร์จริง
+
+function getFieldType_(fieldId) {
+  return getFieldTypeFromRegistry_(fieldId);
+}
+
+
+// ====== ENTRY POINT ======
+function startSearchEverySlot_(ev) {
+  replyMessage_(ev.replyToken, {
+    type: 'text',
+    text: 'อยากค้นหาช่วงเวลาว่างวันไหนคะ 😊\n(ระบบจะแสดงทุกช่วงที่ว่างจนถึง 24:00)',
+    quickReply: {
+      items: [
+        qrPostback_('วันนี้', 'action=pick_date_search_every_slot&date_mode=today'),
+        qrPostback_('พรุ่งนี้', 'action=pick_date_search_every_slot&date_mode=tomorrow'),
+        qrDatePicker_('วันอื่นๆ', 'action=set_date_search_every_slot')
+      ]
+    }
+  });
+}
+
+// ====== PICK DATE ======
+function handlePickDateSearchEverySlot_(ev, data) {
+  const dateStr = resolveDateFromMode_(data.date_mode);
+  askDurationSearchEverySlot_(ev, dateStr);
+}
+
+function handleSetDateSearchEverySlot_(ev, data) {
+  const dateStr =
+    (data && data.date) ||
+    (ev && ev.postback && ev.postback.params && ev.postback.params.date) ||
+    '';
+
+  if (!dateStr) {
+    replyMessage_(ev.replyToken, { type: 'text', text: 'อ่านวันที่ไม่ได้ ลองเลือกใหม่อีกครั้งนะคะ 🙏' });
+    return;
+  }
+  askDurationSearchEverySlot_(ev, dateStr);
+}
+
+
+function askDurationSearchEverySlot_(ev, dateStr) {
+  replyMessage_(ev.replyToken, {
+    type: 'text',
+    text: 'รับทราบค่ะ 💚\nอยากเล่นกี่ชั่วโมงคะ',
+    quickReply: {
+      items: [
+        qrPostback_('1 ชั่วโมง', `action=pick_duration_search_every_slot&date=${dateStr}&duration=60`),
+        qrPostback_('2 ชั่วโมง', `action=pick_duration_search_every_slot&date=${dateStr}&duration=120`)
+        
+      ]
+    }
+  });
+}
+
+// ====== PICK DURATION & SEARCH ======
+function handlePickDurationSearchEverySlot_(ev, data) {
+  const dateStr = data.date;
+  const durationMin = Number(data.duration);
+
+  // ข้อความหน่วง
+  replyMessage_(ev.replyToken, {
+    type: 'text',
+    text: 'ได้เลยค่ะ เดี๋ยวเช็คทุกสนามให้แป๊บนะคะ 😊'
+  });
+
+  const resultByField = {};
+  const fieldIds = [1, 2, 3, 4, 5, 6];
+
+  fieldIds.forEach(fid => {
+    resultByField[fid] = searchEverySlotForField_(
+      fid,
+      dateStr,
+      durationMin
+    );
+  });
+
+  const flex = buildSearchEverySlotCarousel_(dateStr, durationMin, resultByField);
+  pushMessage_(ev.source.userId, flex);
+}
+function getMatchdayBookings_(fieldId, dateStr) {
+  // ต้องมี matchday helpers เหมือนที่ checkAvailability_ ใช้อยู่
+  if (typeof mapFieldNoToCourtId_ !== 'function' ||
+      typeof fetchMatchdayMatches_ !== 'function' ||
+      typeof buildBusyIntervalsFromMatchday_ !== 'function') {
+    // ถ้าหา helper ไม่เจอ ให้ถือว่า "ไม่มีคิว" (กันระบบล่มตอนทดสอบ)
+    return [];
+  }
+
+  const courtId = mapFieldNoToCourtId_(fieldId);
+  if (!courtId) return [];
+
+  let matches = [];
+  try {
+    matches = fetchMatchdayMatches_(dateStr, courtId);
+  } catch (e) {
+    return [];
+  }
+
+  const busy = buildBusyIntervalsFromMatchday_(matches) || [];
+  // busy: [{start: Date, end: Date, ...}]  -> แปลงเป็นนาทีในวันนั้น
+  return busy.map(b => ({
+    start: b.start.getHours() * 60 + b.start.getMinutes(),
+    end:   b.end.getHours() * 60 + b.end.getMinutes()
+  }));
+}
+
+// ====== AVAILABILITY BRIDGE (ใช้ engine เดียวกับโฟลจองจริง) ======
+function isSlotFreeByCheckAvailability_(dateStr, fieldId, startMin, durationMin) {
+  if (typeof checkAvailability_ !== 'function') return false; // กันพัง
+  const startStr = minuteToTime_(startMin);
+  const endStr = minuteToTime_(startMin + durationMin);
+  const res = checkAvailability_(dateStr, Number(fieldId), startStr, endStr);
+  return !!(res && res.available === true);
+}
+
+
+
+// ====== SEARCH ENGINE (STEP 60 MIN) ======
+function searchEverySlotForField_(fieldId, dateStr, durationMin) {
+  const searchStartMin = getSearchStartMinute_(dateStr);
+  const endLimitMin = timeToMinute_(SEARCH_CLOSE_TIME);
+
+  const slots = [];
+  for (let start = searchStartMin; start + durationMin <= endLimitMin; start += SEARCH_STEP_MIN) {
+    if (isSlotFreeByCheckAvailability_(dateStr, fieldId, start, durationMin)) {
+      slots.push({ start, end: start + durationMin });
+    }
+  }
+  return slots;
+}
+
+
+
+// ====== CHECK TIME AFTER USER CLICK ======
+// ====== CHECK TIME AFTER USER CLICK ======
+function handleCheckTimeSearchEverySlot_(ev, data) {
+  const fieldId = Number(data.field);
+  const dateStr = data.date;
+  const durationMin = Number(data.duration);
+  const startMin = timeToMinute_(data.start);
+  const endMin = startMin + durationMin;
+
+  const isFree = isSlotFreeByCheckAvailability_(dateStr, fieldId, startMin, durationMin);
+
+  if (isFree) {
+    replyMessage_(ev.replyToken, buildConfirmFreeMessage_(fieldId, dateStr, startMin, endMin, durationMin));
+  } else {
+    replyMessage_(ev.replyToken, buildNotFreeMessage_(fieldId, dateStr, startMin, endMin));
+  }
+}
+
+
+
+// ====== FLEX BUILDERS ======
+function buildSearchEverySlotCarousel_(dateStr, durationMin, resultByField) {
+  const bubbles = [];
+
+  Object.keys(resultByField).forEach(fid => {
+    const slots = resultByField[fid];
+
+    const contents = slots.length
+      ? slots.map(s => ({
+        type: 'text',
+        text: `${minuteToTime_(s.start)} - ${minuteToTime_(s.end)}`,
+        size: 'lg',
+        weight: 'bold',
+        margin: 'md',
+        color: '#1DB446',
+        action: {
+          type: 'postback',
+          data: `action=check_time_search_every_slot&field=${fid}&date=${dateStr}&start=${minuteToTime_(s.start)}&duration=${durationMin}`
+        }
+      }))
+
+      : [{
+          type: 'text',
+          text: 'ช่วงเวลานี้เต็มแล้วค่ะ 😢',
+          color: '#999999'
+        }];
+
+    bubbles.push({
+      type: 'bubble',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          { type: 'text', text: `สนาม #${fid}`, weight: 'bold', size: 'lg' },
+          {
+            type: 'text',
+            text: `ประเภท ${getFieldType_(fid)}`,
+            size: 'sm',
+            color: '#666666'
+          },
+          { type: 'text', text: `วันที่ ${dateStr}` },
+          { type: 'text', text: `ระยะเวลา ${durationMin / 60} ชั่วโมง` },
+          { type: 'separator', margin: 'md' },
+          ...contents
+        ]
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: 'ค้นหาใหม่',
+              data: 'action=restart_search_every_slot'
+            }
+          }
+        ]
+      }
+    });
+  });
+
+  return {
+    type: 'flex',
+    altText: 'ค้นทุกช่วงเวลาว่าง',
+    contents: {
+      type: 'carousel',
+      contents: bubbles
+    }
+  };
+}
+
+// ====== CONFIRM / NOT FREE MESSAGE ======
+function buildConfirmFreeMessage_(fieldId, dateStr, startMin, endMin, durationMin) {
+  const timeFrom = minuteToTime_(startMin);
+  const timeTo   = minuteToTime_(endMin);
+  const durationH = (durationMin / 60);
+
+  return {
+    type: "flex",
+    altText: "ช่วงเวลานี้ว่างพร้อมให้จอง",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "ช่วงเวลานี้ว่างพร้อมให้จอง ✅",
+            weight: "bold",
+            size: "lg",
+            wrap: true
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              row_("วันที่", dateStr),
+              row_("สนาม", "สนาม #" + fieldId),
+              row_("เวลา", timeFrom + " - " + timeTo),
+              row_("ระยะเวลา", durationH + " ชั่วโมง")
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            action: {
+              type: "uri",
+              label: "โทรหาแอดมินเพื่อจอง",
+              uri: `tel:${ADMIN_PHONE}`
+            }
+          },
+          {
+            type: "button",
+            style: "secondary",
+            action: {
+              type: "postback",
+              label: "ค้นหาใหม่",
+              data: "action=restart_search_every_slot"
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+
+
+
+function buildNotFreeMessage_(fieldId, dateStr, startMin, endMin) {
+  const requestedTime = `${minuteToTime_(startMin)} - ${minuteToTime_(endMin)}`;
+
+  return {
+    type: "flex",
+    altText: "ช่วงเวลานี้มีคิวแล้ว",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "ช่วงเวลานี้มีคิวแล้ว ❌",
+            weight: "bold",
+            size: "lg",
+            color: "#D32F2F"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              row_("วันที่", dateStr),
+              row_("สนาม", "สนาม #" + fieldId),
+              row_("เวลา", requestedTime)
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "button",
+            style: "secondary",
+            action: {
+              type: "postback",
+              label: "ค้นหาใหม่",
+              data: "action=restart_search_every_slot"
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+
+
+
+// ====== UTILS ======
+function resolveDateFromMode_(mode) {
+  const d = new Date();
+  if (mode === 'tomorrow') d.setDate(d.getDate() + 1);
+  return Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
+}
+
+function getSearchStartMinute_(dateStr) {
+  const now = new Date();
+  const todayStr = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
+  if (dateStr !== todayStr) return timeToMinute_(SEARCH_OPEN_TIME);
+
+  const openMin = timeToMinute_(SEARCH_OPEN_TIME);
+
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const roundedUp = (m === 0) ? (h * 60) : ((h + 1) * 60);
+
+  return Math.max(openMin, roundedUp);
+}
+
+
+function timeToMinute_(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function minuteToTime_(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${('0' + h).slice(-2)}:${('0' + m).slice(-2)}`;
+}
+
+function isOverlapWithBookings_(start, end, bookings) {
+  return bookings.some(b => !(end <= b.start || start >= b.end));
+}
+
+function qrPostback_(label, data) {
+  return {
+    type: 'action',
+    action: { type: 'postback', label, data }
+  };
+}
+
+function qrDatePicker_(label, data) {
+  return {
+    type: 'action',
+    action: { type: 'datetimepicker', label, data, mode: 'date' }
+  };
+}
+

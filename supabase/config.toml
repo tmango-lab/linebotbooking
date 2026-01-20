@@ -1,0 +1,6 @@
+project_id = "kyprnvazjyilthdzhqxh"
+
+[functions]
+enabled = true
+verify_jwt = false
+import_map = "./functions/import_map.json"

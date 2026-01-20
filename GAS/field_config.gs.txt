@@ -1,0 +1,36 @@
+/***** FIELD REGISTRY (field_config.gs) *****/
+
+/**
+ * แหล่งข้อมูลสนาม “ที่เดียวจบ”
+ * - ใช้ทั้ง label, type, courtId (matchday)
+ * - แก้ที่นี่ที่เดียว ทุก flow จะตรงกันหมด
+ */
+const FIELD_REGISTRY = {
+  1: { no: 1, label: "สนาม #1", type: "5 คน",     courtId: 2424, active: true, price_pre: 500, price_post: 700 },
+  2: { no: 2, label: "สนาม #2", type: "5 คน",     courtId: 2425, active: true, price_pre: 500, price_post: 700 },
+  3: { no: 3, label: "สนาม #3", type: "7-8 คน",   courtId: 2428, active: true, price_pre: 1000, price_post: 1200 },
+  4: { no: 4, label: "สนาม #4", type: "7 คน",     courtId: 2426, active: true, price_pre: 800, price_post: 1000 },
+  5: { no: 5, label: "สนาม #5", type: "7 คน",     courtId: 2427, active: true, price_pre: 800, price_post: 1000 },
+  6: { no: 6, label: "สนาม #6 ใหม่", type: "7 คน", courtId: 2429, active: true, price_pre: 1000, price_post: 1200 },
+};
+
+function getFieldMeta_(fieldNo) {
+  return FIELD_REGISTRY[Number(fieldNo)] || null;
+}
+
+function getFieldTypeFromRegistry_(fieldNo) {
+  const m = getFieldMeta_(fieldNo);
+  return m ? m.type : "-";
+}
+
+function mapFieldNoToCourtIdFromRegistry_(fieldNo) {
+  const m = getFieldMeta_(fieldNo);
+  return m ? m.courtId : null;
+}
+
+function listActiveFields_() {
+  return Object.keys(FIELD_REGISTRY)
+    .map(n => FIELD_REGISTRY[Number(n)])
+    .filter(m => m && m.active)
+    .sort((a,b) => a.no - b.no);
+}

@@ -1,0 +1,17 @@
+async function handleReshowSearchAll(event: LineEvent, userId: string, params: any) {
+    const dateStr = params.date;
+    const durationMin = parseInt(params.duration);
+
+    // Reuse the same logic as handlePickDurationSearchAll
+    const fields = await getActiveFields();
+    if (!fields || fields.length === 0) {
+        await replyMessage(event.replyToken!, { type: 'text', text: 'ไม่พบข้อมูลสนาม' });
+        return;
+    }
+
+    const resultsByField = await searchAllSlots(dateStr, durationMin, fields);
+
+    const carousel = buildSearchAllSlotsCarousel(dateStr, durationMin, resultsByField, fields);
+    await replyMessage(event.replyToken!, carousel);
+}
+

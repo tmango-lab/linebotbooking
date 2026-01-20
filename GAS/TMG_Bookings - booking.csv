@@ -1,0 +1,2 @@
+booking_id,user_id,display_name,field_no,date,time_from,time_to,duration_h,crosses_18,price_total_thb,status,hold_expires_at,created_at,updated_at,confirmed_by,cancelled_by,cancel_reason,paid_at,version,start_ts,end_ts,timeout_notified,notes,admin_note
+BK001,U2025102998427bb1d2b645e6a3aaadd6,win,4,2025-11-01,20:00:00,21:00:00,,,1000,CONFIRMED,2025-11-01T11:10:00+07:00,,2025-11-01T08:54:52+0700,U2025102998427bb1d2b645e6a3aaadd6,,,,5,2025-11-01T20:00:00+07:00,2025-11-01T21:00:00+07:00,,,

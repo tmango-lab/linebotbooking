@@ -1,0 +1,153 @@
+/** ===== Matchday API config ===== **/
+
+// เราใช้ SP ตัวเดิมที่คุณมีอยู่แล้วในโปรเจกต์
+// const SP = PropertiesService.getScriptProperties();  // มีอยู่แล้วในไฟล์หลัก
+
+const MD_TOKEN = SP.getProperty('MATCHDAY_TOKEN');  // ใส่ใน Script Properties แล้ว
+const MD_BASE_URL = 'https://arena.matchday-backend.com';
+
+/**
+ * แปลงวันที่จากรูปแบบ 2025-11-18 (สำหรับเรา)
+ * → 18/11/2025 (รูปแบบที่ Matchday ต้องการ)
+ */
+
+
+/**
+ * ดึงรายการจองของสนาม (court_id) ในวันนั้น จาก Matchday
+ * @param {string} isoDateStr  "2025-11-18"
+ * @param {number} courtId     เช่น 2428, 2429
+ * @return {Array<object>}     array ของ match objects
+ */
+/**
+ * ดึงรายการจองของวันนั้นจาก Matchday แล้ว filter ตาม court_id
+ * @param {string} isoDateStr  "2025-11-18"
+ * @param {number} courtId     เช่น 2428, 2429
+ * @return {Array<object>}     array ของ match objects เฉพาะสนามนั้น
+ */
+function fetchMatchdayMatches_(isoDateStr, courtId) {
+  if (!MD_TOKEN) {
+    throw new Error('MATCHDAY_TOKEN is not set in Script Properties');
+  }
+
+  const url = MD_BASE_URL + '/arena/matches';
+
+  // time_start = วันที่นั้น 00:00:00
+  const timeStart = isoDateStr + ' 00:00:00';
+
+  // time_end = วันถัดไป 00:00:00
+  const d = new Date(isoDateStr);   // new Date('2025-11-18')
+  d.setDate(d.getDate() + 1);
+  const yyyy = d.getFullYear();
+  const mm   = ('0' + (d.getMonth() + 1)).slice(-2);
+  const dd   = ('0' + d.getDate()).slice(-2);
+  const timeEnd = `${yyyy}-${mm}-${dd} 00:00:00`;
+
+  const body = {
+    time_start: timeStart,
+    time_end:   timeEnd
+    // ❌ ไม่ต้องส่ง court_id แล้ว
+  };
+
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json;charset=UTF-8',
+    headers: {
+      'Authorization': 'Bearer ' + MD_TOKEN,
+      'Accept': 'application/json, text/plain, */*',
+      'Origin': 'https://arena.matchday.co.th'
+    },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  });
+
+  const code = res.getResponseCode();
+  const text = res.getContentText();
+  console.log('Matchday status =', code);
+  console.log('Matchday body   =', text);
+
+  if (code !== 200) {
+    throw new Error('Matchday API error: HTTP ' + code);
+  }
+
+  const data = JSON.parse(text);
+  if (!Array.isArray(data)) {
+    throw new Error('Matchday API: unexpected response (not array)');
+  }
+
+  // filter เฉพาะสนามที่ต้องการ
+  const filtered = data.filter(m => !courtId || m.court_id === courtId);
+  return filtered;
+}
+
+
+
+/**
+ * ฟังก์ชันทดสอบเรียก Matchday (ใช้ Run ใน Apps Script)
+ * ปรับวันที่ / court_id ให้ตรงกับข้อมูลจริงของคุณ
+ */
+function testFetchMatchday() {
+  const isoDateStr = '2025-11-18';   // วันที่ทดสอบ
+  const courtId    = 2428;          // เช่น สนาม8คน-3
+
+  const matches = fetchMatchdayMatches_(isoDateStr, courtId);
+  Logger.log(JSON.stringify(matches, null, 2));
+}
+
+/**
+ * map ระหว่าง "สนามเลขในไลน์" → "court_id ใน Matchday"
+ * TODO: แก้ตัวเลขให้ตรงกับสนามจริงในระบบ Matchday ของคุณ
+ */
+/**
+ * map สนามฝั่งไลน์ → court_id ของ Matchday
+ */
+function mapFieldNoToCourtId_(fieldNo) {
+  return mapFieldNoToCourtIdFromRegistry_(fieldNo);
+}
+
+
+/**
+ * สร้าง Date จาก "2025-11-18" + "19:00"
+ */
+function makeDate_(isoDateStr, hhmm) {
+  const [Y, M, D] = isoDateStr.split('-').map(Number);
+  const [h, m] = hhmm.split(':').map(Number);
+  return new Date(Y, M - 1, D, h, m, 0);
+}
+
+/**
+ * เช็คว่า 2 ช่วงเวลา (startA-endA) ชนกับ (startB-endB) หรือไม่
+ */
+function isOverlap_(startA, endA, startB, endB) {
+  return startA < endB && endA > startB;
+}
+
+/**
+ * จาก matches ของ Matchday สร้างลิสต์ช่วงเวลาที่ "ไม่ว่าง"
+ */
+function buildBusyIntervalsFromMatchday_(matches) {
+  return matches.map(m => {
+    const s = new Date(m.time_start); // "2025-11-18 18:01:00"
+    const e = new Date(m.time_end);
+    return { start: s, end: e, raw: m };
+  });
+}
+
+/**
+ * ตรวจสอบว่า slot (start,durationH) ว่างไหม
+ * @param {Date} startDt
+ * @param {number} durationH
+ * @param {Array<{start:Date,end:Date}>} busy
+ */
+function isSlotFreeByBusyList_(startDt, durationH, busy) {
+  const endDt = new Date(startDt.getTime() + durationH * 3600000);
+  return !busy.some(b => isOverlap_(startDt, endDt, b.start, b.end));
+}
+/**
+ * เช็คเวลาว่าง และแนะนำเวลาใกล้เคียง
+ * @param {number} fieldNo     เลขสนามจากฝั่งไลน์ (3,4,5,6)
+ * @param {string} isoDateStr  "2025-11-18"
+ * @param {string} timeStr     "19:00"
+ * @param {number} durationH   เช่น 1 หรือ 1.5
+ * @return {string}            ข้อความภาษาไทยสำหรับ reply
+ */
+

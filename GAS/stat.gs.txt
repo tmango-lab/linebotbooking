@@ -1,0 +1,137 @@
+/***** STAT LOGGING MODULE (stat.gs) *****/
+
+// ใช้ SP และ SPREADSHEET_ID จากไฟล์หลัก
+// const SP = PropertiesService.getScriptProperties();
+// const SPREADSHEET_ID = '...';
+
+const STAT_SHEET_NAME = 'stat_log';
+
+/**
+ * คืนค่า sheet สำหรับบันทึก stat
+ * - ใช้ STAT_SPREADSHEET_ID จาก Script Properties ถ้ามี
+ * - ถ้าไม่มี ใช้ SPREADSHEET_ID เดิมของโปรเจกต์
+ * - ถ้าไม่พบชีต stat_log จะสร้างใหม่ + ใส่ header ให้เลย
+ */
+function shStat_() {
+  const statSsId = SP.getProperty('STAT_SPREADSHEET_ID') || SPREADSHEET_ID;
+  const ss = SpreadsheetApp.openById(statSsId);
+
+  let sh = ss.getSheetByName(STAT_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(STAT_SHEET_NAME);
+    sh.appendRow([
+      'ts',            // เวลา log
+      'user_id',       // LINE userId
+      'source_type',   // user / group / room / system
+      'event_type',    // message / postback / system
+      'action',        // booking_start / booking_select_time / ...
+      'step',          // ชื่อ step ใน flow เช่น booking, alt_slot, result
+      'label',         // label สั้น ๆ เช่น start_booking, field_3 ฯลฯ
+      'message_text',  // ข้อความที่ user พิมพ์ (ถ้ามี)
+      'postback_data', // postback data (ถ้ามี)
+      'process_ms',    // เวลาในการทำงาน (ms) ถ้ามี
+      'extra_json'     // ข้อมูลเสริมเป็น JSON
+    ]);
+  }
+  return sh;
+}
+
+/**
+ * ฟังก์ชันหลักสำหรับเก็บ stat (เรียกใช้จากทุกที่)
+ *
+ * opt:
+ *   - userId
+ *   - sourceType
+ *   - eventType
+ *   - action
+ *   - step
+ *   - label
+ *   - messageText
+ *   - postbackData
+ *   - processMs
+ *   - extra (object ใด ๆ)
+ */
+function logStatEvent_(opt) {
+  try {
+    const sh = shStat_();
+    sh.appendRow([
+      new Date(),
+      opt.userId || '',
+      opt.sourceType || '',
+      opt.eventType || '',
+      opt.action || '',
+      opt.step || '',
+      opt.label || '',
+      opt.messageText || '',
+      opt.postbackData || '',
+      opt.processMs || '',
+      opt.extra ? JSON.stringify(opt.extra) : ''
+    ]);
+  } catch (err) {
+    console.error('logStatEvent_ error:', err);
+  }
+}
+
+/**
+ * helper: log จาก LINE event โดยตรง
+ *
+ * @param {Object} ev - LINE event
+ * @param {Object} opt
+ *   - eventType
+ *   - action
+ *   - step
+ *   - label
+ *   - processMs
+ *   - extra
+ */
+function logStatFromEvent_(ev, opt) {
+  if (!ev) return;
+
+  const src      = ev.source || {};
+  const msg      = ev.message || {};
+  const postback = ev.postback || {};
+
+  const userId     = src.userId || '';
+  const sourceType = src.type || '';
+  const messageText = (msg.type === 'text') ? (msg.text || '') : '';
+  const postbackData = postback.data || '';
+
+  logStatEvent_({
+    userId:       userId,
+    sourceType:   sourceType,
+    eventType:    (opt && opt.eventType) || ev.type || '',
+    action:       (opt && opt.action) || '',
+    step:         (opt && opt.step) || '',
+    label:        (opt && opt.label) || '',
+    messageText:  messageText,
+    postbackData: postbackData,
+    processMs:    opt && opt.processMs,
+    extra:        opt && opt.extra
+  });
+}
+
+/**
+ * helper: จับเวลา performance แล้ว log เป็น event_type=system
+ *
+ * ใช้แบบ:
+ *   const t0 = Date.now();
+ *   ...logic...
+ *   logStatTime_('handlePostback_', t0, { some: 'info' });
+ */
+function logStatTime_(label, startMs, extra) {
+  try {
+    const ms = Date.now() - startMs;
+    logStatEvent_({
+      userId: '',
+      sourceType: 'system',
+      eventType: 'system',
+      action: 'perf',
+      step: label,
+      label: label,
+      processMs: ms,
+      extra: extra || {}
+    });
+  } catch (err) {
+    console.error('logStatTime_ error:', err);
+  }
+}

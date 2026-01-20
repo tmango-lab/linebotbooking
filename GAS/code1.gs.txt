@@ -1,0 +1,1549 @@
+/***** T-MANGO Line Webhook: Day 8.1 – Ultra Fast Loading + STAT Logging *****/
+
+// === Script Properties ===
+const SP = PropertiesService.getScriptProperties();
+const TOKEN = SP.getProperty('LINE_CHANNEL_ACCESS_TOKEN');
+const CHANNEL_SECRET = SP.getProperty('LINE_CHANNEL_SECRET');
+const TZ = Session.getScriptTimeZone() || 'Asia/Bangkok';
+const SPREADSHEET_ID = '1vlwh_vnnrNJr42alrKc8JDy7B3jhBkkWYBpbqtEJn3Y';
+
+// === LINE Signature Verify ===
+function verifySignature_(body, sigHeader) {
+  if (!CHANNEL_SECRET) return true;
+  const mac = Utilities.computeHmacSha256Signature(body, CHANNEL_SECRET);
+  const sig = Utilities.base64Encode(mac);
+  return sig === sigHeader;
+}
+/**
+ * ป้องกันการนับ booking_start ซ้ำจาก user เดิมในเวลาใกล้กัน
+ * ใช้ CacheService เก็บ timestamp ล่าสุดของแต่ละ user
+ */
+function shouldLogBookingStart_(userId) {
+  if (!userId) return true;  // เผื่อกรณีไม่มี userId ก็ปล่อย log ไป
+
+  const cache = CacheService.getScriptCache();
+  const key = 'booking_start_' + userId;
+
+  const lastTsStr = cache.get(key);
+  const now = Date.now();
+  const WINDOW_MS = 5000; // 5 วินาที (ปรับได้ 3–10 วิ ตามชอบ)
+
+  if (lastTsStr) {
+    const lastTs = Number(lastTsStr);
+    if (!isNaN(lastTs) && (now - lastTs) < WINDOW_MS) {
+      // ภายใน 5 วิ → ถือว่าเป็น echo/ซ้ำจาก interaction เดียวกัน → ไม่ต้อง log ซ้ำ
+      return false;
+    }
+  }
+
+  // บันทึกเวลาเริ่มจองล่าสุดของ user นี้ มีอายุ cache 60 วิ
+  cache.put(key, String(now), 60);
+  return true;
+}
+
+
+// === LINE Reply / Push helpers ===
+function replyMessage_(replyToken, messages) {
+  if (!replyToken) return;
+  UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + TOKEN },
+    payload: JSON.stringify({
+      replyToken: replyToken,
+      messages: Array.isArray(messages) ? messages : [messages]
+    })
+  });
+}
+
+function pushReply_(replyToken, message) {
+  replyMessage_(replyToken, message);
+}
+
+function pushMessage_(to, messages) {
+  if (!to) return;
+  UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + TOKEN },
+    payload: JSON.stringify({
+      to: to,
+      messages: Array.isArray(messages) ? messages : [messages]
+    })
+  });
+}
+
+/** HTTP Handlers **/
+function doGet(e) {
+  return ContentService.createTextOutput('OK')
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+const ALLOW_EMPTY_VERIFY = true;
+
+function doPost(e) {
+  const t0 = Date.now();
+
+  const bodyStr = e && e.postData && e.postData.contents || '';
+
+  console.log("=== doPost START ===", new Date());
+  console.log("RAW BODY:", bodyStr);
+
+  try {
+    const sigHdr = e && e.postData && e.postData.headers
+      ? (e.postData.headers['X-Line-Signature'] || e.postData.headers['x-line-signature'])
+      : '';
+
+    if (!verifySignature_(bodyStr, sigHdr)) {
+      console.warn('Signature not valid');
+      if (!ALLOW_EMPTY_VERIFY) {
+        // log stat กรณี signature ไม่ผ่าน
+        logStatEvent_({
+          eventType: 'system',
+          action: 'signature_invalid',
+          step: 'doPost',
+          label: 'invalid_signature',
+          extra: { hasSig: !!sigHdr }
+        });
+        return ContentService.createTextOutput('OK');
+      }
+    }
+
+    const body = JSON.parse(bodyStr);
+    const events = body.events || [];
+
+    // log จำนวน event ต่อรอบ doPost
+    logStatEvent_({
+      eventType: 'system',
+      action: 'doPost_events',
+      step: 'doPost',
+      label: 'events_count',
+      extra: { count: events.length }
+    });
+
+    for (const ev of events) {
+      if (ev.type === 'postback') {
+        handlePostback_(ev);
+      } else if (ev.type === 'message'
+        && ev.message
+        && ev.message.type === 'text') {
+        handleMessage_(ev);
+      } else {
+        console.log("Ignored event:", JSON.stringify(ev));
+        // log event ที่ไม่ได้ใช้
+        logStatFromEvent_(ev, {
+          eventType: ev.type,
+          action: 'ignored_event',
+          step: 'doPost',
+          label: 'ignored'
+        });
+      }
+    }
+
+  } catch (err) {
+    console.error("doPost error:", err);
+    logStatEvent_({
+      eventType: 'system',
+      action: 'doPost_error',
+      step: 'doPost',
+      label: 'error',
+      extra: { message: err && err.message }
+    });
+  }
+
+  logStatTime_('doPost', t0);
+
+  return ContentService.createTextOutput("OK");
+}
+
+// ========== FLOW จองสนาม: Message Entry ==========
+
+function handleMessage_(event) {
+  const t0 = Date.now();
+  const text = (event.message.text || '').trim();
+  const replyToken = event.replyToken;
+  const userId = event.source && event.source.userId;
+
+    // ===== Entry: Rich Menu (message) =====
+  if (text === 'ค้นหาเวลา') {
+    logStatFromEvent_(event, {
+      eventType: 'message',
+      action: 'search_time_menu_message',
+      step: 'search_time',
+      label: 'open_choice'
+    });
+
+    showSearchModeQuickReply_(event);
+    logStatTime_('handleMessage_', t0, { text: text });
+    return;
+  }
+
+  if (text === 'จองสนาม') {
+  // ใช้ debounce กันการนับซ้ำ
+  if (shouldLogBookingStart_(userId)) {
+    logStatFromEvent_(event, {
+      eventType: 'message',
+      action: 'booking_start',
+      step: 'booking',
+      label: 'start_booking'
+    });
+  } else {
+    // จะ log ไหมก็ได้ เผื่ออยากเห็นว่ามี suppressed เท่าไหร่
+    logStatFromEvent_(event, {
+      eventType: 'message',
+      action: 'booking_start_suppressed',
+      step: 'booking',
+      label: 'duplicate_within_window'
+    });
+  }
+
+  // เริ่ม flow: เลือกวันที่ ตอบทันที
+  replySelectDate_(replyToken);
+} else if (text === 'เลือกเวลาใหม่') {
+    // log กดเลือกเวลาใหม่
+    logStatFromEvent_(event, {
+      eventType: 'message',
+      action: 'booking_change_time',
+      step: 'booking',
+      label: 'change_time'
+    });
+
+    // เริ่ม flow เลือกเวลาใหม่แบบมี loading
+    replyMessage_(replyToken, {
+      type: "text",
+      text: "ได้เลยค่าา รอสักครู่ค่ะ 😊"
+    });
+
+    Utilities.sleep(500);
+
+    if (userId) {
+      pushMessage_(userId, buildSelectTimeFlex_());
+    }
+  } else if (text === 'ค้นทุกช่วง') {
+  // คีย์เวิร์ดลับสำหรับแอดมินทดสอบ (ลูกค้าใช้ผ่านเมนูเท่านั้น)
+  logStatFromEvent_(event, {
+    eventType: 'message',
+    action: 'admin_start_search_every_slot',
+    step: 'search_every_slot',
+    label: 'keyword_start'
+  });
+
+  // เริ่ม flow “ค้นทุกช่วง”
+  startSearchEverySlot_(event);
+  
+  } else {
+    // ข้อความที่บอทไม่รองรับ → log ไว้ว่ามีคนพิมพ์อะไรมา
+    logStatFromEvent_(event, {
+      eventType: 'message',
+      action: 'message_ignored',
+      step: 'general',
+      label: 'ignored_text'
+    });
+    logStatTime_('handleMessage_', t0, { text: text, ignored: true });
+    return;
+  }
+
+  logStatTime_('handleMessage_', t0, { text: text });
+}
+
+// ========== Flow: เลือกวันที่ → เวลา → ชั่วโมง → สนาม ==========
+
+// 1) ส่ง Flex ให้เลือกวันที่
+function replySelectDate_(replyToken) {
+  const flex = {
+    type: "flex",
+    altText: "เลือกวันที่จองสนาม",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "กรุณาเลือกวันที่",
+            weight: "bold",
+            size: "lg"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              {
+                type: "button",
+                style: "secondary",
+                action: {
+                  type: "postback",
+                  label: "วันนี้",
+                  data: "action=selectDate&mode=today"
+                }
+              },
+              {
+                type: "button",
+                style: "secondary",
+                action: {
+                  type: "postback",
+                  label: "พรุ่งนี้",
+                  data: "action=selectDate&mode=tomorrow"
+                }
+              },
+              {
+                type: "button",
+                style: "primary",
+                action: {
+                  type: "datetimepicker",
+                  label: "วันอื่นๆ",
+                  data: "action=selectDate",
+                  mode: "date"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+
+  pushReply_(replyToken, flex);
+}
+
+// 2) Postback Router
+
+function handlePostback_(event) {
+  const t0 = Date.now();
+
+  console.log('POSTBACK EVENT:', JSON.stringify(event));
+  const userId = event.source.userId;
+  const dataObj = parseQuery_(event.postback.data || '');
+
+  // log ว่ามีการกด postback อะไร
+  logStatFromEvent_(event, {
+    eventType: 'postback',
+    action: dataObj.action || 'unknown_action',
+    step: 'router',
+    label: 'postback_router',
+    extra: dataObj
+  });
+
+  switch (dataObj.action) {
+    // ===== Day10: ค้นทุกช่วง =====
+
+        // ===== Entry: Rich Menu "ค้นหาเวลา" =====
+    case 'search_time_menu':
+      showSearchModeQuickReply_(event);
+      break;
+
+    case 'choose_search_mode':
+      routeSearchMode_(event, dataObj);
+      break;
+
+    case 'start_search_every_slot':
+      startSearchEverySlot_(event);
+      break;
+
+    case 'pick_date_search_every_slot':
+      handlePickDateSearchEverySlot_(event, dataObj);
+      break;
+
+    case 'set_date_search_every_slot':
+      handleSetDateSearchEverySlot_(event, dataObj);
+      break;
+
+    case 'pick_duration_search_every_slot':
+      handlePickDurationSearchEverySlot_(event, dataObj);
+      break;
+
+    case 'check_time_search_every_slot':
+      handleCheckTimeSearchEverySlot_(event, dataObj);
+      break;
+
+    case 'restart_search_every_slot':
+      startSearchEverySlot_(event);
+      break;
+
+
+    case 'selectDate':
+      handleSelectDate_(event, userId, dataObj);
+      break;
+    case 'selectTime':
+      handleSelectTime_(event, userId, dataObj);
+      break;
+    case 'selectDuration':
+      handleSelectDuration_(event, userId, dataObj);
+      break;
+    case 'selectField':
+      handleSelectField_(event, userId, dataObj);
+      break;
+    case 'selectAltSlot':
+      handleSelectAltSlot_(event, userId, dataObj);
+      break;
+    default:
+      console.log('Unknown postback action:', dataObj.action);
+      logStatFromEvent_(event, {
+        eventType: 'postback',
+        action: 'unknown_action',
+        step: 'router',
+        label: 'unknown',
+        extra: dataObj
+      });
+  }
+
+  logStatTime_('handlePostback_', t0, { action: dataObj.action });
+}
+
+function parseQuery_(q) {
+  const obj = {};
+  (q || '').split('&').forEach(pair => {
+    if (!pair) return;
+    const [k, v] = pair.split('=');
+    obj[k] = decodeURIComponent(v || '');
+  });
+  return obj;
+}
+
+// 3) Handle เลือกวันที่
+
+function handleSelectDate_(event, userId, data) {
+  const t0 = Date.now();
+  let dateStr;
+
+  if (data.mode === 'today') {
+    dateStr = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  } else if (data.mode === 'tomorrow') {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    dateStr = Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
+  } else if (event.postback.params && event.postback.params.date) {
+    dateStr = event.postback.params.date; // จาก datetimepicker
+  }
+
+  if (!dateStr) {
+    replyMessage_(event.replyToken, {
+      type: 'text',
+      text: 'ไม่สามารถอ่านวันที่ได้ กรุณาลองใหม่ โดยพิมพ์ "จองสนาม" อีกครั้งครับ'
+    });
+
+    logStatFromEvent_(event, {
+      eventType: 'postback',
+      action: 'booking_select_date_error',
+      step: 'booking',
+      label: 'date_missing'
+    });
+    logStatTime_('handleSelectDate_', t0, { success: false });
+    return;
+  }
+
+  // log เลือกวันที่สำเร็จ
+  logStatFromEvent_(event, {
+    eventType: 'postback',
+    action: 'booking_select_date',
+    step: 'booking',
+    label: 'select_date',
+    extra: { date: dateStr, mode: data.mode || 'picker' }
+  });
+
+  // 1) ตอบ loading ก่อน (ให้ไวที่สุด)
+  replyMessage_(event.replyToken, {
+    type: "text",
+    text: "โอเคค่า เดี๋ยวหาช่วงเวลาให้แป๊บนะคะ 😊"
+  });
+
+  // 2) แล้วค่อยเซฟลงชีต + ส่ง Flex ทีหลัง
+  saveUserState_(userId, { date: dateStr });
+
+  Utilities.sleep(500);
+
+  pushMessage_(userId, buildSelectTimeFlex_());
+
+  logStatTime_('handleSelectDate_', t0, { success: true, date: dateStr });
+}
+
+// 4) Flex: เลือกเวลา (16:00 - 24:00 ด้วย carousel)
+
+function buildSelectTimeFlex_() {
+  return {
+    "type": "flex",
+    "altText": "เลือกเวลาเริ่ม",
+    "contents": {
+      "type": "carousel",
+      "contents": [
+
+        {
+          "type": "bubble",
+          "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": [
+              {
+                "type": "text",
+                "text": "เลือกเวลา (16:00 - 18:00)",
+                "weight": "bold",
+                "size": "lg"
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "16:00","data": "action=selectTime&time_from=16:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "16:30","data": "action=selectTime&time_from=16:30" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "17:00","data": "action=selectTime&time_from=17:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "17:30","data": "action=selectTime&time_from=17:30" } }
+                ]
+              }
+            ]
+          }
+        },
+
+        {
+          "type": "bubble",
+          "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": [
+              {
+                "type": "text",
+                "text": "เลือกเวลา (18:00 - 20:00)",
+                "weight": "bold",
+                "size": "lg"
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "18:00","data": "action=selectTime&time_from=18:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "18:30","data": "action=selectTime&time_from=18:30" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "19:00","data": "action=selectTime&time_from=19:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "19:30","data": "action=selectTime&time_from=19:30" } }
+                ]
+              }
+            ]
+          }
+        },
+
+        {
+          "type": "bubble",
+          "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": [
+              {
+                "type": "text",
+                "text": "เลือกเวลา (20:00 - 22:00)",
+                "weight": "bold",
+                "size": "lg"
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "20:00","data": "action=selectTime&time_from=20:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "20:30","data": "action=selectTime&time_from=20:30" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "21:00","data": "action=selectTime&time_from=21:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "21:30","data": "action=selectTime&time_from=21:30" } }
+                ]
+              }
+            ]
+          }
+        },
+
+        {
+          "type": "bubble",
+          "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": [
+              {
+                "type": "text",
+                "text": "เลือกเวลา (22:00 - 24:00)",
+                "weight": "bold",
+                "size": "lg"
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "22:00","data": "action=selectTime&time_from=22:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "22:30","data": "action=selectTime&time_from=22:30" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "23:00","data": "action=selectTime&time_from=23:00" } },
+                  { "type": "button","style":"secondary",
+                    "action": { "type": "postback","label": "23:30","data": "action=selectTime&time_from=23:30" } }
+                ]
+              }
+            ]
+          }
+        }
+
+      ]
+    }
+  };
+}
+
+function replySelectTime_(replyToken) {
+  pushReply_(replyToken, buildSelectTimeFlex_());
+}
+
+// 5) Handle เลือกเวลา → ไปเลือกจำนวนชั่วโมง
+
+function handleSelectTime_(event, userId, data) {
+  const t0 = Date.now();
+  const t = data.time_from;
+  console.log("handleSelectTime_: user", userId, "selected time", t);
+
+  if (!t) {
+    replyMessage_(event.replyToken, {
+      type: 'text',
+      text: 'ไม่พบเวลาเริ่ม กรุณาลองใหม่ครับ'
+    });
+
+    logStatFromEvent_(event, {
+      eventType: 'postback',
+      action: 'booking_select_time_error',
+      step: 'booking',
+      label: 'time_missing'
+    });
+    logStatTime_('handleSelectTime_', t0, { success: false });
+    return;
+  }
+
+  // log เลือกเวลาเริ่ม
+  logStatFromEvent_(event, {
+    eventType: 'postback',
+    action: 'booking_select_time',
+    step: 'booking',
+    label: 'select_time',
+    extra: { time_from: t }
+  });
+
+  // 1) ตอบ loading ก่อน
+  replyMessage_(event.replyToken, {
+    type: "text",
+    text: "โอเคค่ะ ขอเวลาค้นหาแป๊ปนะ"
+  });
+
+  // 2) แล้วค่อยเซฟ state + ส่ง Flex ทีหลัง
+  saveUserState_(userId, { time_from: t });
+
+  Utilities.sleep(500);
+
+  pushMessage_(userId, buildSelectDurationFlex_());
+
+  logStatTime_('handleSelectTime_', t0, { success: true, time_from: t });
+}
+
+
+// 6) Flex: เลือกจำนวนชั่วโมง
+
+function buildSelectDurationFlex_() {
+  return {
+    type: "flex",
+    altText: "เลือกจำนวนชั่วโมง",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: "ต้องการจองนานเท่าไหร่?", weight: "bold", size: "lg" },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              {
+                type: "button",
+                style: "secondary",
+                action: {
+                  type: "postback",
+                  label: "1 ชม.",
+                  data: "action=selectDuration&duration_h=1"
+                }
+              },
+              {
+                type: "button",
+                style: "secondary",
+                action: {
+                  type: "postback",
+                  label: "1.5 ชม.",
+                  data: "action=selectDuration&duration_h=1.5"
+                }
+              },
+              {
+                type: "button",
+                style: "secondary",
+                action: {
+                  type: "postback",
+                  label: "2 ชม.",
+                  data: "action=selectDuration&duration_h=2"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+}
+
+function replySelectDuration_(replyToken) {
+  pushReply_(replyToken, buildSelectDurationFlex_());
+}
+
+function handleSelectDuration_(event, userId, data) {
+  const t0 = Date.now();
+  const d = data.duration_h;
+  if (!d) {
+    replyMessage_(event.replyToken, {
+      type: 'text',
+      text: 'ไม่พบจำนวนชั่วโมง กรุณาลองใหม่ครับ'
+    });
+
+    logStatFromEvent_(event, {
+      eventType: 'postback',
+      action: 'booking_select_duration_error',
+      step: 'booking',
+      label: 'duration_missing'
+    });
+    logStatTime_('handleSelectDuration_', t0, { success: false });
+    return;
+  }
+
+  // log เลือกจำนวนชั่วโมงสำเร็จ
+  logStatFromEvent_(event, {
+    eventType: 'postback',
+    action: 'booking_select_duration',
+    step: 'booking',
+    label: 'select_duration',
+    extra: { duration_h: d }
+  });
+
+  // 1) ตอบ loading ก่อน
+  replyMessage_(event.replyToken, {
+    type: "text",
+    text: "โอเคค่ะ รอสักคู่นะคะ"
+  });
+
+  // 2) แล้วค่อยเซฟ state + ส่ง Flex สนามทีหลัง
+  saveUserState_(userId, { duration_h: d });
+
+  Utilities.sleep(500);
+
+  pushMessage_(userId, buildSelectFieldFlex_());
+
+  logStatTime_('handleSelectDuration_', t0, { success: true, duration_h: d });
+}
+
+// 7) Flex: เลือกสนาม (ครบ 6 สนาม)
+
+function buildSelectFieldFlex_() {
+  const fields = listActiveFields_();
+
+  const buttons = fields.map(m => ({
+    type: "button",
+    style: "primary",
+    action: {
+      type: "postback",
+      label: `${m.label} (${m.type})`,
+      data: `action=selectField&field_no=${m.no}`
+    }
+  }));
+
+  return {
+    type: "flex",
+    altText: "เลือกสนาม",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: "กรุณาเลือกสนาม", weight: "bold", size: "lg" },
+          { type: "separator" },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: buttons
+          }
+        ]
+      }
+    }
+  };
+}
+
+
+function replySelectField_(replyToken) {
+  pushReply_(replyToken, buildSelectFieldFlex_());
+}
+
+
+function handleSelectField_(event, userId, data) {
+  const t0 = Date.now();
+  try {
+    console.log('handleSelectField_ data =', JSON.stringify(data));
+
+    const fieldNo = data.field_no;
+
+    // log เลือกสนาม
+    logStatFromEvent_(event, {
+      eventType: 'postback',
+      action: 'booking_select_field',
+      step: 'booking',
+      label: 'select_field',
+      extra: { field_no: fieldNo }
+    });
+
+    // 1) ตอบ loading ก่อน ให้ลูกค้ารู้ว่าระบบกำลังเช็ค
+    replyMessage_(event.replyToken, {
+      type: "text",
+      text: "ขอเช็คเวลาให้สักครู่นะคะ"
+    });
+
+    // 2) แล้วค่อยเซฟ state + โหลด state เต็ม + เช็คคิว
+    saveUserState_(userId, { field_no: fieldNo });
+
+    const state = getUserState_(userId);
+    console.log('handleSelectField_ state =', JSON.stringify(state));
+
+    if (!state.date || !state.time_from || !state.duration_h) {
+      // ใช้ push เพราะ replyToken ใช้ไปแล้ว
+      pushMessage_(userId, {
+        type: "text",
+        text: 'ข้อมูลยังไม่ครบ ลองพิมพ์ "จองสนาม" เพื่อเริ่มใหม่อีกครั้งได้ไหมคะ'
+      });
+
+      logStatEvent_({
+        userId: userId,
+        sourceType: 'user',
+        eventType: 'system',
+        action: 'error_state_incomplete',
+        step: 'booking',
+        label: 'state_missing',
+        extra: state
+      });
+      logStatTime_('handleSelectField_', t0, { success: false, reason: 'state_incomplete' });
+      return;
+    }
+
+    const timeTo = calcTimeTo_(state.time_from, parseFloat(state.duration_h));
+
+    const result = checkAvailability_(state.date, state.field_no, state.time_from, timeTo);
+    console.log('checkAvailability_ result =', JSON.stringify(result));
+
+    if (result.available) {
+      // log ว่าช่วงเวลานี้ว่าง
+      logStatEvent_({
+        userId: userId,
+        sourceType: 'user',
+        eventType: 'system',
+        action: 'booking_result_available',
+        step: 'booking',
+        label: 'available',
+        extra: {
+          date: state.date,
+          field_no: state.field_no,
+          time_from: state.time_from,
+          time_to: timeTo,
+          duration_h: state.duration_h
+        }
+      });
+
+      const flex = buildAvailableFlex_(
+        state.date,
+        state.field_no,
+        state.time_from,
+        timeTo,
+        state.duration_h
+      );
+      pushMessage_(userId, flex);
+    } else {
+      const requestedTime = state.time_from + ' - ' + timeTo;
+
+      // log ว่าช่วงเวลานี้ไม่ว่าง + มี alt slots กี่อัน
+      logStatEvent_({
+        userId: userId,
+        sourceType: 'user',
+        eventType: 'system',
+        action: 'booking_result_unavailable',
+        step: 'booking',
+        label: 'unavailable',
+        extra: {
+          date: state.date,
+          field_no: state.field_no,
+          requested: requestedTime,
+          alt_count: (result.altSlots || []).length
+        }
+      });
+
+      const flex = buildUnavailableWithAltFlex_(
+        state.date,
+        state.field_no,
+        requestedTime,
+        result.altSlots
+      );
+      pushMessage_(userId, flex);
+    }
+
+    logStatTime_('handleSelectField_', t0, { success: true });
+
+  } catch (err) {
+    console.error('handleSelectField_ error:', err);
+    // ข้อความ error ไม่พูดถึง Matchday
+    pushMessage_(userId, {
+      type: "text",
+      text: "แง ระบบติดขัดนิดนึง ลองใหม่อีกทีได้ไหมคะ 🙏"
+    });
+
+    logStatEvent_({
+      userId: userId,
+      sourceType: 'user',
+      eventType: 'system',
+      action: 'handleSelectField_error',
+      step: 'booking',
+      label: 'exception',
+      extra: { message: err && err.message }
+    });
+    logStatTime_('handleSelectField_', t0, { success: false, error: err && err.message });
+  }
+}
+
+// 8) เวลาแนะนำ (กดจาก altSlots)
+
+function handleSelectAltSlot_(event, userId, data) {
+  const t0 = Date.now();
+  console.log("ALT SLOT RAW data =", JSON.stringify(data));
+
+  const date = data.date;
+  const fieldNo = data.field_no;
+
+  const timeFrom = decodeURIComponent(data.time_from || '');
+  const timeTo   = decodeURIComponent(data.time_to || '');
+
+  // log การเลือก alt slot
+  logStatFromEvent_(event, {
+    eventType: 'postback',
+    action: 'booking_alt_slot',
+    step: 'alt_slot',
+    label: 'select_alt_slot',
+    extra: {
+      date: date,
+      field_no: fieldNo,
+      time_from: timeFrom,
+      time_to: timeTo
+    }
+  });
+
+  // 1) ตอบ loading ก่อน
+  replyMessage_(event.replyToken, {
+    type: "text",
+    text: "ได้เลยค่า เดี๋ยวเช็คให้แป๊บนะคะ"
+  });
+
+  // 2) แล้วค่อยเซฟ state + เช็คคิว + ส่งผลทีหลัง
+  saveUserState_(userId, {
+    date: date,
+    field_no: fieldNo,
+    time_from: timeFrom
+  });
+
+  const result = checkAvailability_(date, fieldNo, timeFrom, timeTo);
+
+  if (result.available) {
+    logStatEvent_({
+      userId: userId,
+      sourceType: 'user',
+      eventType: 'system',
+      action: 'booking_result_available_alt',
+      step: 'alt_slot',
+      label: 'available_alt',
+      extra: { date, fieldNo, timeFrom, timeTo }
+    });
+
+    const flex = buildAvailableFlex_(date, fieldNo, timeFrom, timeTo, '');
+    pushMessage_(userId, flex);
+  } else {
+    const requestedTime = timeFrom + ' - ' + timeTo;
+
+    logStatEvent_({
+      userId: userId,
+      sourceType: 'user',
+      eventType: 'system',
+      action: 'booking_result_unavailable_alt',
+      step: 'alt_slot',
+      label: 'unavailable_alt',
+      extra: {
+        date: date,
+        field_no: fieldNo,
+        requested: requestedTime,
+        alt_count: (result.altSlots || []).length
+      }
+    });
+
+    const flex = buildUnavailableWithAltFlex_(date, fieldNo, requestedTime, result.altSlots);
+    pushMessage_(userId, flex);
+  }
+
+  logStatTime_('handleSelectAltSlot_', t0, { date, fieldNo, timeFrom, timeTo });
+}
+
+// ========== USER STATE SHEET HELPERS ==========
+
+function shUserState_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sh = ss.getSheetByName('user_state');
+  if (!sh) {
+    sh = ss.insertSheet('user_state');
+    const headers = ['user_id', 'date', 'time_from', 'duration_h', 'field_no', 'updated_at'];
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+
+  // บังคับเป็น text เพื่อลดปัญหา format เพี้ยน
+  sh.getRange('B:B').setNumberFormat('@STRING@'); // date
+  sh.getRange('C:C').setNumberFormat('@STRING@'); // time_from
+  sh.getRange('D:D').setNumberFormat('@STRING@'); // duration_h
+  sh.getRange('E:E').setNumberFormat('@STRING@'); // field_no
+  sh.getRange('F:F').setNumberFormat('@STRING@'); // updated_at
+
+  return sh;
+}
+
+function getUserState_(userId) {
+  const sh = shUserState_();
+  const vals = sh.getDataRange().getDisplayValues();
+
+  if (!vals || vals.length < 2) return {};
+
+  const head = vals[0];
+  const idx = {};
+  head.forEach((h, i) => idx[h] = i);
+
+  for (let r = 1; r < vals.length; r++) {
+    const row = vals[r];
+    if (row[idx['user_id']] === userId) {
+
+      const foundState = {
+        user_id   : userId,
+        date      : row[idx['date']] || '',
+        time_from : row[idx['time_from']] || '',
+        duration_h: row[idx['duration_h']] ? parseFloat(row[idx['duration_h']]) : '',
+        field_no  : row[idx['field_no']] || ''
+      };
+
+      console.log("getUserState_ RETURN:", JSON.stringify(foundState));
+
+      return foundState;
+    }
+  }
+
+  return {};
+}
+
+function saveUserState_(userId, patch) {
+  const sh = shUserState_();
+
+  const rng = sh.getDataRange();
+  let vals = rng.getDisplayValues();
+
+  if (vals.length === 1 && vals[0].every(v => v === '')) {
+    const headers = ['user_id', 'date', 'time_from', 'duration_h', 'field_no', 'updated_at'];
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    vals = sh.getDataRange().getDisplayValues();
+  }
+
+  const head = vals[0];
+  const idx = {};
+  head.forEach((h, i) => idx[h] = i);
+
+  console.log("saveUserState_ PATCH (raw):", JSON.stringify(patch));
+
+  function normalizeForSave(value) {
+    if (value === null || value === undefined) return '';
+    return String(value);
+  }
+
+  const nowStr = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss');
+
+  // หา row เดิมของ user
+  let rowIndex = -1;
+  for (let r = 1; r < vals.length; r++) {
+    if (vals[r][idx['user_id']] === userId) {
+      rowIndex = r + 1;   // +1 เพราะ index แถวจริงเริ่มจาก 1
+      break;
+    }
+  }
+  console.log("saveUserState_ BEFORE SAVE rowIndex =", rowIndex);
+
+  // ถ้า row มีอยู่แล้ว → check ว่าค่าเปลี่ยนจริงไหม
+  if (rowIndex !== -1) {
+    const currentRowVals = sh.getRange(rowIndex, 1, 1, head.length).getDisplayValues()[0];
+
+    const effectivePatch = {};
+    Object.keys(patch).forEach(k => {
+      if (idx[k] == null) return;
+      const newVal = normalizeForSave(patch[k]);
+      const oldVal = currentRowVals[idx[k]] || '';
+      if (newVal !== oldVal) {
+        effectivePatch[k] = patch[k];
+      }
+    });
+
+    if (Object.keys(effectivePatch).length === 0) {
+      console.log("saveUserState_ SKIP (no actual change)");
+      return;
+    }
+
+    patch = effectivePatch;
+  }
+
+  if (rowIndex === -1) {
+    const row = new Array(head.length).fill('');
+    row[idx['user_id']] = userId;
+    Object.keys(patch).forEach(k => {
+      if (idx[k] != null) row[idx[k]] = normalizeForSave(patch[k]);
+    });
+    if (idx['updated_at'] != null) {
+      row[idx['updated_at']] = nowStr;
+    }
+    sh.appendRow(row);
+
+  } else {
+    const rowVals = sh.getRange(rowIndex, 1, 1, head.length).getDisplayValues()[0];
+    Object.keys(patch).forEach(k => {
+      if (idx[k] != null) rowVals[idx[k]] = normalizeForSave(patch[k]);
+    });
+    if (idx['updated_at'] != null) {
+      rowVals[idx['updated_at']] = nowStr;
+    }
+    sh.getRange(rowIndex, 1, 1, head.length).setValues([rowVals]);
+  }
+
+  console.log("saveUserState_ PATCH (effective):", JSON.stringify(patch));
+
+  // log แยกอีกชีต
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let logSh = ss.getSheetByName('log');
+    if (!logSh) {
+      logSh = ss.insertSheet('log');
+      logSh.getRange(1, 1, 1, 4).setValues([['ts', 'user_id', 'action', 'patch']]);
+    }
+    logSh.appendRow([
+      nowStr,
+      userId,
+      'saveUserState_',
+      JSON.stringify(patch)
+    ]);
+  } catch (err) {
+    console.error('log error:', err);
+  }
+}
+
+// ========== Helpers: Time / Availability (Matchday) ==========
+
+function calcTimeTo_(timeFrom, durationH) {
+  if (!timeFrom) return '';
+  if (typeof timeFrom !== 'string') {
+    timeFrom = String(timeFrom);
+  }
+
+  const parts = timeFrom.split(':');
+  if (parts.length !== 2) return '';
+
+  const hh = Number(parts[0]) || 0;
+  const mm = Number(parts[1]) || 0;
+
+  const base = new Date(2000, 0, 1, hh, mm, 0);
+  const end = new Date(base.getTime() + durationH * 60 * 60 * 1000);
+
+  const h2 = ('0' + end.getHours()).slice(-2);
+  const m2 = ('0' + end.getMinutes()).slice(-2);
+  return `${h2}:${m2}`;
+}
+
+function fmtHm_(dt) {
+  const h = ('0' + dt.getHours()).slice(-2);
+  const m = ('0' + dt.getMinutes()).slice(-2);
+  return h + ':' + m;
+}
+
+/**
+ * เช็คคิวจาก Matchday อย่างเดียว
+ * ใช้ฟังก์ชันจาก matchday_api.gs: mapFieldNoToCourtId_, fetchMatchdayMatches_,
+ * buildBusyIntervalsFromMatchday_, makeDate_, isSlotFreeByBusyList_
+ */
+/**
+ * เช็คคิวจาก Matchday อย่างเดียว
+ * ใช้ฟังก์ชันจาก matchday_api.gs: mapFieldNoToCourtId_, fetchMatchdayMatches_,
+ * buildBusyIntervalsFromMatchday_, makeDate_, isSlotFreeByBusyList_
+ *
+ * ✅ PATCH: Fail-Closed
+ * - ถ้า helpers ไม่พร้อม / map สนามไม่ได้ / matchday error / fatal error
+ *   => return available:false (กันตอบว่างมั่ว)
+ */
+function checkAvailability_(isoDateStr, fieldNo, timeFrom, timeTo) {
+  try {
+    if (typeof mapFieldNoToCourtId_ !== 'function' ||
+        typeof fetchMatchdayMatches_ !== 'function' ||
+        typeof buildBusyIntervalsFromMatchday_ !== 'function' ||
+        typeof makeDate_ !== 'function' ||
+        typeof isSlotFreeByBusyList_ !== 'function') {
+
+      console.warn('Matchday helpers not ready, skip external availability check.');
+
+      logStatEvent_({
+        eventType: 'system',
+        action: 'checkAvailability_skip',
+        step: 'availability',
+        label: 'helpers_missing',
+        extra: { isoDateStr, fieldNo, timeFrom, timeTo }
+      });
+
+      // ✅ เดิมเคย return available:true
+      return { available: false, altSlots: [] };
+    }
+
+    const courtId = mapFieldNoToCourtId_(fieldNo);
+    if (!courtId) {
+      console.warn('mapFieldNoToCourtId_ ไม่รู้จัก fieldNo =', fieldNo);
+
+      logStatEvent_({
+        eventType: 'system',
+        action: 'checkAvailability_unknown_field',
+        step: 'availability',
+        label: 'unknown_field',
+        extra: { isoDateStr, fieldNo, timeFrom, timeTo }
+      });
+
+      // ✅ เดิมเคย return available:true
+      return { available: false, altSlots: [] };
+    }
+
+    let busy = [];
+    try {
+      const matches = fetchMatchdayMatches_(isoDateStr, courtId);
+      busy = buildBusyIntervalsFromMatchday_(matches); // [{start, end, raw}, ...]
+    } catch (err) {
+      console.error('fetchMatchdayMatches_ error:', err && err.message);
+
+      logStatEvent_({
+        eventType: 'system',
+        action: 'checkAvailability_matchday_error',
+        step: 'availability',
+        label: 'matchday_error',
+        extra: { isoDateStr, fieldNo, timeFrom, timeTo, error: err && err.message }
+      });
+
+      // ✅ เดิมเคย return available:true
+      return { available: false, altSlots: [] };
+    }
+
+    const askStart = makeDate_(isoDateStr, timeFrom);
+    const askEnd   = makeDate_(isoDateStr, timeTo);
+    const durationH = (askEnd.getTime() - askStart.getTime()) / 3600000;
+
+    const isFree = isSlotFreeByBusyList_(askStart, durationH, busy);
+    if (isFree) {
+      return { available: true, altSlots: [] };
+    }
+
+    // --- ถ้าไม่ว่าง: สร้าง altSlots เหมือนเดิม ---
+    const suggestions = [];
+    const usedKeys = {};
+    const stepMs = 30 * 60 * 1000;
+    const slotMs = durationH * 3600000;
+    const maxTotal = 5;
+
+    const dayStart = makeDate_(isoDateStr, '00:00');
+    const dayEnd   = makeDate_(isoDateStr, '23:59');
+
+    function fmtHm_(dt) {
+      const h = ('0' + dt.getHours()).slice(-2);
+      const m = ('0' + dt.getMinutes()).slice(-2);
+      return h + ':' + m;
+    }
+
+    function addSuggestionIfFree(startDt) {
+      const endDt = new Date(startDt.getTime() + slotMs);
+      if (startDt < dayStart || endDt > new Date(dayEnd.getTime() + 1000)) return;
+      if (!isSlotFreeByBusyList_(startDt, durationH, busy)) return;
+
+      const key = startDt.getTime();
+      if (usedKeys[key]) return;
+
+      usedKeys[key] = true;
+      suggestions.push({ start: startDt, from: fmtHm_(startDt), to: fmtHm_(endDt) });
+    }
+
+    // ช่วงที่ชนกับเวลาที่ลูกค้าขอ
+    let conflictEnd = null;
+    for (const b of busy) {
+      if (askStart < b.end && askEnd > b.start) {
+        if (!conflictEnd || b.end > conflictEnd) conflictEnd = b.end;
+      }
+    }
+    if (conflictEnd) addSuggestionIfFree(conflictEnd);
+
+    // ก่อนหน้า 2 slot
+    for (let i = 1; i <= 2 && suggestions.length < maxTotal; i++) {
+      addSuggestionIfFree(new Date(askStart.getTime() - stepMs * i));
+    }
+
+    // หลังจากเวลาที่ขอ สูงสุด 3 ช่วง
+    let cursor = new Date(askEnd.getTime());
+    const limit = new Date(askEnd.getTime() + 3 * 3600000);
+    while (cursor < limit && suggestions.length < maxTotal) {
+      addSuggestionIfFree(cursor);
+      cursor = new Date(cursor.getTime() + stepMs);
+    }
+
+    suggestions.sort((a, b) => a.start.getTime() - b.start.getTime());
+    const altSlots = suggestions.map(s => ({ from: s.from, to: s.to }));
+
+    return { available: false, altSlots };
+
+  } catch (err) {
+    console.error('checkAvailability_ fatal error:', err);
+
+    logStatEvent_({
+      eventType: 'system',
+      action: 'checkAvailability_fatal',
+      step: 'availability',
+      label: 'fatal_error',
+      extra: { isoDateStr, fieldNo, timeFrom, timeTo, error: err && err.message }
+    });
+
+    // ✅ เดิมเคย return available:true
+    return { available: false, altSlots: [] };
+  }
+}
+
+
+
+// ========== Flex ตอบกลับ: ว่าง / ไม่ว่าง ==========
+
+function buildAvailableFlex_(date, fieldNo, timeFrom, timeTo, durationH) {
+  return {
+    type: "flex",
+    altText: "ช่วงเวลานี้ว่างพร้อมให้จอง",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "ช่วงเวลานี้ว่างพร้อมให้จอง ✅",
+            weight: "bold",
+            size: "lg",
+            wrap: true
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              row_("วันที่", date),
+              row_("สนาม", "สนาม #" + fieldNo),
+              row_("เวลา", timeFrom + " - " + timeTo),
+              row_("ระยะเวลา", (durationH || '') + " ชั่วโมง")
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            action: {
+              type: "uri",
+              label: "โทรหาแอดมินเพื่อจอง",
+              uri: "tel:0839144000"
+            }
+          },
+          {
+            type: "button",
+            style: "secondary",
+            action: {
+              type: "message",
+              label: "เลือกเวลาใหม่",
+              text: "เลือกเวลาใหม่"
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+
+function replyAvailable_(replyToken, date, fieldNo, timeFrom, timeTo, durationH) {
+  const flex = buildAvailableFlex_(date, fieldNo, timeFrom, timeTo, durationH);
+  pushReply_(replyToken, flex);
+}
+
+function buildUnavailableWithAltFlex_(date, fieldNo, requestedTime, altSlots) {
+  const altButtons = (altSlots || []).map(slot => ({
+    type: "button",
+    style: "secondary",
+    action: {
+      type: "postback",
+      label: slot.from + " - " + slot.to,
+      data: "action=selectAltSlot&date=" + date +
+        "&field_no=" + fieldNo +
+        "&time_from=" + slot.from +
+        "&time_to=" + slot.to
+    }
+  }));
+
+  return {
+    type: "flex",
+    altText: "ช่วงเวลานี้มีคิวแล้ว",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "ช่วงเวลานี้มีคิวแล้ว ❌",
+            weight: "bold",
+            size: "lg",
+            color: "#D32F2F"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              row_("วันที่", date),
+              row_("สนาม", "สนาม #" + fieldNo),
+              row_("เวลา", requestedTime)
+            ]
+          },
+          {
+            type: "text",
+            text: "เวลาใกล้เคียงที่ยังว่าง 🔍",
+            weight: "bold",
+            size: "sm",
+            margin: "md"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: altButtons.length ? altButtons : [
+              { type: "text", text: "ไม่มีเวลาใกล้เคียงที่ว่างในช่วงนี้", size: "sm", color: "#999999" }
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "button",
+            style: "secondary",
+            action: {
+              type: "message",
+              label: "เลือกเวลาใหม่",
+              text: "เลือกเวลาใหม่"
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+
+function replyUnavailableWithAlt_(replyToken, date, fieldNo, requestedTime, altSlots) {
+  const flex = buildUnavailableWithAltFlex_(date, fieldNo, requestedTime, altSlots);
+  pushReply_(replyToken, flex);
+}
+
+function row_(label, value) {
+  return {
+    type: "box",
+    layout: "baseline",
+    contents: [
+      { type: "text", text: label, flex: 3, size: "sm", color: "#888888" },
+      { type: "text", text: value, flex: 7, size: "sm", wrap: true }
+    ]
+  };
+}
+
+// ===== Search Menu: เลือกโหมดค้นหาเวลา =====
+function showSearchModeQuickReply_(ev) {
+  replyMessage_(ev.replyToken, {
+    type: 'text',
+    text: 'ต้องการค้นหาเวลาแบบไหนคะ 😊',
+    quickReply: {
+      items: [
+        qrPostback_('ค้นทีละสนาม', 'action=choose_search_mode&mode=single'),
+        qrPostback_('ค้นหาทั้งหมด', 'action=choose_search_mode&mode=all')
+      ]
+    }
+  });
+}
+
+// ===== Router: พาเข้าโฟลเดิม / โฟล Day10 =====
+function routeSearchMode_(ev, data) {
+  const mode = (data && data.mode) || '';
+
+  logStatFromEvent_(ev, {
+    eventType: 'postback',
+    action: 'choose_search_mode',
+    step: 'search_time',
+    label: mode,
+    extra: data
+  });
+
+  if (mode === 'single') {
+    // ไปโฟลเดิม = เหมือนพิมพ์ “จองสนาม”
+    replySelectDate_(ev.replyToken); // ใช้ของเดิมที่คุณมีอยู่แล้ว
+    return;
+  }
+
+  if (mode === 'all') {
+    // ไปโฟล Day10
+    startSearchEverySlot_(ev); // ใช้ของเดิมใน search_every_slot.gs
+    return;
+  }
+
+  // fallback
+  replyMessage_(ev.replyToken, { type: 'text', text: 'เลือกโหมดไม่สำเร็จ ลองกดใหม่อีกครั้งนะคะ 🙏' });
+}
+

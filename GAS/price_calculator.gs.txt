@@ -1,0 +1,114 @@
+/***** PRICE CALCULATOR (price_calculator.gs) *****/
+
+// Config: เวลาตัดรอบราคา
+const CUTOFF_TIME = '18:00';
+
+/**
+ * คำนวณราคาสนาม ตามกฎที่ระบุ
+ * @param {number|string} fieldNo เชน 1
+ * @param {string} dateStr "2023-XX-XX" (ไม่ค่อยใช้ในการคำนวณราคา แต่เผื่ออนาคต)
+ * @param {string} timeFrom "17:00"
+ * @param {number} durationH 1.5
+ * @return {object} { price: number, detail: string }
+ */
+function calculatePrice(fieldNo, dateStr, timeFrom, durationH) {
+  const meta = getFieldMeta_(fieldNo);
+  if (!meta) {
+    return { price: 0, detail: 'Unknown Field' };
+  }
+
+  // Rate
+  const ratePre = meta.price_pre || 0;
+  const ratePost = meta.price_post || 0;
+
+  // Convert Time to Minutes
+  const startMin = timeToMinute_(timeFrom);
+  const endMin = startMin + (durationH * 60);
+  const cutoffMin = timeToMinute_(CUTOFF_TIME);
+
+  // 1. แบ่งช่วงเวลา Pre / Post
+  // ช่วง Pre: ตั้งแต่ start ถึง min(end, cutoff)
+  const preEnd = Math.min(endMin, cutoffMin);
+  const preDurationMin = Math.max(0, preEnd - startMin);
+
+  // ช่วง Post: ตั้งแต่ max(start, cutoff) ถึง end
+  const postStart = Math.max(startMin, cutoffMin);
+  const postDurationMin = Math.max(0, endMin - postStart);
+
+  // Convert back to hours
+  const preH = preDurationMin / 60;
+  const postH = postDurationMin / 60;
+
+  // 2. คำนวณราคา
+  let prePrice = preH * ratePre;
+  let postPriceRaw = postH * ratePost;
+
+  // 3. กฎพิเศษช่วงหลัง 18:00 (Round up logic)
+  // "ช่วงหลัง 18:00 ที่ไม่เต็มชั่วโมง คิดราคาตามสัดส่วนก่อน จากนั้น ปัดขึ้นเป็น หลักร้อยบาท"
+  // ตีความ: ถ้ามีเศษสตางค์ หรือเศษหลักสิบ ให้ปัดขึ้นเป็น 100
+  // เช่น 350 -> 400, 500 -> 500, 1050 -> 1100
+  
+  let postPrice = postPriceRaw;
+  if (postH > 0) {
+    // ถ้าหาร 100 ไม่ลงตัว ให้ปัดขึ้น
+    if (postPriceRaw % 100 !== 0) {
+      postPrice = Math.ceil(postPriceRaw / 100) * 100;
+    }
+  }
+
+  const totalPrice = prePrice + postPrice;
+
+  return {
+    price: totalPrice,
+    detail: `เวลา ${timeFrom} (${durationH}ชม.) สนาม #${fieldNo}:
+    - ก่อน 18:00 (${preH}h x ${ratePre}) = ${prePrice}
+    - หลัง 18:00 (${postH}h x ${ratePost}) = ${postPriceRaw} -> ${postPrice}
+    - รวม = ${totalPrice}`
+  };
+}
+
+
+// Test function
+function testPriceCalculation() {
+  const cases = [
+    // Case 1: Field 1, 17:00 - 18:30 (1.5h) -> Expect 900
+    // 1h pre (500) + 0.5h post (350->400)
+    { field: 1, time: '17:00', dur: 1.5, expect: 900 },
+
+    // Case 2: Field 4, 17:00 - 19:00 (2h) -> Expect 1800
+    // 1h pre (800) + 1h post (1000)
+    { field: 4, time: '17:00', dur: 2.0, expect: 1800 },
+
+    // Case 3: Field 3, 18:30 - 19:30 (1h) -> Expect 1200
+    // 0h pre + 1h post (1200) -> 1200
+    { field: 3, time: '18:30', dur: 1.0, expect: 1200 },
+
+    // Case Supplement 1: Field 1, 18:00 - 18:30 (0.5h) -> Expect 400
+    // 0h pre, 0.5h post (350->400)
+    { field: 1, time: '18:00', dur: 0.5, expect: 400 },
+    
+    // Case Supplement 2: Field 1, 18:00 - 19:00 (1h) -> Expect 700
+    // 0h pre, 1h post (700 -> 700)
+    { field: 1, time: '18:00', dur: 1.0, expect: 700 },
+
+    // Case Supplement 3: Field 1, 18:00 - 19:30 (1.5h) -> Expect 1100
+    // 0h pre, 1.5h post (1050 -> 1100)  [Note: calculated linearly as 1.5x700]
+    { field: 1, time: '18:00', dur: 1.5, expect: 1100 },
+  ];
+
+  cases.forEach((c, i) => {
+    const res = calculatePrice(c.field, '2023-01-01', c.time, c.dur);
+    const pass = (res.price === c.expect);
+    console.log(`Case ${i+1}: Field ${c.field}, ${c.time}, ${c.dur}h => ${res.price} (Expect ${c.expect}) [${pass ? 'PASS' : 'FAIL'}]`);
+    if (!pass) console.log('   Detail:', res.detail);
+  });
+}
+
+// Re-implement helper here if needed, or rely on search_every_slot.gs if loaded order allows. 
+// For safety, duplicate strict helper here or ensure load order.
+// In GAS, file order matters, but functions are hoisted.
+// Just to be safe and independent:
+function timeToMinute_(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}

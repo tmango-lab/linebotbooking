@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "strict": false,
+        "noImplicitAny": false,
+        "strictNullChecks": false
+    },
+    "imports": {
+        "supabase": "https://esm.sh/@supabase/supabase-js@2"
+    }
+}

@@ -1,0 +1,17 @@
+function replyText(replyToken, text) {
+  const token = PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN');
+  if (!token) {
+    console.error('Missing LINE_CHANNEL_ACCESS_TOKEN in Script Properties');
+    return;
+  }
+  UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: JSON.stringify({
+      replyToken,
+      messages: [{ type: 'text', text }]
+    }),
+    muteHttpExceptions: true
+  });
+}
