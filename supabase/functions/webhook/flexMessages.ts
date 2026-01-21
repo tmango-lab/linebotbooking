@@ -31,12 +31,30 @@ function formatThaiDate(dateStr: string): string {
     return `${dayName} ${day} ${monthName} ${year}`;
 }
 
-// Helper: Format expiry time (show time only)
+// Helper: Format expiry time with date context
 function formatExpiryTime(isoString: string): string {
-    const date = new Date(isoString);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes} น.`;
+    const expiryDate = new Date(isoString);
+    const now = new Date();
+
+    // Check if same day
+    const isSameDay = expiryDate.getDate() === now.getDate() &&
+        expiryDate.getMonth() === now.getMonth() &&
+        expiryDate.getFullYear() === now.getFullYear();
+
+    const hours = expiryDate.getHours().toString().padStart(2, '0');
+    const minutes = expiryDate.getMinutes().toString().padStart(2, '0');
+
+    if (isSameDay) {
+        return `วันนี้ ${hours}:${minutes} น.`;
+    } else {
+        // If tomorrow or later, show date
+        const day = expiryDate.getDate();
+        const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        const month = monthNames[expiryDate.getMonth()];
+        const year = expiryDate.getFullYear() + 543; // Convert to Buddhist year
+        return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+    }
 }
 
 // Helper: Format discount display
