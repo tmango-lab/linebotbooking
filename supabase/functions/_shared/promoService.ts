@@ -207,7 +207,8 @@ export async function checkUserDailyLimit(
  */
 export async function getActiveCodeInWindow(
     userId: string,
-    bookingDate: string
+    bookingDate: string,
+    fieldId: number
 ): Promise<PromoCode | null> {
     const settings = await getPromoSettings();
     const windowStart = new Date();
@@ -218,6 +219,7 @@ export async function getActiveCodeInWindow(
         .select('*')
         .eq('user_id', userId)
         .eq('booking_date', bookingDate)
+        .eq('field_id', fieldId)
         .eq('status', 'active')
         .gte('created_at', windowStart.toISOString())
         .gt('expires_at', new Date().toISOString())
@@ -261,7 +263,8 @@ export async function getOrCreatePromoCode(
     // Check for existing active code within reuse window
     const existingCode = await getActiveCodeInWindow(
         params.userId,
-        params.bookingDate
+        params.bookingDate,
+        params.fieldId
     );
 
     if (existingCode) {
