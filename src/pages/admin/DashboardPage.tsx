@@ -24,7 +24,7 @@ const COURTS = [
 const START_HOUR = 8; // 08:00
 const END_HOUR = 24;  // 00:00 (Next day)
 const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
-const PIXELS_PER_MINUTE = 2; // Adjust for height
+const PIXELS_PER_MINUTE = 1.5; // Adjust for height (1.5 = 90px per hour)
 
 export default function DashboardPage() {
     const [selectedDate, setSelectedDate] = useState(getTodayStr());
@@ -51,7 +51,11 @@ export default function DashboardPage() {
     }, [loading]); // Run when loading finishes/starts
 
     function getTodayStr() {
-        return new Date().toISOString().split('T')[0];
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     async function fetchBookings(date: string) {
@@ -91,8 +95,14 @@ export default function DashboardPage() {
     function formatTime(dateTimeStr: string) {
         if (!dateTimeStr) return '';
         const date = new Date(dateTimeStr.replace(' ', 'T'));
-        // Adjust display time slightly if needed, but keeping it standard for now
-        return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
+        const hours = date.getHours();
+        let minutes = date.getMinutes();
+
+        // Visual adjustment: Show 17:01 as 17:00, 19:31 as 19:30
+        if (minutes === 1) minutes = 0;
+        if (minutes === 31) minutes = 30;
+
+        return `${hours.toString().padStart(2, '0')}.${minutes.toString().padStart(2, '0')}`;
     }
 
     const handlePrevDay = () => {
@@ -114,75 +124,76 @@ export default function DashboardPage() {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
-        });
+        }).replace(/^วัน/, '').replace('ที่', ' ').replace(/\s+/g, ' ');
     };
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
             {/* Header */}
-            {/* Header */}
-            {/* Header */}
             <header className="flex flex-none items-center justify-between border-b border-gray-200 px-6 py-4">
-                <div className="relative">
-                    <div
-                        className="flex items-center gap-3 cursor-pointer group"
-                        onClick={() => setShowCalendar(!showCalendar)}
-                    >
-                        <h1 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-2">
-                            {formatDateHeader(selectedDate)}
-                            <Calendar className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
-                        </h1>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">
-                        ตารางการจองสนามฟุตบอล
-                    </p>
-                    {showCalendar && (
-                        <CalendarDropdown
-                            selectedDate={selectedDate}
-                            onSelect={(date) => {
-                                setSelectedDate(date);
-                                setShowCalendar(false);
-                            }}
-                            onClose={() => setShowCalendar(false)}
-                        />
-                    )}
+                <div>
+                    <h1 className="text-2xl font-semibold leading-6 text-gray-900">
+                        {formatDateHeader(selectedDate)}
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-500">ตารางการจองสนามฟุตบอล</p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center rounded-lg border border-gray-300 bg-white shadow-sm">
+                    <span className="isolate inline-flex rounded-md shadow-sm">
                         <button
+                            type="button"
                             onClick={handlePrevDay}
-                            className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-50 border-r border-gray-300 rounded-l-lg"
+                            className="relative inline-flex items-center rounded-l-md bg-white px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10"
+                            title="วันก่อนหน้า"
                         >
                             <span className="sr-only">Previous day</span>
-                            <ChevronLeft className="h-5 w-5" />
+                            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                         </button>
-                        <div
-                            className="px-4 py-2 text-sm font-medium text-gray-900 border-r border-gray-300 min-w-[120px] text-center bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => setShowCalendar(!showCalendar)}
-                        >
-                            {new Date(selectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                        </div>
                         <button
+                            type="button"
+                            onClick={() => setSelectedDate(getTodayStr())}
+                            className="relative hidden md:inline-flex items-center bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10 -ml-px"
+                        >
+                            วันนี้
+                        </button>
+                        <button
+                            type="button"
                             onClick={handleNextDay}
-                            className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-50 rounded-r-lg"
+                            className="relative inline-flex items-center rounded-r-md bg-white px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10 -ml-px"
+                            title="วันถัดไป"
                         >
                             <span className="sr-only">Next day</span>
-                            <ChevronRight className="h-5 w-5" />
+                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
                         </button>
-                    </div>
+                    </span>
 
-                    <button
-                        onClick={() => setSelectedDate(getTodayStr())}
-                        className="hidden md:block rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-                    >
-                        วันนี้
-                    </button>
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowCalendar(!showCalendar)}
+                            className="hidden md:flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 bg-white"
+                        >
+                            <Calendar className="-ml-0.5 h-5 w-5 text-gray-400" aria-hidden="true" />
+                            เลือกวันที่
+                        </button>
+                        {showCalendar && (
+                            <div className="absolute right-0 top-full mt-2 z-50">
+                                <CalendarDropdown
+                                    selectedDate={selectedDate}
+                                    onSelect={(date) => {
+                                        setSelectedDate(date);
+                                        setShowCalendar(false);
+                                    }}
+                                    onClose={() => setShowCalendar(false)}
+                                />
+                            </div>
+                        )}
+                    </div>
 
                     <button
                         onClick={() => fetchBookings(selectedDate)}
-                        className={`ml-2 p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-all ${loading ? 'animate-spin text-blue-500' : ''}`}
+                        className={`flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
-                        <RefreshCw className="h-5 w-5" />
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        <span className="hidden md:inline">อัปเดต</span>
                     </button>
                 </div>
             </header>
@@ -200,7 +211,7 @@ export default function DashboardPage() {
 
                     {/* Sticky Court Header */}
                     <div className="sticky top-0 z-30 flex-none bg-white ring-1 ring-black ring-opacity-5 sm:pr-8 border-b border-gray-200 shadow-sm">
-                        <div className="-mr-px grid grid-cols-[60px_repeat(6,1fr)] text-sm leading-6 text-gray-500 divide-x divide-gray-100">
+                        <div className="-mr-px grid grid-cols-[60px_repeat(6,1fr)] text-sm leading-6 text-gray-500 divide-x divide-gray-200">
                             <div className="flex items-center justify-center py-3 bg-gray-50">
                                 <Clock className="w-4 h-4 text-gray-400" />
                             </div>
@@ -224,14 +235,16 @@ export default function DashboardPage() {
                                 {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
                                     <div
                                         key={i}
-                                        className="border-b border-gray-100 w-full"
+                                        className="border-b border-gray-200 w-full relative"
                                         style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}
-                                    ></div>
+                                    >
+                                        <div className="absolute top-1/2 left-0 right-0 border-b border-gray-200 border-dashed"></div>
+                                    </div>
                                 ))}
                             </div>
 
                             {/* Time Column (Left Axis) */}
-                            <div className="bg-white border-r border-gray-200 z-10 text-xs text-gray-400 font-medium">
+                            <div className="bg-white border-r border-gray-200 z-10 text-xs text-gray-500 font-medium">
                                 {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
                                     <div
                                         key={i}
@@ -244,8 +257,8 @@ export default function DashboardPage() {
                             </div>
 
                             {/* Court Columns (Vertical) */}
-                            {COURTS.map((court, index) => (
-                                <div key={court.id} className={`relative border-r border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                            {COURTS.map((court) => (
+                                <div key={court.id} className="relative border-r border-gray-200 hover:bg-gray-50/30 transition-colors">
                                     {/* Vertical guide lines helper */}
                                     <div className="absolute inset-y-0 left-0 w-px bg-gray-100" />
 
@@ -255,53 +268,33 @@ export default function DashboardPage() {
                                             const top = calculatePosition(booking.time_start);
                                             const height = calculateHeight(booking.time_start, booking.time_end);
 
-                                            // Determine styles based on court color defined in constant
-                                            const colorStyles = {
-                                                blue: 'bg-blue-100 text-blue-700 border-blue-500 hover:bg-blue-200',
-                                                indigo: 'bg-indigo-100 text-indigo-700 border-indigo-500 hover:bg-indigo-200',
-                                                purple: 'bg-purple-100 text-purple-700 border-purple-500 hover:bg-purple-200',
-                                                pink: 'bg-pink-100 text-pink-700 border-pink-500 hover:bg-pink-200',
-                                                rose: 'bg-rose-100 text-rose-700 border-rose-500 hover:bg-rose-200',
-                                                orange: 'bg-orange-100 text-orange-700 border-orange-500 hover:bg-orange-200',
-                                            };
-                                            const styleClass = colorStyles[court.color as keyof typeof colorStyles] || colorStyles.blue;
+                                            // Clean Blue Theme (Tailwind UI Inspired)
+                                            const styleClass = 'bg-blue-50 text-blue-700 border-blue-600 hover:bg-blue-100';
 
                                             return (
                                                 <div
                                                     key={booking.id}
-                                                    className={`absolute inset-x-1 rounded-lg border-l-4 px-2 py-1 text-xs shadow-sm transition-all cursor-pointer z-10 group overflow-hidden ${styleClass}`}
+                                                    className={`absolute inset-x-1 rounded shadow-sm border-l-[3px] px-2 py-1 text-xs transition-all cursor-pointer z-10 group overflow-hidden ${styleClass}`}
                                                     style={{
                                                         top: `${top}px`,
                                                         height: `${height}px`,
                                                     }}
                                                     title={`${formatTime(booking.time_start)} - ${formatTime(booking.time_end)} • ${booking.name || 'User'}`}
                                                 >
-                                                    <div className="flex flex-col h-full p-2">
-                                                        {/* Time */}
-                                                        <p className={`text-xs font-semibold mb-0.5 opacity-90 ${court.color === 'blue' ? 'text-blue-700' :
-                                                            court.color === 'indigo' ? 'text-indigo-700' :
-                                                                court.color === 'purple' ? 'text-purple-700' :
-                                                                    court.color === 'pink' ? 'text-pink-700' :
-                                                                        court.color === 'rose' ? 'text-rose-700' :
-                                                                            'text-orange-700'
-                                                            }`}>
-                                                            {formatTime(booking.time_start)}
-                                                        </p>
-
-                                                        {/* Name/Title */}
-                                                        <p className="font-bold text-sm leading-tight text-gray-900 mb-0.5 truncate">
+                                                    <div className="flex flex-col h-full justify-start items-start text-left pl-2 pt-1 pb-1 pr-1">
+                                                        {/* Name */}
+                                                        <p className="font-semibold text-xs leading-tight mb-0.5 truncate w-full text-blue-900">
                                                             {booking.name || 'ไม่ระบุชื่อ'}
                                                         </p>
 
-                                                        {/* Details (Phone) - Only show if height allows */}
-                                                        {height > 50 && booking.tel && (
-                                                            <p className={`text-xs truncate opacity-80 ${court.color === 'blue' ? 'text-blue-600' :
-                                                                court.color === 'indigo' ? 'text-indigo-600' :
-                                                                    court.color === 'purple' ? 'text-purple-600' :
-                                                                        court.color === 'pink' ? 'text-pink-600' :
-                                                                            court.color === 'rose' ? 'text-rose-600' :
-                                                                                'text-orange-600'
-                                                                }`}>
+                                                        {/* Time range */}
+                                                        <div className="text-[10px] font-medium opacity-90 flex items-center gap-1 text-blue-800">
+                                                            {formatTime(booking.time_start)} - {formatTime(booking.time_end)}
+                                                        </div>
+
+                                                        {/* Phone */}
+                                                        {booking.tel && height > 50 && (
+                                                            <p className="text-[10px] opacity-75 mt-0.5 truncate w-full">
                                                                 {booking.tel}
                                                             </p>
                                                         )}

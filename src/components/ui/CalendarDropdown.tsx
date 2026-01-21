@@ -28,10 +28,11 @@ export default function CalendarDropdown({ selectedDate, onSelect, onClose }: Ca
     const currentMonth = viewDate.getMonth();
 
     // Day names
-    const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    // Day names (Thai)
+    const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
     const months = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
     const prevMonth = () => setViewDate(new Date(currentYear, currentMonth - 1, 1));
@@ -65,14 +66,14 @@ export default function CalendarDropdown({ selectedDate, onSelect, onClose }: Ca
     const dateArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
     return (
-        <div ref={containerRef} className="absolute top-full left-0 mt-2 z-50 bg-white rounded-xl shadow-xl border border-gray-100 p-4 w-[320px] select-none">
+        <div ref={containerRef} className="bg-white rounded-xl shadow-xl border border-gray-100 p-4 w-[320px] select-none">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <button onClick={prevMonth} className="p-1 hover:bg-gray-50 rounded-full text-gray-400">
                     <ChevronLeft size={20} />
                 </button>
                 <h2 className="text-gray-900 font-bold text-base">
-                    {months[currentMonth]} {currentYear}
+                    {months[currentMonth]} {currentYear + 543}
                 </h2>
                 <button onClick={nextMonth} className="p-1 hover:bg-gray-50 rounded-full text-gray-400">
                     <ChevronRight size={20} />
@@ -100,7 +101,7 @@ export default function CalendarDropdown({ selectedDate, onSelect, onClose }: Ca
                             <button
                                 onClick={() => handleDateClick(day)}
                                 className={`
-                                    w-8 h-8 rounded-full text-sm font-medium transition-colors
+                                    w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors
                                     ${selected
                                         ? 'bg-gray-900 text-white shadow-md'
                                         : today
