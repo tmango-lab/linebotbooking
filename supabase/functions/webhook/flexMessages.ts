@@ -246,7 +246,7 @@ export function buildConfirmationFlex(params: {
     if (available) {
         return {
             type: "flex",
-            altText: "ช่วงเวลานี้ว่างพร้อมให้จอง",
+            altText: "สนามว่าง จองได้เลย!",
             contents: {
                 type: "bubble",
                 body: {
@@ -255,7 +255,7 @@ export function buildConfirmationFlex(params: {
                     contents: [
                         {
                             type: "text",
-                            text: "ช่วงเวลานี้ว่างพร้อมให้จอง ✅",
+                            text: "✅ สนามว่าง จองได้เลย!",
                             weight: "bold",
                             size: "lg",
                             color: "#06C755"
