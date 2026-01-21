@@ -77,28 +77,22 @@ export async function validatePromoCode(code: string): Promise<PromoCode | null>
 }
 
 export async function usePromoCode(code: string, adminId: string): Promise<boolean> {
-    try {
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/use-promo-code`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({ code, adminId })
-        });
+    const { error } = await supabase
+        .from('promo_codes')
+        .update({
+            status: 'used',
+            used_at: new Date().toISOString(),
+            used_by: adminId
+        })
+        .eq('code', code)
+        .eq('status', 'active');
 
-        const result = await response.json();
-
-        if (!response.ok) {
-            console.error('Error from Edge Function:', result.error);
-            return false;
-        }
-
-        return result.success;
-    } catch (error) {
-        console.error('Error calling Edge Function:', error);
+    if (error) {
+        console.error('Error updating promo code:', error);
         return false;
     }
+
+    return true;
 }
 
 // =====================================================
