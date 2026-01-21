@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/api';
 import './App.css';
@@ -54,7 +54,7 @@ function StatusPage() {
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         {/* Public Status Page */}
         <Route path="/" element={<StatusPage />} />
@@ -68,7 +68,7 @@ function App() {
           <Route path="promo-codes" element={<PromoCodePage />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
