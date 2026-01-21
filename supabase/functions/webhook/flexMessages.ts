@@ -8,7 +8,7 @@ import type { PromoCode } from '../_shared/promoService.ts';
 function postbackAction(label: string, data: string) {
     return { type: 'postback', label, data };
 }
-//test
+
 // Helper: Convert minutes to HH:MM
 function minuteToTime(min: number): string {
     const h = Math.floor(min / 60);
