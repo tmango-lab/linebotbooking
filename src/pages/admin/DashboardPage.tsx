@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { RefreshCw, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
 
 interface MatchdayMatch {
     id: number;
@@ -118,14 +118,39 @@ export default function DashboardPage() {
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
             {/* Header */}
+            {/* Header */}
             <header className="flex flex-none items-center justify-between border-b border-gray-200 px-6 py-4">
-                <div>
-                    <h1 className="text-xl font-bold text-gray-900">
-                        {formatDateHeader(selectedDate)}
-                    </h1>
+                <div className="relative">
+                    <div
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => {
+                            // Try showPicker first (modern), fallback to click
+                            try {
+                                const input = document.getElementById('date-picker-input') as HTMLInputElement;
+                                if (input) input.showPicker();
+                            } catch (e) {
+                                document.getElementById('date-picker-input')?.click();
+                            }
+                        }}
+                    >
+                        <h1 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-2">
+                            {formatDateHeader(selectedDate)}
+                            <Calendar className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                        </h1>
+                    </div>
                     <p className="mt-1 text-sm text-gray-500">
                         ตารางการจองสนามฟุตบอล
                     </p>
+                    <input
+                        id="date-picker-input"
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => {
+                            if (e.target.value) setSelectedDate(e.target.value);
+                        }}
+                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer pointer-events-none"
+                        style={{ visibility: 'hidden', position: 'absolute' }}
+                    />
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center rounded-lg border border-gray-300 bg-white shadow-sm">
@@ -136,7 +161,17 @@ export default function DashboardPage() {
                             <span className="sr-only">Previous day</span>
                             <ChevronLeft className="h-5 w-5" />
                         </button>
-                        <div className="px-4 py-2 text-sm font-medium text-gray-900 border-r border-gray-300 min-w-[120px] text-center bg-gray-50">
+                        <div
+                            className="px-4 py-2 text-sm font-medium text-gray-900 border-r border-gray-300 min-w-[120px] text-center bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => {
+                                try {
+                                    const input = document.getElementById('date-picker-input') as HTMLInputElement;
+                                    if (input) input.showPicker();
+                                } catch (e) {
+                                    // Fallback
+                                }
+                            }}
+                        >
                             {new Date(selectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
                         </div>
                         <button
@@ -253,14 +288,33 @@ export default function DashboardPage() {
                                                     }}
                                                     title={`${formatTime(booking.time_start)} - ${formatTime(booking.time_end)} • ${booking.name || 'User'}`}
                                                 >
-                                                    <div className="flex flex-col h-full justify-center">
-                                                        <p className="font-semibold truncate">
-                                                            {booking.name || <span className="italic opacity-75">No Name</span>}
+                                                    <div className="flex flex-col h-full p-2">
+                                                        {/* Time */}
+                                                        <p className={`text-xs font-semibold mb-0.5 opacity-90 ${court.color === 'blue' ? 'text-blue-700' :
+                                                                court.color === 'indigo' ? 'text-indigo-700' :
+                                                                    court.color === 'purple' ? 'text-purple-700' :
+                                                                        court.color === 'pink' ? 'text-pink-700' :
+                                                                            court.color === 'rose' ? 'text-rose-700' :
+                                                                                'text-orange-700'
+                                                            }`}>
+                                                            {formatTime(booking.time_start)}
                                                         </p>
-                                                        {height > 30 && (
-                                                            <p className="opacity-80 truncate flex items-center gap-1 mt-0.5">
-                                                                <Clock size={10} />
-                                                                {formatTime(booking.time_start)} - {formatTime(booking.time_end)}
+
+                                                        {/* Name/Title */}
+                                                        <p className="font-bold text-sm leading-tight text-gray-900 mb-0.5 truncate">
+                                                            {booking.name || 'ไม่ระบุชื่อ'}
+                                                        </p>
+
+                                                        {/* Details (Phone) - Only show if height allows */}
+                                                        {height > 50 && booking.tel && (
+                                                            <p className={`text-xs truncate opacity-80 ${court.color === 'blue' ? 'text-blue-600' :
+                                                                    court.color === 'indigo' ? 'text-indigo-600' :
+                                                                        court.color === 'purple' ? 'text-purple-600' :
+                                                                            court.color === 'pink' ? 'text-pink-600' :
+                                                                                court.color === 'rose' ? 'text-rose-600' :
+                                                                                    'text-orange-600'
+                                                                }`}>
+                                                                {booking.tel}
                                                             </p>
                                                         )}
                                                     </div>
