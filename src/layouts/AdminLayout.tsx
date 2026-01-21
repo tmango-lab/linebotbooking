@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/api'; // Ensure this path is correct based on your project
-import { LogOut, LayoutDashboard, Calendar, Ticket } from 'lucide-react';
+import { LogOut, LayoutDashboard, Ticket } from 'lucide-react';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
