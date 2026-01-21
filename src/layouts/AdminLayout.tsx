@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/api';
-import { LogOut, LayoutDashboard, Ticket, User, ChevronRight } from 'lucide-react';
+import { LogOut, LayoutDashboard, Ticket, User } from 'lucide-react';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
