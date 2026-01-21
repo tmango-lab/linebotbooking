@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
+import CalendarDropdown from '../../components/ui/CalendarDropdown';
 
 interface MatchdayMatch {
     id: number;
@@ -27,6 +28,7 @@ const PIXELS_PER_MINUTE = 2; // Adjust for height
 
 export default function DashboardPage() {
     const [selectedDate, setSelectedDate] = useState(getTodayStr());
+    const [showCalendar, setShowCalendar] = useState(false);
     const [bookings, setBookings] = useState<MatchdayMatch[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -119,19 +121,12 @@ export default function DashboardPage() {
         <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
             {/* Header */}
             {/* Header */}
+            {/* Header */}
             <header className="flex flex-none items-center justify-between border-b border-gray-200 px-6 py-4">
                 <div className="relative">
                     <div
                         className="flex items-center gap-3 cursor-pointer group"
-                        onClick={() => {
-                            // Try showPicker first (modern), fallback to click
-                            try {
-                                const input = document.getElementById('date-picker-input') as HTMLInputElement;
-                                if (input) input.showPicker();
-                            } catch (e) {
-                                document.getElementById('date-picker-input')?.click();
-                            }
-                        }}
+                        onClick={() => setShowCalendar(!showCalendar)}
                     >
                         <h1 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-2">
                             {formatDateHeader(selectedDate)}
@@ -141,16 +136,16 @@ export default function DashboardPage() {
                     <p className="mt-1 text-sm text-gray-500">
                         ตารางการจองสนามฟุตบอล
                     </p>
-                    <input
-                        id="date-picker-input"
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => {
-                            if (e.target.value) setSelectedDate(e.target.value);
-                        }}
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer pointer-events-none"
-                        style={{ visibility: 'hidden', position: 'absolute' }}
-                    />
+                    {showCalendar && (
+                        <CalendarDropdown
+                            selectedDate={selectedDate}
+                            onSelect={(date) => {
+                                setSelectedDate(date);
+                                setShowCalendar(false);
+                            }}
+                            onClose={() => setShowCalendar(false)}
+                        />
+                    )}
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center rounded-lg border border-gray-300 bg-white shadow-sm">
@@ -163,14 +158,7 @@ export default function DashboardPage() {
                         </button>
                         <div
                             className="px-4 py-2 text-sm font-medium text-gray-900 border-r border-gray-300 min-w-[120px] text-center bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => {
-                                try {
-                                    const input = document.getElementById('date-picker-input') as HTMLInputElement;
-                                    if (input) input.showPicker();
-                                } catch (e) {
-                                    // Fallback
-                                }
-                            }}
+                            onClick={() => setShowCalendar(!showCalendar)}
                         >
                             {new Date(selectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
                         </div>
@@ -291,11 +279,11 @@ export default function DashboardPage() {
                                                     <div className="flex flex-col h-full p-2">
                                                         {/* Time */}
                                                         <p className={`text-xs font-semibold mb-0.5 opacity-90 ${court.color === 'blue' ? 'text-blue-700' :
-                                                                court.color === 'indigo' ? 'text-indigo-700' :
-                                                                    court.color === 'purple' ? 'text-purple-700' :
-                                                                        court.color === 'pink' ? 'text-pink-700' :
-                                                                            court.color === 'rose' ? 'text-rose-700' :
-                                                                                'text-orange-700'
+                                                            court.color === 'indigo' ? 'text-indigo-700' :
+                                                                court.color === 'purple' ? 'text-purple-700' :
+                                                                    court.color === 'pink' ? 'text-pink-700' :
+                                                                        court.color === 'rose' ? 'text-rose-700' :
+                                                                            'text-orange-700'
                                                             }`}>
                                                             {formatTime(booking.time_start)}
                                                         </p>
@@ -308,11 +296,11 @@ export default function DashboardPage() {
                                                         {/* Details (Phone) - Only show if height allows */}
                                                         {height > 50 && booking.tel && (
                                                             <p className={`text-xs truncate opacity-80 ${court.color === 'blue' ? 'text-blue-600' :
-                                                                    court.color === 'indigo' ? 'text-indigo-600' :
-                                                                        court.color === 'purple' ? 'text-purple-600' :
-                                                                            court.color === 'pink' ? 'text-pink-600' :
-                                                                                court.color === 'rose' ? 'text-rose-600' :
-                                                                                    'text-orange-600'
+                                                                court.color === 'indigo' ? 'text-indigo-600' :
+                                                                    court.color === 'purple' ? 'text-purple-600' :
+                                                                        court.color === 'pink' ? 'text-pink-600' :
+                                                                            court.color === 'rose' ? 'text-rose-600' :
+                                                                                'text-orange-600'
                                                                 }`}>
                                                                 {booking.tel}
                                                             </p>
