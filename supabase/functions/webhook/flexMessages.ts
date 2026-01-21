@@ -31,28 +31,31 @@ function formatThaiDate(dateStr: string): string {
     return `${dayName} ${day} ${monthName} ${year}`;
 }
 
-// Helper: Format expiry time with date context
+// Helper: Format expiry time with date context (Bangkok timezone)
 function formatExpiryTime(isoString: string): string {
+    // Convert UTC to Bangkok time (UTC+7)
     const expiryDate = new Date(isoString);
+    const bangkokTime = new Date(expiryDate.getTime() + (7 * 60 * 60 * 1000));
     const now = new Date();
+    const bangkokNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
 
-    // Check if same day
-    const isSameDay = expiryDate.getDate() === now.getDate() &&
-        expiryDate.getMonth() === now.getMonth() &&
-        expiryDate.getFullYear() === now.getFullYear();
+    // Check if same day (in Bangkok timezone)
+    const isSameDay = bangkokTime.getUTCDate() === bangkokNow.getUTCDate() &&
+        bangkokTime.getUTCMonth() === bangkokNow.getUTCMonth() &&
+        bangkokTime.getUTCFullYear() === bangkokNow.getUTCFullYear();
 
-    const hours = expiryDate.getHours().toString().padStart(2, '0');
-    const minutes = expiryDate.getMinutes().toString().padStart(2, '0');
+    const hours = bangkokTime.getUTCHours().toString().padStart(2, '0');
+    const minutes = bangkokTime.getUTCMinutes().toString().padStart(2, '0');
 
     if (isSameDay) {
         return `วันนี้ ${hours}:${minutes} น.`;
     } else {
         // If tomorrow or later, show date
-        const day = expiryDate.getDate();
+        const day = bangkokTime.getUTCDate();
         const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
             'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-        const month = monthNames[expiryDate.getMonth()];
-        const year = expiryDate.getFullYear() + 543; // Convert to Buddhist year
+        const month = monthNames[bangkokTime.getUTCMonth()];
+        const year = bangkokTime.getUTCFullYear() + 543; // Convert to Buddhist year
         return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
     }
 }
