@@ -260,17 +260,18 @@ export async function getOrCreatePromoCode(
         return null;
     }
 
+    // TEMPORARILY DISABLED: Code reuse to ensure correct pricing
     // Check for existing active code within reuse window
-    const existingCode = await getActiveCodeInWindow(
-        params.userId,
-        params.bookingDate,
-        params.fieldId
-    );
+    // const existingCode = await getActiveCodeInWindow(
+    //     params.userId,
+    //     params.bookingDate,
+    //     params.fieldId
+    // );
 
-    if (existingCode) {
-        console.log(`Reusing existing code ${existingCode.code} for user ${params.userId}`);
-        return existingCode;
-    }
+    // if (existingCode) {
+    //     console.log(`Reusing existing code ${existingCode.code} for user ${params.userId}`);
+    //     return existingCode;
+    // }
 
     // Check daily limit
     const canCreate = await checkUserDailyLimit(params.userId, params.bookingDate);
