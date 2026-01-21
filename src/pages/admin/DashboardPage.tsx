@@ -92,7 +92,7 @@ export default function DashboardPage() {
         if (!dateTimeStr) return '';
         const date = new Date(dateTimeStr.replace(' ', 'T'));
         // Adjust display time slightly if needed, but keeping it standard for now
-        return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
     }
 
     const handlePrevDay = () => {
