@@ -31,7 +31,7 @@ export default function SettingsTab() {
     const handleSave = async () => {
         if (!settings) return;
 
-        if (!confirm('ยืนยันการบันทึกการตั้งค่า?')) return;
+        // Confirm dialog removed for easier saving
 
         setSaving(true);
         setError('');
