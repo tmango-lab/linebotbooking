@@ -45,7 +45,7 @@ function StatusPage() {
           {connectionCheck}
         </div>
         <div style={{ marginTop: '2rem' }}>
-          <a href="/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
+          <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
         </div>
       </div>
     </div>
