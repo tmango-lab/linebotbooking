@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/api'; // Ensure this path is correct based on your project
-import { LogOut, LayoutDashboard, Calendar } from 'lucide-react';
+import { LogOut, LayoutDashboard, Calendar, Ticket } from 'lucide-react';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
@@ -35,17 +35,29 @@ export default function AdminLayout() {
                     <span className="text-xl font-bold text-green-600">Admin</span>
                 </div>
 
-                <nav className="flex-1 p-4 espacio-y-2">
+                <nav className="flex-1 p-4 space-y-2">
                     <a
                         href="/admin/dashboard"
                         onClick={(e) => { e.preventDefault(); navigate('/admin/dashboard'); }}
                         className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${location.pathname === '/admin/dashboard'
-                                ? 'bg-green-50 text-green-700'
-                                : 'text-gray-600 hover:bg-gray-50'
+                            ? 'bg-green-50 text-green-700'
+                            : 'text-gray-600 hover:bg-gray-50'
                             }`}
                     >
                         <LayoutDashboard size={20} />
                         Dashboard
+                    </a>
+
+                    <a
+                        href="/admin/promo-codes"
+                        onClick={(e) => { e.preventDefault(); navigate('/admin/promo-codes'); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${location.pathname === '/admin/promo-codes'
+                            ? 'bg-green-50 text-green-700'
+                            : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                    >
+                        <Ticket size={20} />
+                        Promo Codes
                     </a>
                 </nav>
 

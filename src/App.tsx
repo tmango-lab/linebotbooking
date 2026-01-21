@@ -7,6 +7,7 @@ import './App.css';
 import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/admin/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
+import PromoCodePage from './pages/admin/PromoCodePage';
 
 // Simple status page (Legacy/Root)
 function StatusPage() {
@@ -64,6 +65,7 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="promo-codes" element={<PromoCodePage />} />
         </Route>
       </Routes>
     </BrowserRouter>
