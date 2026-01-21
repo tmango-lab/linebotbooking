@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { RefreshCw, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
 interface MatchdayMatch {
     id: number;
@@ -12,12 +12,12 @@ interface MatchdayMatch {
 }
 
 const COURTS = [
-    { id: 2424, name: 'สนาม #1 (5คน)' },
-    { id: 2425, name: 'สนาม #2 (5คน)' },
-    { id: 2428, name: 'สนาม #3 (7-8คน)' },
-    { id: 2426, name: 'สนาม #4 (7คน)' },
-    { id: 2427, name: 'สนาม #5 (7คน)' },
-    { id: 2429, name: 'สนาม #6 ใหม่ (7คน)' },
+    { id: 2424, name: 'สนาม 1', size: '5 คน', color: 'blue' },
+    { id: 2425, name: 'สนาม 2', size: '5 คน', color: 'indigo' },
+    { id: 2428, name: 'สนาม 3', size: '7-8 คน', color: 'purple' },
+    { id: 2426, name: 'สนาม 4', size: '7 คน', color: 'pink' },
+    { id: 2427, name: 'สนาม 5', size: '7 คน', color: 'rose' },
+    { id: 2429, name: 'สนาม 6', size: '7 คน (ใหม่)', color: 'orange' },
 ];
 
 const START_HOUR = 8; // 08:00
@@ -30,10 +30,23 @@ export default function DashboardPage() {
     const [bookings, setBookings] = useState<MatchdayMatch[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         fetchBookings(selectedDate);
     }, [selectedDate]);
+
+    // Scroll to current time on load
+    useEffect(() => {
+        if (containerRef.current) {
+            const now = new Date();
+            const hours = now.getHours();
+            if (hours >= START_HOUR && hours < END_HOUR) {
+                const minutesFromStart = (hours - START_HOUR) * 60;
+                containerRef.current.scrollTop = minutesFromStart * PIXELS_PER_MINUTE - 100;
+            }
+        }
+    }, [loading]); // Run when loading finishes/starts
 
     function getTodayStr() {
         return new Date().toISOString().split('T')[0];
@@ -58,18 +71,11 @@ export default function DashboardPage() {
     }
 
     function calculatePosition(timeStr: string) {
-        // timeStr format "YYYY-MM-DD HH:mm:ss"
         const date = new Date(timeStr.replace(' ', 'T'));
         const hours = date.getHours();
         const minutes = date.getMinutes();
-
-        // Handle midnight as 24:00 for calculation if need be, 
-        // but typically bookings might span into next day. 
-        // For simplicity, let's assume single day view logic.
-
         let totalMinutesFromStart = (hours - START_HOUR) * 60 + minutes;
-        if (totalMinutesFromStart < 0) totalMinutesFromStart = 0; // Clip earlier times
-
+        if (totalMinutesFromStart < 0) totalMinutesFromStart = 0;
         return totalMinutesFromStart * PIXELS_PER_MINUTE;
     }
 
@@ -80,21 +86,11 @@ export default function DashboardPage() {
         return diffMinutes * PIXELS_PER_MINUTE;
     }
 
-    function formatStartTime(dateTimeStr: string) {
+    function formatTime(dateTimeStr: string) {
         if (!dateTimeStr) return '';
-        // Subtract 1 minute to normalize start time
-        // e.g., "18:31" becomes "18:30", "18:01" becomes "18:00"
         const date = new Date(dateTimeStr.replace(' ', 'T'));
-        date.setMinutes(date.getMinutes() - 1);
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${hours}:${minutes}`;
-    }
-
-    function formatEndTime(dateTimeStr: string) {
-        if (!dateTimeStr) return '';
-        // No adjustment for end time
-        return dateTimeStr.split(' ')[1].substring(0, 5);
+        // Adjust display time slightly if needed, but keeping it standard for now
+        return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
     }
 
     const handlePrevDay = () => {
@@ -109,113 +105,171 @@ export default function DashboardPage() {
         setSelectedDate(date.toISOString().split('T')[0]);
     };
 
-    return (
-        <div className="p-4 h-[calc(100vh-64px)] flex flex-col">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-2xl font-bold text-gray-800">Booking Schedule</h1>
-                    {loading && <RefreshCw className="animate-spin text-blue-500" size={20} />}
-                </div>
+    const formatDateHeader = (dateStr: string) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('th-TH', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    };
 
-                <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                    <button onClick={handlePrevDay} className="p-2 hover:bg-white rounded-md transition-all">
-                        <ChevronLeft size={20} className="text-gray-600" />
-                    </button>
-                    <div className="flex items-center gap-2 px-2">
-                        <CalendarIcon className="text-gray-500" size={18} />
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent outline-none text-gray-700 font-medium"
-                        />
+    return (
+        <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
+            {/* Header */}
+            <header className="flex flex-none items-center justify-between border-b border-gray-200 px-6 py-4">
+                <div>
+                    <h1 className="text-xl font-bold text-gray-900">
+                        {formatDateHeader(selectedDate)}
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-500">
+                        ตารางการจองสนามฟุตบอล
+                    </p>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center rounded-lg border border-gray-300 bg-white shadow-sm">
+                        <button
+                            onClick={handlePrevDay}
+                            className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-50 border-r border-gray-300 rounded-l-lg"
+                        >
+                            <span className="sr-only">Previous day</span>
+                            <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        <div className="px-4 py-2 text-sm font-medium text-gray-900 border-r border-gray-300 min-w-[120px] text-center bg-gray-50">
+                            {new Date(selectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                        </div>
+                        <button
+                            onClick={handleNextDay}
+                            className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-50 rounded-r-lg"
+                        >
+                            <span className="sr-only">Next day</span>
+                            <ChevronRight className="h-5 w-5" />
+                        </button>
                     </div>
-                    <button onClick={handleNextDay} className="p-2 hover:bg-white rounded-md transition-all">
-                        <ChevronRight size={20} className="text-gray-600" />
+
+                    <button
+                        onClick={() => setSelectedDate(getTodayStr())}
+                        className="hidden md:block rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                    >
+                        วันนี้
                     </button>
+
                     <button
                         onClick={() => fetchBookings(selectedDate)}
-                        className="ml-2 p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-md transition-colors"
+                        className={`ml-2 p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-all ${loading ? 'animate-spin text-blue-500' : ''}`}
                     >
-                        <RefreshCw size={18} />
+                        <RefreshCw className="h-5 w-5" />
                     </button>
                 </div>
-            </div>
+            </header>
 
             {error && (
-                <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm border border-red-200">
-                    Error: {error}
+                <div className="mx-6 mt-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+                    <p className="font-bold">Error</p>
+                    <p>{error}</p>
                 </div>
             )}
 
-            {/* Calendar Grid Container */}
-            <div className="flex-1 overflow-auto bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="min-w-[900px] w-full">
-                    {/* Header Row (Courts) - Using Grid */}
-                    <div className="sticky top-0 z-20 grid grid-cols-[60px_repeat(6,1fr)] border-b border-gray-200 bg-gray-50">
-                        <div className="border-r border-gray-200"></div> {/* Time axis header */}
-                        {COURTS.map(court => (
-                            <div key={court.id} className="py-3 px-2 text-center border-r border-gray-200 font-semibold text-gray-700">
-                                {court.name}
+            {/* Calendar View */}
+            <div ref={containerRef} className="flex flex-auto overflow-hidden bg-white">
+                <div className="flex w-full flex-col">
+
+                    {/* Sticky Court Header */}
+                    <div className="sticky top-0 z-30 flex-none bg-white ring-1 ring-black ring-opacity-5 sm:pr-8 border-b border-gray-200 shadow-sm">
+                        <div className="-mr-px grid grid-cols-[60px_repeat(6,1fr)] text-sm leading-6 text-gray-500 divide-x divide-gray-100">
+                            <div className="flex items-center justify-center py-3 bg-gray-50">
+                                <Clock className="w-4 h-4 text-gray-400" />
                             </div>
-                        ))}
-                    </div>
-
-                    {/* Grid Body - Using Grid */}
-                    <div className="grid grid-cols-[60px_repeat(6,1fr)]" style={{ height: `${TOTAL_MINUTES * PIXELS_PER_MINUTE}px` }}>
-
-                        {/* Time Slots (Y-Axis) */}
-                        <div className="border-r border-gray-200 bg-white">
-                            {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
-                                <div
-                                    key={i}
-                                    className="border-b border-gray-100 text-xs text-gray-400 text-right pr-2 relative"
-                                    style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}
-                                >
-                                    <span className="-top-2 relative">{String(START_HOUR + i).padStart(2, '0')}:00</span>
+                            {COURTS.map(court => (
+                                <div key={court.id} className="flex flex-col items-center justify-center py-3">
+                                    <span className="font-semibold text-gray-900">{court.name}</span>
+                                    <span className="text-xs text-gray-400 font-normal">{court.size}</span>
                                 </div>
                             ))}
                         </div>
+                    </div>
 
-                        {/* Court Columns */}
-                        {COURTS.map(court => (
-                            <div key={court.id} className="border-r border-gray-100 bg-white">
-                                <div className="relative" style={{ height: `${TOTAL_MINUTES * PIXELS_PER_MINUTE}px` }}>
-                                    {/* Horizontal Grid Lines */}
-                                    {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
-                                        <div
-                                            key={i}
-                                            className="border-b border-gray-50"
-                                            style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}
-                                        ></div>
-                                    ))}
+                    {/* Scrollable Grid */}
+                    <div className="flex flex-auto overflow-y-auto">
+                        <div
+                            className="grid grid-cols-[60px_repeat(6,1fr)] w-full relative"
+                            style={{ height: `${TOTAL_MINUTES * PIXELS_PER_MINUTE}px`, minWidth: '1000px' }}
+                        >
+                            {/* Horizontal Grid Lines (Rows) */}
+                            <div className="col-start-1 col-end-[-1] grid-rows-1 absolute inset-0 z-0 pointer-events-none">
+                                {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="border-b border-gray-100 w-full"
+                                        style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}
+                                    ></div>
+                                ))}
+                            </div>
 
-                                    {/* Bookings */}
+                            {/* Time Column (Left Axis) */}
+                            <div className="bg-white border-r border-gray-200 z-10 text-xs text-gray-400 font-medium">
+                                {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="relative -top-2.5 text-right pr-2"
+                                        style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}
+                                    >
+                                        {String(START_HOUR + i).padStart(2, '0')}:00
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Court Columns (Vertical) */}
+                            {COURTS.map((court, index) => (
+                                <div key={court.id} className={`relative border-r border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                                    {/* Vertical guide lines helper */}
+                                    <div className="absolute inset-y-0 left-0 w-px bg-gray-100" />
+
                                     {bookings
                                         .filter(b => b.court_id === court.id)
                                         .map(booking => {
                                             const top = calculatePosition(booking.time_start);
                                             const height = calculateHeight(booking.time_start, booking.time_end);
+
+                                            // Determine styles based on court color defined in constant
+                                            const colorStyles = {
+                                                blue: 'bg-blue-100 text-blue-700 border-blue-500 hover:bg-blue-200',
+                                                indigo: 'bg-indigo-100 text-indigo-700 border-indigo-500 hover:bg-indigo-200',
+                                                purple: 'bg-purple-100 text-purple-700 border-purple-500 hover:bg-purple-200',
+                                                pink: 'bg-pink-100 text-pink-700 border-pink-500 hover:bg-pink-200',
+                                                rose: 'bg-rose-100 text-rose-700 border-rose-500 hover:bg-rose-200',
+                                                orange: 'bg-orange-100 text-orange-700 border-orange-500 hover:bg-orange-200',
+                                            };
+                                            const styleClass = colorStyles[court.color as keyof typeof colorStyles] || colorStyles.blue;
+
                                             return (
                                                 <div
                                                     key={booking.id}
-                                                    className="absolute left-1 right-1 rounded-md p-2 text-xs text-white bg-blue-500 hover:bg-blue-600 transition-all cursor-pointer shadow-sm overflow-hidden"
+                                                    className={`absolute inset-x-1 rounded-lg border-l-4 px-2 py-1 text-xs shadow-sm transition-all cursor-pointer z-10 group overflow-hidden ${styleClass}`}
                                                     style={{
                                                         top: `${top}px`,
                                                         height: `${height}px`,
-                                                        zIndex: 10
                                                     }}
-                                                    title={`${formatStartTime(booking.time_start)} - ${formatEndTime(booking.time_end)}`}
+                                                    title={`${formatTime(booking.time_start)} - ${formatTime(booking.time_end)} • ${booking.name || 'User'}`}
                                                 >
-                                                    <div className="font-bold">{formatStartTime(booking.time_start)} - {formatEndTime(booking.time_end)}</div>
-                                                    <div className="opacity-90 truncate">{booking.name || 'Matchday User'}</div>
+                                                    <div className="flex flex-col h-full justify-center">
+                                                        <p className="font-semibold truncate">
+                                                            {booking.name || <span className="italic opacity-75">No Name</span>}
+                                                        </p>
+                                                        {height > 30 && (
+                                                            <p className="opacity-80 truncate flex items-center gap-1 mt-0.5">
+                                                                <Clock size={10} />
+                                                                {formatTime(booking.time_start)} - {formatTime(booking.time_end)}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
