@@ -1,6 +1,7 @@
 // src/components/promo/ValidateCodeTab.tsx
 import { useState } from 'react';
 import { validatePromoCode, usePromoCode, getFieldInfo, type PromoCode } from '../../lib/promoApi';
+import { Search, CheckCircle, AlertCircle, Clock, Calendar, DollarSign, MapPin, Tag, User } from 'lucide-react';
 
 export default function ValidateCodeTab() {
     const [code, setCode] = useState('');
@@ -26,7 +27,7 @@ export default function ValidateCodeTab() {
             const data = await validatePromoCode(code.trim());
 
             if (!data) {
-                setError('ไม่พบรหัสโค้ดนี้');
+                setError('ไม่พบรหัสโค้ดนี้ในระบบ');
                 return;
             }
 
@@ -41,11 +42,11 @@ export default function ValidateCodeTab() {
             const expiresAt = new Date(data.expires_at);
 
             if (data.status === 'used') {
-                setError('โค้ดนี้ถูกใช้ไปแล้ว');
+                setError('โค้ดนี้ถูกใช้งานไปแล้ว');
             } else if (data.status === 'expired' || now > expiresAt) {
                 setError('โค้ดนี้หมดอายุแล้ว');
             } else {
-                setSuccess('โค้ดถูกต้องและใช้งานได้!');
+                setSuccess('โค้ดถูกต้อง พร้อมใช้งาน');
             }
         } catch (err) {
             setError('เกิดข้อผิดพลาดในการตรวจสอบ');
@@ -56,31 +57,21 @@ export default function ValidateCodeTab() {
     };
 
     const handleUseCode = async () => {
-        console.log('handleUseCode called', promoData);
+        if (!promoData) return;
 
-        if (!promoData) {
-            console.log('No promo data');
-            return;
-        }
-
-        // Confirm dialog removed - use code immediately
-
-        console.log('Proceeding to use code...');
         setLoading(true);
         setError('');
         setSuccess('');
 
         try {
             const adminId = 'admin'; // TODO: Get from auth context
-            console.log('Calling usePromoCode API...');
             const result = await usePromoCode(promoData.code, adminId);
-            console.log('API result:', result);
 
             if (result) {
-                setSuccess('ใช้โค้ดสำเร็จ!');
+                setSuccess('บันทึกการใช้งานโค้ดสำเร็จ!');
                 setPromoData({ ...promoData, status: 'used' });
             } else {
-                setError('ไม่สามารถใช้โค้ดได้');
+                setError('ไม่สามารถบันทึกการใช้งานได้');
             }
         } catch (err) {
             console.error('Error using code:', err);
@@ -94,7 +85,7 @@ export default function ValidateCodeTab() {
         const date = new Date(dateStr);
         return date.toLocaleDateString('th-TH', {
             year: 'numeric',
-            month: 'short',
+            month: 'long',
             day: 'numeric'
         });
     };
@@ -105,164 +96,181 @@ export default function ValidateCodeTab() {
 
     const formatDateTime = (isoString: string) => {
         const date = new Date(isoString);
-        const bangkokTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-
-        const hours = bangkokTime.getUTCHours().toString().padStart(2, '0');
-        const minutes = bangkokTime.getUTCMinutes().toString().padStart(2, '0');
-
-        return `วันนี้ ${hours}:${minutes} น.`;
-    };
-
-    const getStatusBadge = (status: string) => {
-        const badges = {
-            active: 'bg-green-100 text-green-800',
-            used: 'bg-gray-100 text-gray-800',
-            expired: 'bg-red-100 text-red-800'
-        };
-
-        const labels = {
-            active: 'ใช้งานได้',
-            used: 'ใช้แล้ว',
-            expired: 'หมดอายุ'
-        };
-
-        return (
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${badges[status as keyof typeof badges]}`}>
-                {labels[status as keyof typeof labels]}
-            </span>
-        );
+        return date.toLocaleString('th-TH', {
+            dateStyle: 'short',
+            timeStyle: 'short'
+        });
     };
 
     return (
-        <div className="max-w-2xl mx-auto p-6">
-            <h2 className="text-2xl font-bold mb-6">🔍 ตรวจสอบและใช้โค้ดส่วนลด</h2>
-
+        <div className="max-w-3xl mx-auto">
             {/* Input Section */}
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    รหัสโค้ด
-                </label>
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleValidate()}
-                        placeholder="กรอกรหัส 6 หลัก"
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        maxLength={6}
-                    />
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-6">
+                <div className="text-center mb-8">
+                    <h2 className="text-xl font-bold text-gray-900">ตรวจสอบและใช้งานโค้ดส่วนลด</h2>
+                    <p className="text-gray-500 mt-1">กรอกรหัส 6 หลักเพื่อตรวจสอบสถานะ</p>
+                </div>
+
+                <div className="max-w-md mx-auto">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value.toUpperCase())}
+                            onKeyPress={(e) => e.key === 'Enter' && handleValidate()}
+                            placeholder="กรอกรหัสโค้ด (เช่น A1B2C3)"
+                            className="w-full pl-12 pr-4 py-4 text-lg bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all text-center tracking-widest font-mono uppercase"
+                            maxLength={6}
+                        />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-6 h-6" />
+                    </div>
+
                     <button
                         onClick={handleValidate}
-                        disabled={loading}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                        disabled={loading || !code}
+                        className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium shadow-sm shadow-blue-200 transition-all disabled:opacity-50 disabled:shadow-none"
                     >
-                        {loading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบ'}
+                        {loading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบโค้ด'}
                     </button>
                 </div>
             </div>
 
             {/* Error Message */}
             {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-                    ❌ {error}
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex items-center gap-3 text-red-700 animate-in fade-in slide-in-from-top-2">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <p className="font-medium">{error}</p>
                 </div>
             )}
 
             {/* Success Message */}
-            {success && !error && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
-                    ✅ {success}
+            {success && !error && !promoData?.status && (
+                <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center gap-3 text-green-700 animate-in fade-in slide-in-from-top-2">
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                    <p className="font-medium">{success}</p>
                 </div>
             )}
 
-            {/* Promo Code Details */}
+            {/* Promo Code Details Card */}
             {promoData && (
-                <div className="bg-white rounded-lg shadow p-6">
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between pb-4 border-b">
-                            <h3 className="text-xl font-bold">รายละเอียดโค้ด</h3>
-                            {getStatusBadge(promoData.status)}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className="text-sm text-gray-600">💳 รหัสโค้ด</p>
-                                <p className="text-2xl font-bold text-blue-600">{promoData.code}</p>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+                    <div className="border-b border-gray-100 bg-gray-50/50 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                                <span className="font-mono text-2xl font-bold tracking-wider text-blue-600">{promoData.code}</span>
                             </div>
-
                             <div>
-                                <p className="text-sm text-gray-600">🎁 ส่วนลด</p>
-                                <p className="text-lg font-semibold">
-                                    {promoData.discount_type === 'percent'
-                                        ? `${promoData.discount_value}%`
-                                        : `${promoData.discount_value} บาท`}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">📅 วันที่จอง</p>
-                                <p className="font-medium">{formatDate(promoData.booking_date)}</p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">⏰ เวลา</p>
-                                <p className="font-medium">
-                                    {formatTime(promoData.time_from)} - {formatTime(promoData.time_to)}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">🏟️ สนาม</p>
-                                <p className="font-medium">
-                                    {fieldInfo ? `${fieldInfo.label} (${fieldInfo.type})` : `สนาม #${promoData.field_id}`}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">⏱️ ระยะเวลา</p>
-                                <p className="font-medium">{promoData.duration_h} ชั่วโมง</p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">💰 ราคาเดิม</p>
-                                <p className="font-medium">{promoData.original_price.toLocaleString()} บาท</p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">💵 ราคาหลังหัก</p>
-                                <p className="text-lg font-bold text-green-600">
-                                    {promoData.final_price.toLocaleString()} บาท
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">⏳ หมดอายุ</p>
-                                <p className="font-medium text-red-600">
-                                    {formatDateTime(promoData.expires_at)}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-sm text-gray-600">📝 สร้างเมื่อ</p>
-                                <p className="font-medium">{formatDateTime(promoData.created_at)}</p>
+                                <h3 className="font-semibold text-gray-900">รายละเอียดโค้ด</h3>
+                                <p className="text-sm text-gray-500">สร้างเมื่อ {formatDateTime(promoData.created_at)}</p>
                             </div>
                         </div>
 
-                        {promoData.status === 'active' && (
-                            <button
-                                onClick={handleUseCode}
-                                disabled={loading}
-                                className="w-full mt-4 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-medium"
-                            >
-                                ✓ ใช้โค้ดนี้
-                            </button>
-                        )}
+                        <div className={`
+                            px-4 py-1.5 rounded-full text-sm font-medium inline-flex items-center gap-1.5
+                            ${promoData.status === 'active' ? 'bg-green-100 text-green-700' : ''}
+                            ${promoData.status === 'used' ? 'bg-gray-100 text-gray-700' : ''}
+                            ${promoData.status === 'expired' ? 'bg-red-100 text-red-700' : ''}
+                        `}>
+                            <div className={`w-2 h-2 rounded-full ${promoData.status === 'active' ? 'bg-green-500' :
+                                    promoData.status === 'used' ? 'bg-gray-500' : 'bg-red-500'
+                                }`} />
+                            {promoData.status === 'active' ? 'ใช้งานได้' :
+                                promoData.status === 'used' ? 'ถูกใช้แล้ว' : 'หมดอายุ'}
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <Tag className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-gray-500">ส่วนลด</p>
+                                        <p className="text-lg font-bold text-gray-900">
+                                            {promoData.discount_type === 'percent'
+                                                ? `${promoData.discount_value}%`
+                                                : `${promoData.discount_value} บาท`}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-gray-500">วันที่จอง</p>
+                                        <p className="font-medium text-gray-900">{formatDate(promoData.booking_date)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-gray-500">เวลา</p>
+                                        <p className="font-medium text-gray-900">
+                                            {formatTime(promoData.time_from)} - {formatTime(promoData.time_to)}
+                                            <span className="text-gray-400 text-sm ml-2">({promoData.duration_h} ชม.)</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-gray-500">สนาม</p>
+                                        <p className="font-medium text-gray-900">
+                                            {fieldInfo ? `${fieldInfo.label} ${fieldInfo.type}` : `สนาม #${promoData.field_id}`}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <DollarSign className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-gray-500">สรุปราคา</p>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-lg font-bold text-green-600">{promoData.final_price.toLocaleString()}</span>
+                                            <span className="text-gray-400 line-through text-sm">{promoData.original_price.toLocaleString()}</span>
+                                            <span className="text-gray-600 text-sm">บาท</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-gray-500">วันหมดอายุโค้ด</p>
+                                        <p className="font-medium text-red-600">
+                                            {formatDateTime(promoData.expires_at)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         {promoData.status === 'used' && promoData.used_at && (
-                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                                <p className="text-sm text-gray-600">ใช้โดย: {promoData.used_by || 'ไม่ระบุ'}</p>
-                                <p className="text-sm text-gray-600">เมื่อ: {formatDateTime(promoData.used_at)}</p>
+                            <div className="mt-8 bg-gray-50 rounded-lg p-4 border border-gray-100 flex items-start gap-3">
+                                <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                                <div>
+                                    <p className="font-medium text-gray-900">ข้อมูลการใช้งาน</p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        ใช้โดย {promoData.used_by || 'Admin'} เมื่อ {formatDateTime(promoData.used_at)}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {promoData.status === 'active' && (
+                            <div className="mt-8 pt-6 border-t border-gray-100">
+                                <button
+                                    onClick={handleUseCode}
+                                    disabled={loading}
+                                    className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:transform-none disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle className="w-5 h-5" />
+                                    {loading ? 'กำลังบันทึก...' : 'ยืนยันการใช้โค้ดส่วนลด'}
+                                </button>
                             </div>
                         )}
                     </div>

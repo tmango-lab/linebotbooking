@@ -1,6 +1,7 @@
 // src/components/promo/SettingsTab.tsx
 import { useState, useEffect } from 'react';
 import { getPromoSettings, updatePromoSettings, type PromoSettings } from '../../lib/promoApi';
+import { Save, AlertTriangle, Check, Settings as SettingsIcon, Percent, DollarSign, Clock, Users, RefreshCw } from 'lucide-react';
 
 export default function SettingsTab() {
     const [settings, setSettings] = useState<PromoSettings | null>(null);
@@ -31,8 +32,6 @@ export default function SettingsTab() {
     const handleSave = async () => {
         if (!settings) return;
 
-        // Confirm dialog removed for easier saving
-
         setSaving(true);
         setError('');
         setSuccess('');
@@ -58,7 +57,7 @@ export default function SettingsTab() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="text-gray-500">กำลังโหลด...</div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
         );
     }
@@ -66,179 +65,249 @@ export default function SettingsTab() {
     if (!settings) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="text-red-500">ไม่สามารถโหลดการตั้งค่าได้</div>
+                <div className="text-red-500 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    ไม่สามารถโหลดการตั้งค่าได้
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="max-w-2xl mx-auto p-6">
-            <h2 className="text-2xl font-bold mb-6">⚙️ ตั้งค่าระบบโปรโมชั่น</h2>
+        <div className="max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="mb-8">
+                <h2 className="text-xl font-bold text-gray-900">ตั้งค่าระบบโปรโมชั่น</h2>
+                <p className="text-gray-500 mt-1">กำหนดกฎและเงื่อนไขสำหรับการใช้งานโค้ดส่วนลด</p>
+            </div>
 
             {/* Success/Error Messages */}
             {success && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
-                    ✅ {success}
+                <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-5 z-50">
+                    <Check className="w-5 h-5" />
+                    {success}
                 </div>
             )}
 
             {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-                    ❌ {error}
+                <div className="bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    {error}
                 </div>
             )}
 
-            <div className="bg-white rounded-lg shadow p-6 space-y-6">
-                {/* Enable/Disable */}
-                <div>
-                    <label className="flex items-center space-x-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={settings.enabled}
-                            onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })}
-                            className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-lg font-medium">เปิดใช้งานระบบโปรโมชั่น</span>
-                    </label>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Main Settings Card */}
+                <div className="md:col-span-2 space-y-6">
+                    {/* General Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <SettingsIcon className="w-4 h-4 text-blue-500" />
+                                การใช้งานทั่วไป
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-sm font-medium text-gray-900">เปิดใช้งานระบบโปรโมชั่น</label>
+                                    <p className="text-sm text-gray-500">เปิด/ปิด การแจกโค้ดส่วนลดทั้งหมด</p>
+                                </div>
+                                <button
+                                    onClick={() => setSettings({ ...settings, enabled: !settings.enabled })}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.enabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.enabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
-                <hr />
+                    {/* Discount Value Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <DollarSign className="w-4 h-4 text-green-500" />
+                                มูลค่าส่วนลด
+                            </h3>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label className={`
+                                    relative flex cursor-pointer rounded-xl border p-4 shadow-sm focus:outline-none transition-all
+                                    ${settings.discount_type === 'fixed'
+                                        ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/10'
+                                        : 'border-gray-200 hover:border-blue-200'}
+                                `}>
+                                    <input
+                                        type="radio"
+                                        name="discount-type"
+                                        className="sr-only"
+                                        checked={settings.discount_type === 'fixed'}
+                                        onChange={() => setSettings({ ...settings, discount_type: 'fixed' })}
+                                    />
+                                    <span className="flex flex-1">
+                                        <span className="flex flex-col">
+                                            <span className="flex items-center gap-2 block text-sm font-medium text-gray-900">
+                                                <DollarSign className="w-4 h-4 text-gray-500" />
+                                                จำนวนเงินคงที่ (บาท)
+                                            </span>
+                                            <input
+                                                type="number"
+                                                value={settings.discount_type === 'fixed' ? settings.discount_value : 50}
+                                                onChange={(e) => setSettings({
+                                                    ...settings,
+                                                    discount_type: 'fixed',
+                                                    discount_value: Number(e.target.value)
+                                                })}
+                                                disabled={settings.discount_type !== 'fixed'}
+                                                className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                            />
+                                        </span>
+                                    </span>
+                                    <Check className={`h-5 w-5 text-blue-600 ${settings.discount_type === 'fixed' ? 'opacity-100' : 'opacity-0'}`} />
+                                </label>
 
-                {/* Discount Configuration */}
-                <div>
-                    <h3 className="text-lg font-semibold mb-4">ส่วนลด</h3>
+                                <label className={`
+                                    relative flex cursor-pointer rounded-xl border p-4 shadow-sm focus:outline-none transition-all
+                                    ${settings.discount_type === 'percent'
+                                        ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/10'
+                                        : 'border-gray-200 hover:border-blue-200'}
+                                `}>
+                                    <input
+                                        type="radio"
+                                        name="discount-type"
+                                        className="sr-only"
+                                        checked={settings.discount_type === 'percent'}
+                                        onChange={() => setSettings({ ...settings, discount_type: 'percent' })}
+                                    />
+                                    <span className="flex flex-1">
+                                        <span className="flex flex-col">
+                                            <span className="flex items-center gap-2 block text-sm font-medium text-gray-900">
+                                                <Percent className="w-4 h-4 text-gray-500" />
+                                                เปอร์เซ็นต์ (%)
+                                            </span>
+                                            <input
+                                                type="number"
+                                                value={settings.discount_type === 'percent' ? settings.discount_value : 10}
+                                                onChange={(e) => setSettings({
+                                                    ...settings,
+                                                    discount_type: 'percent',
+                                                    discount_value: Number(e.target.value)
+                                                })}
+                                                disabled={settings.discount_type !== 'percent'}
+                                                className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                                max="100"
+                                            />
+                                        </span>
+                                    </span>
+                                    <Check className={`h-5 w-5 text-blue-600 ${settings.discount_type === 'percent' ? 'opacity-100' : 'opacity-0'}`} />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
 
-                    <div className="space-y-3">
-                        <label className="flex items-center space-x-3 cursor-pointer">
-                            <input
-                                type="radio"
-                                checked={settings.discount_type === 'fixed'}
-                                onChange={() => setSettings({ ...settings, discount_type: 'fixed' })}
-                                className="w-4 h-4 text-blue-600"
-                            />
-                            <span>จำนวนเงินคงที่</span>
-                            <input
-                                type="number"
-                                value={settings.discount_type === 'fixed' ? settings.discount_value : 50}
-                                onChange={(e) => setSettings({
-                                    ...settings,
-                                    discount_type: 'fixed',
-                                    discount_value: Number(e.target.value)
-                                })}
-                                disabled={settings.discount_type !== 'fixed'}
-                                className="w-24 px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                                min="0"
-                            />
-                            <span>บาท</span>
-                        </label>
+                    {/* Rules Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-orange-500" />
+                                เงื่อนไขและข้อจำกัด
+                            </h3>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">ราคาจองขั้นต่ำ (บาท)</label>
+                                <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <span className="text-gray-500 sm:text-sm">฿</span>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        value={settings.min_booking_price}
+                                        onChange={(e) => setSettings({ ...settings, min_booking_price: Number(e.target.value) })}
+                                        className="block w-full rounded-lg border-gray-300 pl-7 pr-3 py-2 sm:text-sm border focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
 
-                        <label className="flex items-center space-x-3 cursor-pointer">
-                            <input
-                                type="radio"
-                                checked={settings.discount_type === 'percent'}
-                                onChange={() => setSettings({ ...settings, discount_type: 'percent' })}
-                                className="w-4 h-4 text-blue-600"
-                            />
-                            <span>เปอร์เซ็นต์</span>
-                            <input
-                                type="number"
-                                value={settings.discount_type === 'percent' ? settings.discount_value : 10}
-                                onChange={(e) => setSettings({
-                                    ...settings,
-                                    discount_type: 'percent',
-                                    discount_value: Number(e.target.value)
-                                })}
-                                disabled={settings.discount_type !== 'percent'}
-                                className="w-24 px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                                min="0"
-                                max="100"
-                            />
-                            <span>%</span>
-                        </label>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">อายุของโค้ด (นาที)</label>
+                                <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <Clock className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="number"
+                                        value={settings.expiry_minutes}
+                                        onChange={(e) => setSettings({ ...settings, expiry_minutes: Number(e.target.value) })}
+                                        className="block w-full rounded-lg border-gray-300 pl-10 pr-3 py-2 sm:text-sm border focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">จำกัดต่อวัน (โค้ด/คน)</label>
+                                <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <Users className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="number"
+                                        value={settings.daily_limit_per_user}
+                                        onChange={(e) => setSettings({ ...settings, daily_limit_per_user: Number(e.target.value) })}
+                                        className="block w-full rounded-lg border-gray-300 pl-10 pr-3 py-2 sm:text-sm border focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">ระยะเวลาใช้โค้ดซ้ำ (ชม.)</label>
+                                <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <RefreshCw className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="number"
+                                        value={settings.reuse_window_hours}
+                                        onChange={(e) => setSettings({ ...settings, reuse_window_hours: Number(e.target.value) })}
+                                        className="block w-full rounded-lg border-gray-300 pl-10 pr-3 py-2 sm:text-sm border focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">0 = ปิดการใช้งานซ้ำ</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <hr />
-
-                {/* Rules */}
-                <div>
-                    <h3 className="text-lg font-semibold mb-4">กฎการใช้งาน</h3>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                ราคาขั้นต่ำ (บาท)
-                            </label>
-                            <input
-                                type="number"
-                                value={settings.min_booking_price}
-                                onChange={(e) => setSettings({ ...settings, min_booking_price: Number(e.target.value) })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                min="0"
-                            />
-                            <p className="text-sm text-gray-500 mt-1">
-                                ราคาจองขั้นต่ำที่จะได้รับโค้ดส่วนลด
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                หมดอายุภายใน (นาที)
-                            </label>
-                            <input
-                                type="number"
-                                value={settings.expiry_minutes}
-                                onChange={(e) => setSettings({ ...settings, expiry_minutes: Number(e.target.value) })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                min="1"
-                            />
-                            <p className="text-sm text-gray-500 mt-1">
-                                โค้ดจะหมดอายุหลังจากสร้างกี่นาที
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                จำกัดต่อวัน (โค้ด/คน)
-                            </label>
-                            <input
-                                type="number"
-                                value={settings.daily_limit_per_user}
-                                onChange={(e) => setSettings({ ...settings, daily_limit_per_user: Number(e.target.value) })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                min="1"
-                            />
-                            <p className="text-sm text-gray-500 mt-1">
-                                ผู้ใช้แต่ละคนสามารถรับโค้ดได้สูงสุดกี่โค้ดต่อวัน
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                ใช้โค้ดซ้ำได้ (ชั่วโมง)
-                            </label>
-                            <input
-                                type="number"
-                                value={settings.reuse_window_hours}
-                                onChange={(e) => setSettings({ ...settings, reuse_window_hours: Number(e.target.value) })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                min="0"
-                            />
-                            <p className="text-sm text-gray-500 mt-1">
-                                ผู้ใช้สามารถใช้โค้ดเดิมได้ภายในกี่ชั่วโมง (0 = ปิดการใช้ซ้ำ)
-                            </p>
-                        </div>
+                {/* Sidebar / Actions */}
+                <div className="space-y-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 className="text-sm font-medium text-gray-900 mb-4">การบันทึก</h3>
+                        <p className="text-sm text-gray-500 mb-6">
+                            การเปลี่ยนแปลงทั้งหมดจะมีผลทันทีหลังจากบันทึก โปรดตรวจสอบความถูกต้อง
+                        </p>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+                        >
+                            {saving ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                                    กำลังบันทึก...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    บันทึกการตั้งค่า
+                                </>
+                            )}
+                        </button>
                     </div>
                 </div>
-
-                {/* Save Button */}
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
-                >
-                    {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
-                </button>
             </div>
         </div>
     );
