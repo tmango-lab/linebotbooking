@@ -56,6 +56,8 @@ function calculatePrice(fieldId: number, startTime: string, durationHours: numbe
     let postPrice = postHours * prices.post;
 
     // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
+    // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
+    // User Requirement: 1.5h = 750 -> 800
     if (prePrice > 0 && prePrice % 100 !== 0) {
         prePrice = Math.ceil(prePrice / 100) * 100;
     }
@@ -152,14 +154,50 @@ serve(async (req) => {
         const mdText = await res.text();
         console.log('[Matchday Create Response]:', mdText);
 
-        let data = {};
+        // --- Helper for Update ---
+        async function updateMatch(matchId: number, payload: any) {
+            const updateUrl = `${MD_BASE_URL}/arena/match/${matchId}`;
+            const updateRes = await fetch(updateUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Origin': 'https://arena.matchday.co.th'
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!updateRes.ok) {
+                console.error('Update failed:', await updateRes.text());
+            } else {
+                console.log('Update success');
+            }
+        }
+
+        let data: any = {};
         if (mdText) {
             try {
                 data = JSON.parse(mdText);
+
+                // Auto-Correct Logic
+                const createdMatch = data.match || (data.matches && data.matches[0]);
+
+                // Check if we need to enforce price (if Matchday returned different price, or just to be safe)
+                if (createdMatch && createdMatch.id) {
+                    // If created price != calculated price, OR just always enforce it to be safe
+                    // Let's enforce it if we have a calculated price.
+                    if (price > 0) {
+                        console.log(`[Auto-Correct] Enforcing price ${price} for match ${createdMatch.id}`);
+                        await updateMatch(createdMatch.id, {
+                            time_start: timeStartStr, // Reuse
+                            time_end: timeEndStr,
+                            description: customerName,
+                            change_price: price
+                        });
+                    }
+                }
+
             } catch (e) {
                 console.warn('Matchday returned non-JSON response:', mdText);
-                // If it's 200 OK but text is not JSON, we might still consider it success if the API behavior is weird.
-                // But usually create returns the created object.
             }
         }
 

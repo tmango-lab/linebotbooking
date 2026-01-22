@@ -159,6 +159,69 @@ export async function createMatchdayBooking(params: CreateBookingParams) {
     }
 
     const data = await res.json();
+
     console.log('[MATCHDAY CREATE] Success:', data);
+
+    // [MODIFIED] Price Override Logic
+    // Handle both single match object and matches array (API varies)
+    const createdMatch = data.match || (data.matches && data.matches[0]);
+
+    if (params.price && createdMatch && createdMatch.id) {
+        console.log(`[MATCHDAY API] Auto-correcting price for match ${createdMatch.id} to ${params.price}`);
+        try {
+            await updateMatchdayBooking(createdMatch.id, {
+                time_start: params.timeStart,
+                time_end: params.timeEnd,
+                description: params.customerName,
+                change_price: params.price
+            });
+            console.log(`[MATCHDAY API] Price auto-correction successful.`);
+        } catch (err) {
+            console.error(`[MATCHDAY API] Failed to auto-correct price for match ${createdMatch.id}:`, err);
+        }
+    }
+
+    return data;
+}
+
+interface UpdateMatchPayload {
+    time_start: string; // "YYYY-MM-DD HH:mm:ss"
+    time_end: string;   // "YYYY-MM-DD HH:mm:ss"
+    description?: string; // This corresponds to customer name or note in some contexts
+    remark?: string | null;
+    change_price?: number; // The new price
+}
+
+/**
+ * Update an existing match (booking) in Matchday System
+ * Use cases: Edit price, Edit time, Edit details
+ */
+export async function updateMatchdayBooking(matchId: number, payload: UpdateMatchPayload) {
+    if (!MD_TOKEN) {
+        throw new Error('MATCHDAY_TOKEN is missing');
+    }
+
+    const url = `${MD_BASE_URL}/arena/match/${matchId}`;
+
+    console.log(`[MATCHDAY UPDATE] Updating match ${matchId} with payload:`, JSON.stringify(payload));
+
+    const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MD_TOKEN}`,
+            'Origin': 'https://arena.matchday.co.th'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Matchday Update Error: ${res.status} - ${errorText}`);
+        throw new Error(`Failed to update booking ${matchId} on Matchday: ${errorText}`);
+    }
+
+    const data = await res.json();
+    console.log('[MATCHDAY UPDATE] Success:', data);
     return data;
 }

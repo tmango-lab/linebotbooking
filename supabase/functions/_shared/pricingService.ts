@@ -51,7 +51,9 @@ export async function calculatePrice(fieldId: number, startStr: string, duration
     }
 
     // 4. Calculate
-    const costPre = preHours * pricePre;
+    const rawPre = preHours * pricePre;
+    // Apply rounding to Pre-18 as well (User requirement: 1.5h = 750 -> 800)
+    const costPre = Math.ceil(rawPre / 100) * 100;
 
     // Post-18 Rounding Logic: Round up to nearest 100
     // Logic: raw = 0.5 * 700 = 350 -> 400
