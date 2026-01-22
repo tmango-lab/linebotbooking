@@ -23,13 +23,14 @@ const FIELD_MAP: Record<number, number> = {
 };
 
 // Pricing Config (same as Dashboard)
+// Pricing Config (Updated from GAS/field_config.gs)
 const PRICING = {
-    2424: { pre: 600, post: 600 },
-    2425: { pre: 600, post: 600 },
-    2428: { pre: 900, post: 1100 },
-    2426: { pre: 900, post: 1100 },
-    2427: { pre: 900, post: 1100 },
-    2429: { pre: 900, post: 1100 },
+    2424: { pre: 500, post: 700 },  // Field 1
+    2425: { pre: 500, post: 700 },  // Field 2
+    2428: { pre: 1000, post: 1200 }, // Field 3
+    2426: { pre: 800, post: 1000 },  // Field 4
+    2427: { pre: 800, post: 1000 },  // Field 5
+    2429: { pre: 1000, post: 1200 }, // Field 6
 };
 
 function calculatePrice(fieldId: number, startTime: string, durationHours: number) {
@@ -51,7 +52,18 @@ function calculatePrice(fieldId: number, startTime: string, durationHours: numbe
         postHours = endH - cutOff;
     }
 
-    return Math.round((preHours * prices.pre) + (postHours * prices.post));
+    let prePrice = preHours * prices.pre;
+    let postPrice = postHours * prices.post;
+
+    // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
+    if (prePrice > 0 && prePrice % 100 !== 0) {
+        prePrice = Math.ceil(prePrice / 100) * 100;
+    }
+    if (postPrice > 0 && postPrice % 100 !== 0) {
+        postPrice = Math.ceil(postPrice / 100) * 100;
+    }
+
+    return Math.round(prePrice + postPrice);
 }
 
 serve(async (req) => {

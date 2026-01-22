@@ -14,12 +14,12 @@ interface MatchdayMatch {
 }
 
 const COURTS = [
-    { id: 2424, name: 'สนาม 1', size: '5 คน', color: 'blue', price_pre: 600, price_post: 600 },
-    { id: 2425, name: 'สนาม 2', size: '5 คน', color: 'indigo', price_pre: 600, price_post: 600 },
-    { id: 2428, name: 'สนาม 3', size: '7-8 คน', color: 'purple', price_pre: 900, price_post: 1100 },
-    { id: 2426, name: 'สนาม 4', size: '7 คน', color: 'pink', price_pre: 900, price_post: 1100 },
-    { id: 2427, name: 'สนาม 5', size: '7 คน', color: 'rose', price_pre: 900, price_post: 1100 },
-    { id: 2429, name: 'สนาม 6', size: '7 คน (ใหม่)', color: 'orange', price_pre: 900, price_post: 1100 },
+    { id: 2424, name: 'สนาม 1', size: '5 คน', color: 'blue', price_pre: 500, price_post: 700 }, // No 1
+    { id: 2425, name: 'สนาม 2', size: '5 คน', color: 'indigo', price_pre: 500, price_post: 700 }, // No 2
+    { id: 2428, name: 'สนาม 3', size: '7-8 คน', color: 'purple', price_pre: 1000, price_post: 1200 }, // No 3
+    { id: 2426, name: 'สนาม 4', size: '7 คน', color: 'pink', price_pre: 800, price_post: 1000 }, // No 4
+    { id: 2427, name: 'สนาม 5', size: '7 คน', color: 'rose', price_pre: 800, price_post: 1000 }, // No 5
+    { id: 2429, name: 'สนาม 6', size: '7 คน (ใหม่)', color: 'orange', price_pre: 1000, price_post: 1200 }, // No 6
 ];
 
 const START_HOUR = 8; // 08:00
@@ -65,7 +65,7 @@ export default function DashboardPage() {
                 containerRef.current.scrollTop = minutesFromStart * PIXELS_PER_MINUTE - 100;
             }
         }
-    }, [loading]); // Run when loading finishes/starts
+    }, [loading]);
 
     function getTodayStr() {
         const date = new Date();
@@ -79,13 +79,11 @@ export default function DashboardPage() {
         setLoading(true);
         setError(null);
         try {
-            // Get the session to use the JWT
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             console.log('[DEBUG] Using Token:', token ? token.substring(0, 20) + '...' : 'null');
 
-            // Direct fetch for better error visibility
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
                 method: 'POST',
                 headers: {
@@ -97,7 +95,6 @@ export default function DashboardPage() {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                // ... same error handling ...
                 throw new Error(`Error ${response.status}: ${errorText}`);
             }
 
@@ -122,21 +119,16 @@ export default function DashboardPage() {
 
     // 1. Mouse Down: Start Dragging
     const handleMouseDown = (e: React.MouseEvent, courtId: number) => {
-        // Only trigger with left click
         if (e.button !== 0) return;
-
-        // Prevent interacting if clicking on an existing booking
         if ((e.target as HTMLElement).closest('.booking-card')) return;
 
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const y = e.clientY - rect.top; // Relative Y within the court column
-
-        // Snap Y to nearest grid slot
-        const snappedY = snapToGrid(y);
+        const y = e.clientY - rect.top;
+        const snappedY = snapToGridStart(y); // Use Floor for Start
 
         setIsDragging(true);
         setDragStartY(snappedY);
-        setDragCurrentY(snappedY + (SNAP_MINUTES * PIXELS_PER_MINUTE)); // Default to min duration
+        setDragCurrentY(snappedY + (SNAP_MINUTES * PIXELS_PER_MINUTE));
         setDragCourtId(courtId);
     };
 
@@ -147,15 +139,13 @@ export default function DashboardPage() {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const y = e.clientY - rect.top;
 
-        // Ensure we don't drag way outside
         if (y < 0 || y > TOTAL_MINUTES * PIXELS_PER_MINUTE) return;
 
-        // Calculate snapped Y, but strictly >= startY + min_duration
         const minHeight = SNAP_MINUTES * PIXELS_PER_MINUTE;
-        let snappedY = snapToGrid(y);
+        let snappedY = snapToGrid(y); // Keep Round for End/Drag
 
         if (snappedY <= dragStartY) {
-            snappedY = dragStartY + minHeight; // Ensure at least min duration
+            snappedY = dragStartY + minHeight;
         }
 
         setDragCurrentY(snappedY);
@@ -168,14 +158,10 @@ export default function DashboardPage() {
             return;
         }
 
-        // Calculate Start & End Time
         const startMin = yToMinutes(dragStartY);
         const endMin = yToMinutes(dragCurrentY);
-
         const startTime = minutesToTime(startMin);
         const endTime = minutesToTime(endMin);
-
-        // Calculate Price (Client-side estimation for UI)
         const estimatedPrice = calculateEstimatedPrice(dragCourtId, startMin, endMin);
 
         setPendingBooking({
@@ -198,6 +184,11 @@ export default function DashboardPage() {
 
     // --- Helpers ---
 
+    function snapToGridStart(y: number) {
+        const slotHeight = SNAP_MINUTES * PIXELS_PER_MINUTE;
+        return Math.floor(y / slotHeight) * slotHeight;
+    }
+
     function snapToGrid(y: number) {
         const slotHeight = SNAP_MINUTES * PIXELS_PER_MINUTE;
         return Math.round(y / slotHeight) * slotHeight;
@@ -214,13 +205,13 @@ export default function DashboardPage() {
         return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
 
-    // Replicate basic pricing logic for immediate feedback
+    // Replicate basic pricing logic for immediate feedback (Matches GAS/price_calculator.gs)
     function calculateEstimatedPrice(courtId: number, startMin: number, endMin: number) {
         const court = COURTS.find(c => c.id === courtId);
         if (!court) return 0;
 
         const durationH = (endMin - startMin) / 60;
-        const startH = startMin / 60; // 17.5 = 17:30
+        const startH = startMin / 60;
         const endH = endMin / 60;
 
         const cutOff = 18.0;
@@ -234,8 +225,18 @@ export default function DashboardPage() {
             postHours = endH - cutOff;
         }
 
-        // Note: Simple logic here, backend handles rounding correctly
-        return (preHours * court.price_pre) + (postHours * court.price_post);
+        let prePrice = preHours * court.price_pre;
+        let postPrice = postHours * court.price_post;
+
+        // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
+        if (prePrice > 0 && prePrice % 100 !== 0) {
+            prePrice = Math.ceil(prePrice / 100) * 100;
+        }
+        if (postPrice > 0 && postPrice % 100 !== 0) {
+            postPrice = Math.ceil(postPrice / 100) * 100;
+        }
+
+        return Math.round(prePrice + postPrice);
     }
 
     // --- API Interactions ---
@@ -421,12 +422,16 @@ export default function DashboardPage() {
             )}
 
             {/* Calendar View */}
-            <div ref={containerRef} className="flex flex-auto overflow-hidden bg-white">
-                <div className="flex w-full flex-col">
+            <div className="flex flex-auto overflow-hidden bg-white relative">
+                <div
+                    ref={containerRef}
+                    className="flex flex-auto flex-col overflow-auto w-full"
+                >
+                    {/* Width Wrapper to ensure alignment */}
+                    <div className="flex flex-col min-w-[1000px]">
 
-                    {/* Sticky Court Header */}
-                    <div className="sticky top-0 z-30 flex-none bg-white ring-1 ring-black ring-opacity-5 sm:pr-8 border-b border-gray-200 shadow-sm">
-                        <div className="-mr-px grid grid-cols-[60px_repeat(6,1fr)] text-sm leading-6 text-gray-500 divide-x divide-gray-200">
+                        {/* Sticky Court Header */}
+                        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm grid grid-cols-[60px_repeat(6,1fr)] text-sm leading-6 text-gray-500 divide-x divide-gray-200">
                             <div className="flex items-center justify-center py-3 bg-gray-50">
                                 <Clock className="w-4 h-4 text-gray-400" />
                             </div>
@@ -437,13 +442,11 @@ export default function DashboardPage() {
                                 </div>
                             ))}
                         </div>
-                    </div>
 
-                    {/* Scrollable Grid */}
-                    <div className="flex flex-auto overflow-y-auto">
+                        {/* Scrollable Grid Body */}
                         <div
                             className="grid grid-cols-[60px_repeat(6,1fr)] w-full relative select-none"
-                            style={{ height: `${TOTAL_MINUTES * PIXELS_PER_MINUTE}px`, minWidth: '1000px' }}
+                            style={{ height: `${TOTAL_MINUTES * PIXELS_PER_MINUTE}px` }}
                             onMouseMove={handleMouseMove}
                             onMouseUp={handleMouseUp}
                         >
@@ -523,6 +526,15 @@ export default function DashboardPage() {
                                                             <p className="text-[10px] opacity-75 mt-0.5 truncate w-full">
                                                                 {booking.tel}
                                                             </p>
+                                                        )}
+
+                                                        {/* Price - Bottom aligned */}
+                                                        {(booking.price !== undefined && booking.price !== null) && height > 40 && (
+                                                            <div className="mt-auto pt-1 w-full text-right">
+                                                                <span className="inline-flex items-center rounded-sm bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 border border-green-200">
+                                                                    ฿{booking.price.toLocaleString()}
+                                                                </span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

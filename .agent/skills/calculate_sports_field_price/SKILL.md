@@ -6,65 +6,78 @@ description: Calculate football field reservation prices based on field type, ti
 # Sports Field Price Calculation Skill
 
 > [!IMPORTANT]
-> **Current System Architecture**: This project uses **Supabase Edge Functions (Deno)** for the LINE chatbot backend. The GAS folder contains legacy code used for learning and migration reference only.
+> **Current System Architecture**: This project uses **Supabase Edge Functions (Deno)** for the LINE chatbot backend. The pricing logic is currently **inlined** in `supabase/functions/create-booking/index.ts` and mirrored in `src/pages/admin/DashboardPage.tsx` for the frontend.
 
-This skill provides the pricing logic for calculating football field reservation prices. The pricing system is implemented in `supabase/functions/_shared/pricingService.ts`.
+This skill provides the definitive pricing logic for the football field reservation system.
 
-## Pricing Rules
+## 1. Field Configuration & Base Rates
 
-### Field Types and Base Prices
+The prices differ based on the time of day, split at **18:00**.
 
-| Field Type | Price Before 18:00 | Price After 18:00 |
-|------------|-------------------|-------------------|
-| 5-person   | 300 THB/hour      | 400 THB/hour      |
-| 7-person   | 400 THB/hour      | 500 THB/hour      |
-| 8-person   | 500 THB/hour      | 600 THB/hour      |
-| 11-person  | 700 THB/hour      | 800 THB/hour      |
+| Field Name | Type | Matchday ID | Price Before 18:00 | Price After 18:00 |
+|------------|------|-------------|--------------------|-------------------|
+| **Field 1** | 5 คน | 2424 | **500** THB/hr | **700** THB/hr |
+| **Field 2** | 5 คน | 2425 | **500** THB/hr | **700** THB/hr |
+| **Field 3** | 7-8 คน | 2428 | **1000** THB/hr | **1200** THB/hr |
+| **Field 4** | 7 คน | 2426 | **800** THB/hr | **1000** THB/hr |
+| **Field 5** | 7 คน | 2427 | **800** THB/hr | **1000** THB/hr |
+| **Field 6** | 7 คน (New) | 2429 | **1000** THB/hr | **1200** THB/hr |
 
-### Time-Based Pricing
+## 2. Calculation Logic & Rounding Rules
 
-- **Before 18:00** (06:00-17:59): Lower rate
-- **After 18:00** (18:00-23:59): Higher rate
+The system splits a booking into two segments: **Pre-18:00** and **Post-18:00**.
 
-### Special Rounding Rules
+### The "Dual Rounding" Rule
+To ensure prices sum up intuitively for 30-minute slots, **each segment is calculated and rounded UP to the nearest 100 THB independently** if it contains a fraction.
 
-When a booking crosses the 18:00 threshold, the system applies special rounding:
+**Formula:**
+1.  **Calculate Pre-Cost:** `PreHours * PreRate`
+    *   *If valid (>0) and not divisible by 100*: **Round UP** to nearest 100.
+2.  **Calculate Post-Cost:** `PostHours * PostRate`
+    *   *If valid (>0) and not divisible by 100*: **Round UP** to nearest 100.
+3.  **Total:** `Round(PreCost + PostCost)`
 
-1. Calculate the portion before and after 18:00
-2. Apply respective rates to each portion
-3. Apply rounding rules based on the decimal portion:
-   - If decimal ≥ 0.5: Round up to nearest 50 THB
-   - If decimal < 0.5: Round down to nearest 50 THB
+### Example Calculation: Field 1 (17:30 - 18:30)
+*   **Time:** 17:30 - 18:30 (1 Hour Total)
+*   **Segments:**
+    *   17:30 - 18:00 (30 mins = 0.5 hr) @ 500
+    *   18:00 - 18:30 (30 mins = 0.5 hr) @ 700
+*   **Step 1 (Pre):** 0.5 * 500 = 250 -> **Round UP to 300**
+*   **Step 2 (Post):** 0.5 * 700 = 350 -> **Round UP to 400**
+*   **Step 3 (Total):** 300 + 400 = **700 THB**
 
-## Implementation
+### Example Calculation: Field 1 (17:00 - 18:30)
+*   **Time:** 17:00 - 18:30 (1.5 Hours)
+*   **Segments:**
+    *   17:00 - 18:00 (1.0 hr) @ 500
+    *   18:00 - 18:30 (0.5 hr) @ 700
+*   **Step 1 (Pre):** 1.0 * 500 = 500 (No rounding needed)
+*   **Step 2 (Post):** 0.5 * 700 = 350 -> **Round UP to 400**
+*   **Step 3 (Total):** 500 + 400 = **900 THB**
 
-The pricing logic is located in:
-```
-supabase/functions/_shared/pricingService.ts
-```
-
-### Example Usage
+## Implementation Snippet
 
 ```typescript
-import { calculatePrice } from '../_shared/pricingService.ts';
+function calculatePrice(fieldId: number, startTime: string, durationHours: number) {
+    // ... calculate preHours and postHours ...
 
-// Calculate price for Field 1 (8-person), starting at 17:00 for 1.5 hours
-const price = await calculatePrice(1, '17:00', 1.5);
-// Result: 550 THB (0.5h @ 500 + 1h @ 600 = 850, rounded to 550)
+    let prePrice = preHours * prices.pre;
+    let postPrice = postHours * prices.post;
+
+    // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
+    if (prePrice > 0 && prePrice % 100 !== 0) {
+        prePrice = Math.ceil(prePrice / 100) * 100;
+    }
+    if (postPrice > 0 && postPrice % 100 !== 0) {
+        postPrice = Math.ceil(postPrice / 100) * 100;
+    }
+
+    return Math.round(prePrice + postPrice);
+}
 ```
 
-## Database Schema
-
-The `fields` table contains:
-- `id`: Field ID
-- `type`: Field type (e.g., "8 คน")
-- `price_before_18`: Price per hour before 18:00
-- `price_after_18`: Price per hour after 18:00
-- `matchday_court_id`: Corresponding Matchday court ID
-- `active`: Whether the field is active
-
-## Notes
-
-- All prices are in Thai Baht (THB)
-- Minimum booking duration is typically 1 hour
-- Supported durations: 1, 1.5, 2 hours
+## Supported Durations
+- 1 Hour
+- 1.5 Hours
+- 2 Hours
+- (System supports any duration, practically limited by 30-min slots)
