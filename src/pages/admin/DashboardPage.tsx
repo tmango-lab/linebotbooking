@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
 import CalendarDropdown from '../../components/ui/CalendarDropdown';
+import BookingModal from '../../components/ui/BookingModal';
 
 interface MatchdayMatch {
     id: number;
@@ -13,18 +14,19 @@ interface MatchdayMatch {
 }
 
 const COURTS = [
-    { id: 2424, name: 'สนาม 1', size: '5 คน', color: 'blue' },
-    { id: 2425, name: 'สนาม 2', size: '5 คน', color: 'indigo' },
-    { id: 2428, name: 'สนาม 3', size: '7-8 คน', color: 'purple' },
-    { id: 2426, name: 'สนาม 4', size: '7 คน', color: 'pink' },
-    { id: 2427, name: 'สนาม 5', size: '7 คน', color: 'rose' },
-    { id: 2429, name: 'สนาม 6', size: '7 คน (ใหม่)', color: 'orange' },
+    { id: 2424, name: 'สนาม 1', size: '5 คน', color: 'blue', price_pre: 600, price_post: 600 },
+    { id: 2425, name: 'สนาม 2', size: '5 คน', color: 'indigo', price_pre: 600, price_post: 600 },
+    { id: 2428, name: 'สนาม 3', size: '7-8 คน', color: 'purple', price_pre: 900, price_post: 1100 },
+    { id: 2426, name: 'สนาม 4', size: '7 คน', color: 'pink', price_pre: 900, price_post: 1100 },
+    { id: 2427, name: 'สนาม 5', size: '7 คน', color: 'rose', price_pre: 900, price_post: 1100 },
+    { id: 2429, name: 'สนาม 6', size: '7 คน (ใหม่)', color: 'orange', price_pre: 900, price_post: 1100 },
 ];
 
 const START_HOUR = 8; // 08:00
 const END_HOUR = 24;  // 00:00 (Next day)
 const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
 const PIXELS_PER_MINUTE = 1.5; // Adjust for height (1.5 = 90px per hour)
+const SNAP_MINUTES = 30; // Snap to 30 minutes
 
 export default function DashboardPage() {
     const [selectedDate, setSelectedDate] = useState(getTodayStr());
@@ -33,6 +35,21 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Drag & Drop State
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStartY, setDragStartY] = useState<number | null>(null);
+    const [dragCurrentY, setDragCurrentY] = useState<number | null>(null);
+    const [dragCourtId, setDragCourtId] = useState<number | null>(null);
+
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [pendingBooking, setPendingBooking] = useState<{
+        courtId: number;
+        startTime: string; // HH:mm
+        endTime: string;   // HH:mm
+        price: number;
+    } | null>(null);
 
     useEffect(() => {
         fetchBookings(selectedDate);
@@ -62,11 +79,36 @@ export default function DashboardPage() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error } = await supabase.functions.invoke('get-bookings', {
-                body: { date }
+            // Get the session to use the JWT
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            console.log('[DEBUG] Using Token:', token ? token.substring(0, 20) + '...' : 'null');
+
+            // Direct fetch for better error visibility
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ date })
             });
 
-            if (error) throw error;
+            if (!response.ok) {
+                const errorText = await response.text();
+                // ... same error handling ...
+                throw new Error(`Error ${response.status}: ${errorText}`);
+            }
+
+            const responseText = await response.text();
+            console.log('[DEBUG] Raw Response:', responseText);
+
+            if (!responseText) {
+                throw new Error('Server returned empty response');
+            }
+
+            const data = JSON.parse(responseText);
             setBookings(data.bookings || []);
         } catch (err: any) {
             console.error('Error fetching bookings:', err);
@@ -75,6 +117,180 @@ export default function DashboardPage() {
             setLoading(false);
         }
     }
+
+    // --- Drag Interaction Logic ---
+
+    // 1. Mouse Down: Start Dragging
+    const handleMouseDown = (e: React.MouseEvent, courtId: number) => {
+        // Only trigger with left click
+        if (e.button !== 0) return;
+
+        // Prevent interacting if clicking on an existing booking
+        if ((e.target as HTMLElement).closest('.booking-card')) return;
+
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const y = e.clientY - rect.top; // Relative Y within the court column
+
+        // Snap Y to nearest grid slot
+        const snappedY = snapToGrid(y);
+
+        setIsDragging(true);
+        setDragStartY(snappedY);
+        setDragCurrentY(snappedY + (SNAP_MINUTES * PIXELS_PER_MINUTE)); // Default to min duration
+        setDragCourtId(courtId);
+    };
+
+    // 2. Mouse Move: Update Drag Selection
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging || dragStartY === null) return;
+
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const y = e.clientY - rect.top;
+
+        // Ensure we don't drag way outside
+        if (y < 0 || y > TOTAL_MINUTES * PIXELS_PER_MINUTE) return;
+
+        // Calculate snapped Y, but strictly >= startY + min_duration
+        const minHeight = SNAP_MINUTES * PIXELS_PER_MINUTE;
+        let snappedY = snapToGrid(y);
+
+        if (snappedY <= dragStartY) {
+            snappedY = dragStartY + minHeight; // Ensure at least min duration
+        }
+
+        setDragCurrentY(snappedY);
+    };
+
+    // 3. Mouse Up: Finish Drag & Open Modal
+    const handleMouseUp = () => {
+        if (!isDragging || dragStartY === null || dragCurrentY === null || dragCourtId === null) {
+            resetDrag();
+            return;
+        }
+
+        // Calculate Start & End Time
+        const startMin = yToMinutes(dragStartY);
+        const endMin = yToMinutes(dragCurrentY);
+
+        const startTime = minutesToTime(startMin);
+        const endTime = minutesToTime(endMin);
+
+        // Calculate Price (Client-side estimation for UI)
+        const estimatedPrice = calculateEstimatedPrice(dragCourtId, startMin, endMin);
+
+        setPendingBooking({
+            courtId: dragCourtId,
+            startTime,
+            endTime,
+            price: estimatedPrice
+        });
+
+        setIsModalOpen(true);
+        resetDrag();
+    };
+
+    const resetDrag = () => {
+        setIsDragging(false);
+        setDragStartY(null);
+        setDragCurrentY(null);
+        setDragCourtId(null);
+    };
+
+    // --- Helpers ---
+
+    function snapToGrid(y: number) {
+        const slotHeight = SNAP_MINUTES * PIXELS_PER_MINUTE;
+        return Math.round(y / slotHeight) * slotHeight;
+    }
+
+    function yToMinutes(y: number) {
+        const totalMinutes = y / PIXELS_PER_MINUTE;
+        return START_HOUR * 60 + totalMinutes;
+    }
+
+    function minutesToTime(totalMinutes: number) {
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = Math.floor(totalMinutes % 60);
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+
+    // Replicate basic pricing logic for immediate feedback
+    function calculateEstimatedPrice(courtId: number, startMin: number, endMin: number) {
+        const court = COURTS.find(c => c.id === courtId);
+        if (!court) return 0;
+
+        const durationH = (endMin - startMin) / 60;
+        const startH = startMin / 60; // 17.5 = 17:30
+        const endH = endMin / 60;
+
+        const cutOff = 18.0;
+        let preHours = 0;
+        let postHours = 0;
+
+        if (endH <= cutOff) preHours = durationH;
+        else if (startH >= cutOff) postHours = durationH;
+        else {
+            preHours = cutOff - startH;
+            postHours = endH - cutOff;
+        }
+
+        // Note: Simple logic here, backend handles rounding correctly
+        return (preHours * court.price_pre) + (postHours * court.price_post);
+    }
+
+    // --- API Interactions ---
+
+    const handleConfirmBooking = async (data: { name: string; phone: string; note: string }) => {
+        if (!pendingBooking) return;
+
+        try {
+            // Get session
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            // Direct fetch
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-booking`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    fieldId: pendingBooking.courtId,
+                    date: selectedDate,
+                    startTime: pendingBooking.startTime,
+                    endTime: pendingBooking.endTime,
+                    customerName: data.name,
+                    phoneNumber: data.phone,
+                    note: data.note
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                let errorMessage = `Error ${response.status}: ${response.statusText}`;
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    if (errorJson.error) errorMessage = errorJson.error;
+                } catch (e) {
+                    errorMessage += ` - ${errorText.substring(0, 100)}`;
+                }
+                throw new Error(errorMessage);
+            }
+
+            // Refresh bookings
+            fetchBookings(selectedDate);
+            setIsModalOpen(false); // Close modal on success
+
+        } catch (err: any) {
+            console.error('Booking Error:', err);
+            // Re-throw to show in Modal or Toast (Modal handles it if we don't catch here, but we need to pass it to modal?
+            // Actually BookingModal checks the promise rejection?
+            // No, Checking BookingModal implementation might be needed, but usually throwing here causes the caller to catch?
+            // Wait, this function is passed to onConfirm. if BookingModal awaits it, it will catch.
+            throw err;
+        }
+    };
 
     function calculatePosition(timeStr: string) {
         const date = new Date(timeStr.replace(' ', 'T'));
@@ -102,7 +318,7 @@ export default function DashboardPage() {
         if (minutes === 1) minutes = 0;
         if (minutes === 31) minutes = 30;
 
-        return `${hours.toString().padStart(2, '0')}.${minutes.toString().padStart(2, '0')}`;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
 
     const handlePrevDay = () => {
@@ -159,7 +375,6 @@ export default function DashboardPage() {
                             type="button"
                             onClick={handleNextDay}
                             className="relative inline-flex items-center rounded-r-md bg-white px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10 -ml-px"
-                            title="วันถัดไป"
                         >
                             <span className="sr-only">Next day</span>
                             <ChevronRight className="h-5 w-5" aria-hidden="true" />
@@ -227,8 +442,10 @@ export default function DashboardPage() {
                     {/* Scrollable Grid */}
                     <div className="flex flex-auto overflow-y-auto">
                         <div
-                            className="grid grid-cols-[60px_repeat(6,1fr)] w-full relative"
+                            className="grid grid-cols-[60px_repeat(6,1fr)] w-full relative select-none"
                             style={{ height: `${TOTAL_MINUTES * PIXELS_PER_MINUTE}px`, minWidth: '1000px' }}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
                         >
                             {/* Horizontal Grid Lines (Rows) */}
                             <div className="col-start-1 col-end-[-1] grid-rows-1 absolute inset-0 z-0 pointer-events-none">
@@ -258,10 +475,15 @@ export default function DashboardPage() {
 
                             {/* Court Columns (Vertical) */}
                             {COURTS.map((court) => (
-                                <div key={court.id} className="relative border-r border-gray-200 hover:bg-gray-50/30 transition-colors">
+                                <div
+                                    key={court.id}
+                                    className="relative border-r border-gray-200 hover:bg-gray-50/30 transition-colors group cursor-crosshair"
+                                    onMouseDown={(e) => handleMouseDown(e, court.id)}
+                                >
                                     {/* Vertical guide lines helper */}
                                     <div className="absolute inset-y-0 left-0 w-px bg-gray-100" />
 
+                                    {/* Render Existing Bookings */}
                                     {bookings
                                         .filter(b => b.court_id === court.id)
                                         .map(booking => {
@@ -269,7 +491,7 @@ export default function DashboardPage() {
                                             const height = calculateHeight(booking.time_start, booking.time_end);
 
                                             // Clean Blue Theme (Tailwind UI Inspired)
-                                            const styleClass = 'bg-blue-50 text-blue-700 border-blue-600 hover:bg-blue-100';
+                                            const styleClass = 'bg-blue-50 text-blue-700 border-blue-600 hover:bg-blue-100 booking-card';
 
                                             return (
                                                 <div
@@ -280,6 +502,10 @@ export default function DashboardPage() {
                                                         height: `${height}px`,
                                                     }}
                                                     title={`${formatTime(booking.time_start)} - ${formatTime(booking.time_end)} • ${booking.name || 'User'}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Prevent drag start
+                                                        console.log('Clicked booking', booking.id);
+                                                    }}
                                                 >
                                                     <div className="flex flex-col h-full justify-start items-start text-left pl-2 pt-1 pb-1 pr-1">
                                                         {/* Name */}
@@ -302,12 +528,39 @@ export default function DashboardPage() {
                                                 </div>
                                             );
                                         })}
+
+                                    {/* Render Drag Ghost */}
+                                    {isDragging && dragCourtId === court.id && dragStartY !== null && dragCurrentY !== null && (
+                                        <div
+                                            className="absolute inset-x-1 rounded bg-indigo-100/80 border-2 border-indigo-500 border-dashed z-20 pointer-events-none flex items-center justify-center text-indigo-700 font-semibold text-xs shadow-lg"
+                                            style={{
+                                                top: `${dragStartY}px`,
+                                                height: `${dragCurrentY - dragStartY}px`,
+                                            }}
+                                        >
+                                            {minutesToTime(yToMinutes(dragStartY))} - {minutesToTime(yToMinutes(dragCurrentY))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Booking Modal */}
+            <BookingModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onConfirm={handleConfirmBooking}
+                bookingDetails={pendingBooking ? {
+                    courtName: COURTS.find(c => c.id === pendingBooking.courtId)?.name || '',
+                    date: formatDateHeader(selectedDate),
+                    startTime: pendingBooking.startTime,
+                    endTime: pendingBooking.endTime,
+                    price: pendingBooking.price
+                } : null}
+            />
         </div>
     );
 }

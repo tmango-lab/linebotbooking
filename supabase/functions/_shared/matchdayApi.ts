@@ -100,3 +100,65 @@ export function buildBusyIntervals(matches: MatchdayMatch[]) {
         return { start, end, raw: m };
     });
 }
+
+interface CreateBookingParams {
+    courtId: number;
+    timeStart: string; // "YYYY-MM-DD HH:mm:ss" - Local time (no timezone offset)
+    timeEnd: string;   // "YYYY-MM-DD HH:mm:ss"
+    customerName: string;
+    phoneNumber: string;
+    price?: number; // Optional fixed price
+    note?: string;
+}
+
+/**
+ * Create a booking in Matchday System
+ */
+export async function createMatchdayBooking(params: CreateBookingParams) {
+    if (!MD_TOKEN) {
+        throw new Error('MATCHDAY_TOKEN is missing');
+    }
+
+    const url = `${MD_BASE_URL}/arena/create-match`;
+
+    // Construct payload
+    const body = {
+        courts: [params.courtId.toString()],
+        time_start: params.timeStart,
+        time_end: params.timeEnd,
+        settings: {
+            name: params.customerName,
+            phone_number: params.phoneNumber,
+            // Try to pass note in settings if supported, or could be separate field
+            note: params.note || ''
+        },
+        payment: 'cash',
+        method: 'fast-create',
+        payment_multi: false,
+        fixed_price: params.price || null, // Send calculated price here
+        member_id: null,
+        user_id: null
+    };
+
+    console.log('[MATCHDAY CREATE] Payload:', JSON.stringify(body));
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MD_TOKEN}`,
+            'Origin': 'https://arena.matchday.co.th'
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Matchday Create Error: ${res.status} - ${errorText}`);
+        throw new Error(`Failed to create booking on Matchday: ${errorText}`);
+    }
+
+    const data = await res.json();
+    console.log('[MATCHDAY CREATE] Success:', data);
+    return data;
+}
