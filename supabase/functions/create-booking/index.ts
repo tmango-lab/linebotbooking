@@ -177,31 +177,37 @@ serve(async (req) => {
         }
 
         let data: any = {};
+        let autoCorrected = false;
         if (mdText) {
             try {
                 data = JSON.parse(mdText);
 
                 // Auto-Correct Logic
                 const createdMatch = data.match || (data.matches && data.matches[0]);
+                let autoCorrected = false;
 
                 // Check if we need to enforce price (if Matchday returned different price, or just to be safe)
                 if (createdMatch && createdMatch.id) {
-                    // If created price != calculated price, OR just always enforce it to be safe
-                    // Let's enforce it if we have a calculated price.
+                    // Force update to sync Description (Name + Phone) even if price matches
+                    // Add delay to prevent race condition with Matchday's internal creation helpers
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
                     if (price > 0) {
                         console.log(`[Auto-Correct] Enforcing price ${price} for match ${createdMatch.id}`);
                         await updateMatch(createdMatch.id, {
-                            time_start: timeStartStr, // Reuse
-                            time_end: timeEndStr,
+                            // Don't re-send times, it might cause timezone shifts or disappearance
+                            // time_start: timeStartStr, 
+                            // time_end: timeEndStr,
+
                             description: `${customerName} ${phoneNumber}`,
-                            change_price: price,
-                            // FIX: Revert to using 'settings' as confirmed by Create payload interception
                             settings: {
                                 name: customerName,
                                 phone_number: phoneNumber,
                                 note: note || ''
-                            }
+                            },
+                            change_price: price
                         });
+                        autoCorrected = true;
                     }
                 }
 
@@ -210,7 +216,7 @@ serve(async (req) => {
             }
         }
 
-        return new Response(JSON.stringify({ success: true, data, price }), {
+        return new Response(JSON.stringify({ success: true, data, price, autoCorrected }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });

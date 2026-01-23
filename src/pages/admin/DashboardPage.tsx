@@ -113,7 +113,39 @@ export default function DashboardPage() {
             }
 
             const data = JSON.parse(responseText);
-            setBookings(data.bookings || []);
+            const rawBookings = data.bookings || [];
+
+            // Parse description "Name Phone" into name and tel if native tel is missing
+            const parsedBookings = rawBookings.map((b: any) => {
+                let name = b.name;
+                let tel = b.tel;
+
+                // Matchday sometimes puts the description in bill.description
+                const description = b.description || b.bill?.description;
+
+                // Priority: Use description if it looks like "Name Phone"
+                if (description && (!tel || !name || name === description)) {
+                    // Try to split by space, where last part is phone
+                    // Accept any sequence of digits (5+) as potential phone number
+                    const parts = description.split(' ');
+                    if (parts.length >= 2) {
+                        const lastPart = parts[parts.length - 1];
+                        // More lenient: accept any 5+ digit sequence, with optional hyphens
+                        if (/^[\d-]{5,}$/.test(lastPart) && /\d{5,}/.test(lastPart)) {
+                            tel = lastPart;
+                            name = parts.slice(0, -1).join(' ');
+                        }
+                    }
+                }
+
+                return {
+                    ...b,
+                    name: name || b.name || description, // Fallback
+                    tel: tel
+                };
+            });
+
+            setBookings(parsedBookings);
         } catch (err: any) {
             console.error('Error fetching bookings:', err);
             setError(err.message || 'Failed to fetch bookings');

@@ -172,7 +172,7 @@ export async function createMatchdayBooking(params: CreateBookingParams) {
             await updateMatchdayBooking(createdMatch.id, {
                 time_start: params.timeStart,
                 time_end: params.timeEnd,
-                description: params.customerName,
+                description: `${params.customerName} ${params.phoneNumber}`,
                 change_price: params.price
             });
             console.log(`[MATCHDAY API] Price auto-correction successful.`);
