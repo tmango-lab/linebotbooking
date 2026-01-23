@@ -470,12 +470,11 @@ export default function DashboardPage() {
                                 ))}
                             </div>
 
-                            {/* Time Column (Left Axis) */}
                             <div className="bg-white border-r border-gray-200 z-10 text-xs text-gray-500 font-medium">
                                 {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
                                     <div
                                         key={i}
-                                        className="relative -top-2.5 text-right pr-2"
+                                        className={`relative text-right pr-2 ${i === 0 ? '' : '-top-2.5'}`}
                                         style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}
                                     >
                                         {String(START_HOUR + i).padStart(2, '0')}:00
