@@ -3,6 +3,7 @@ import { supabase } from '../../lib/api';
 import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
 import CalendarDropdown from '../../components/ui/CalendarDropdown';
 import BookingModal from '../../components/ui/BookingModal';
+import BookingDetailModal from '../../components/ui/BookingDetailModal';
 
 interface MatchdayMatch {
     id: number;
@@ -10,6 +11,9 @@ interface MatchdayMatch {
     time_start: string;
     time_end: string;
     price: number;
+    name?: string;
+    tel?: string;
+    remark?: string;
     [key: string]: any;
 }
 
@@ -50,6 +54,9 @@ export default function DashboardPage() {
         endTime: string;   // HH:mm
         price: number;
     } | null>(null);
+
+    // Detail Modal State
+    const [viewingBooking, setViewingBooking] = useState<MatchdayMatch | null>(null);
 
     useEffect(() => {
         fetchBookings(selectedDate);
@@ -507,7 +514,7 @@ export default function DashboardPage() {
                                                     title={`${formatTime(booking.time_start)} - ${formatTime(booking.time_end)} • ${booking.name || 'User'}`}
                                                     onClick={(e) => {
                                                         e.stopPropagation(); // Prevent drag start
-                                                        console.log('Clicked booking', booking.id);
+                                                        setViewingBooking(booking);
                                                     }}
                                                 >
                                                     <div className="flex flex-col h-full justify-start items-start text-left pl-2 pt-1 pb-1 pr-1">
@@ -572,6 +579,26 @@ export default function DashboardPage() {
                     endTime: pendingBooking.endTime,
                     price: pendingBooking.price
                 } : null}
+            />
+
+            {/* Detail Modal */}
+            <BookingDetailModal
+                isOpen={!!viewingBooking}
+                booking={viewingBooking ? {
+                    ...viewingBooking,
+                    name: viewingBooking.name || 'ไม่ระบุชื่อ',
+                    tel: viewingBooking.tel || '-',
+                    // Ensure required fields for modal are present
+                    id: viewingBooking.id,
+                    time_start: viewingBooking.time_start,
+                    time_end: viewingBooking.time_end,
+                    price: viewingBooking.price
+                } : null}
+                onClose={() => setViewingBooking(null)}
+                onBookingCancelled={() => {
+                    setViewingBooking(null);
+                    fetchBookings(selectedDate);
+                }}
             />
         </div>
     );

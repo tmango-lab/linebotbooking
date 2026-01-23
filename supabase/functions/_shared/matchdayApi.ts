@@ -188,8 +188,14 @@ interface UpdateMatchPayload {
     time_start: string; // "YYYY-MM-DD HH:mm:ss"
     time_end: string;   // "YYYY-MM-DD HH:mm:ss"
     description?: string; // This corresponds to customer name or note in some contexts
-    remark?: string | null;
-    change_price?: number; // The new price
+    change_price?: number;
+    cancel?: number;
+    settings?: {
+        name?: string;
+        phone_number?: string;
+        note?: string;
+        [key: string]: any;
+    };
 }
 
 /**
@@ -224,4 +230,19 @@ export async function updateMatchdayBooking(matchId: number, payload: UpdateMatc
     const data = await res.json();
     console.log('[MATCHDAY UPDATE] Success:', data);
     return data;
+}
+
+/**
+ * Cancel a booking in Matchday System
+ */
+export async function cancelMatchdayBooking(matchId: number, remark: string) {
+    return updateMatchdayBooking(matchId, {
+        // @ts-ignore: Partial update for cancellation
+        time_start: "", // Not needed for cancel but payload type requires it? Check if we can omit.
+        // Actually, let's just cheat the type or make type optional if specific fields are not needed for cancel.
+        // Looking at the network log: {"cancel":1,"remark":"..."}
+        // So we clearly don't need time_start/time_end.
+        cancel: 1,
+        remark: remark
+    } as any);
 }

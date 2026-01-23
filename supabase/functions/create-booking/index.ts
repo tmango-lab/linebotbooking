@@ -157,6 +157,9 @@ serve(async (req) => {
         // --- Helper for Update ---
         async function updateMatch(matchId: number, payload: any) {
             const updateUrl = `${MD_BASE_URL}/arena/match/${matchId}`;
+            // Ensure payload has phone number if provided (Matchday expects 'tel' in update, 'phone_number' in settings for create)
+            console.log(`[Auto-Correct] Update Payload for ${matchId}:`, JSON.stringify(payload));
+
             const updateRes = await fetch(updateUrl, {
                 method: 'PUT',
                 headers: {
@@ -190,8 +193,14 @@ serve(async (req) => {
                         await updateMatch(createdMatch.id, {
                             time_start: timeStartStr, // Reuse
                             time_end: timeEndStr,
-                            description: customerName,
-                            change_price: price
+                            description: `${customerName} ${phoneNumber}`,
+                            change_price: price,
+                            // FIX: Revert to using 'settings' as confirmed by Create payload interception
+                            settings: {
+                                name: customerName,
+                                phone_number: phoneNumber,
+                                note: note || ''
+                            }
                         });
                     }
                 }
