@@ -1,73 +1,151 @@
-# React + TypeScript + Vite
+# ระบบจองสนามฟุตบอล (Football Field Booking System)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ระบบจัดการการจองสนามฟุตบอลผ่าน LINE Bot และ Admin Dashboard พร้อมระบบโค้ดโปรโมชั่น
 
-Currently, two official plugins are available:
+## 🎯 ฟีเจอร์หลัก
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1. LINE Bot Integration
+- ค้นหาเวลาว่าง (ทีละสนาม / ทั้งหมด)
+- จองสนามผ่าน LINE
+- สร้างโค้ดโปรโมชั่นอัตโนมัติ (ส่วนลด 10%)
+- แสดงราคาตามช่วงเวลา (ก่อน/หลัง 18:00)
 
-## React Compiler
+### 2. Admin Dashboard
+- ดูตารางการจองแบบ Calendar View
+- จองสนามผ่าน UI
+- ใช้โค้ดโปรโมชั่นที่ลูกค้าได้รับจาก LINE
+- ยกเลิกการจอง
+- จัดการข้อมูลสนาม
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 3. Promo Code System
+- สร้างโค้ด 6 หลักอัตโนมัติ
+- ส่วนลด 10% หรือจำนวนเงินคงที่
+- หมดอายุ 30 นาที
+- ตรวจสอบสถานะ (active/used/expired)
+- **ราคาส่วนลดแสดงถูกต้องทั้ง 3 ที่:**
+  - Admin Dashboard
+  - Matchday Booking Card
+  - Matchday Details Modal
 
-## Expanding the ESLint configuration
+### 4. Price Calculation
+- คำนวณราคาตามช่วงเวลา:
+  - ก่อน 18:00: ราคาปกติ
+  - หลัง 18:00: ราคาพิเศษ
+- ปัดขึ้นเป็นร้อย (เช่น 850 → 900)
+- รองรับการจองข้ามช่วงเวลา
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Frontend**: React + TypeScript + Vite
+- **Backend**: Supabase Edge Functions (Deno)
+- **Database**: Supabase PostgreSQL
+- **External API**: Matchday Arena API
+- **Messaging**: LINE Messaging API
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 📁 โครงสร้างโปรเจค
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+ระบบจองสนาม/
+├── src/                          # Frontend React
+│   ├── pages/
+│   │   └── admin/
+│   │       └── DashboardPage.tsx # หน้าหลัก Admin
+│   └── components/
+│       └── ui/
+│           ├── PromoCodeModal.tsx      # Modal ใช้โค้ดโปรโมชั่น
+│           └── BookingDetailModal.tsx  # รายละเอียดการจอง
+│
+├── supabase/functions/           # Edge Functions
+│   ├── webhook/                  # LINE Bot webhook
+│   ├── create-booking/           # สร้างการจอง
+│   ├── use-promo-code-and-book/  # จองด้วยโค้ดโปรโมชั่น
+│   ├── validate-promo-code/      # ตรวจสอบโค้ด
+│   ├── get-bookings/             # ดึงข้อมูลการจอง
+│   ├── cancel-booking/           # ยกเลิกการจอง
+│   └── _shared/                  # Shared utilities
+│       ├── promoService.ts       # สร้างโค้ดโปรโมชั่น
+│       ├── pricingService.ts     # คำนวณราคา
+│       ├── matchdayApi.ts        # Matchday API client
+│       └── lineClient.ts         # LINE API client
+│
+└── supabase/migrations/          # Database migrations
+    └── 20260121_promo_codes.sql  # Promo code schema
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🚀 การติดตั้ง
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. Clone Repository
+```bash
+git clone <repository-url>
+cd ระบบจองสนาม
 ```
+
+### 2. ติดตั้ง Dependencies
+```bash
+npm install
+```
+
+### 3. ตั้งค่า Environment Variables
+
+สร้างไฟล์ `.env`:
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+ตั้งค่า Supabase Secrets (ใน Dashboard):
+```
+LINE_CHANNEL_ACCESS_TOKEN=your_line_token
+LINE_CHANNEL_SECRET=your_line_secret
+MATCHDAY_TOKEN=your_matchday_token
+```
+
+### 4. Deploy Functions
+```bash
+npx supabase functions deploy webhook --no-verify-jwt
+npx supabase functions deploy create-booking --no-verify-jwt
+npx supabase functions deploy use-promo-code-and-book --no-verify-jwt
+npx supabase functions deploy validate-promo-code --no-verify-jwt
+npx supabase functions deploy get-bookings --no-verify-jwt
+npx supabase functions deploy cancel-booking --no-verify-jwt
+```
+
+### 5. Run Development Server
+```bash
+npm run dev
+```
+
+## 📖 เอกสารเพิ่มเติม
+
+- **[System Architecture](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/system_architecture.md)** - สถาปัตยกรรมระบบแบบละเอียด
+- **[Implementation Plan](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/implementation_plan.md)** - แผนการพัฒนาฟีเจอร์โค้ดโปรโมชั่น
+- **[Walkthrough](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/walkthrough.md)** - สรุปการแก้ไขและทดสอบ
+
+## 🔧 การแก้ปัญหาทั่วไป
+
+### LINE Bot ไม่ตอบกลับ
+```bash
+# Redeploy webhook function
+npx supabase functions deploy webhook --no-verify-jwt
+```
+
+### ราคาไม่ตรงกันระหว่าง Admin และ Matchday
+- ตรวจสอบว่า `use-promo-code-and-book` ใช้ pattern ที่ถูกต้อง:
+  - `fixed_price: null` ในการสร้าง
+  - รอ 5 วินาทีก่อน update
+  - ส่ง `price`, `change_price`, `time_start`, `time_end` ใน update
+
+### CORS Error ใน F12
+- เป็นเรื่องปกติใน dev mode (`localhost:5173`)
+- จะหายเมื่อ deploy production
+
+## 🎓 สำหรับ AI/Developer
+
+เมื่อต้องการสร้าง function ใหม่ ให้อ่าน:
+1. [System Architecture](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/system_architecture.md) - เข้าใจ flow ทั้งหมด
+2. ดูตัวอย่างจาก `create-booking` หรือ `use-promo-code-and-book`
+3. ใช้ proven pattern สำหรับการ update ราคาใน Matchday
+
+## 📝 License
+
+MIT

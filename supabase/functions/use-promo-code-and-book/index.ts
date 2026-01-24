@@ -104,7 +104,7 @@ serve(async (req) => {
             payment: 'cash',
             method: 'fast-create',
             payment_multi: false,
-            fixed_price: promo.original_price,  // Use original price (Matchday only accepts price that matches duration)
+            fixed_price: null,  // [FIX] Prevent price lock, allow update later
             member_id: null,
             user_id: null
         };
@@ -177,19 +177,17 @@ serve(async (req) => {
 
         // Step 2.5: Auto-Correction - Force price update (same as create-booking)
         if (createdMatch && createdMatch.id) {
-            console.log(`[Auto-Correct] Waiting 1 second before updating match ${createdMatch.id}...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log(`[Auto-Correct] Waiting 5 seconds before updating match ${createdMatch.id}...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));  // [FIX] Match create-booking delay
 
             console.log(`[Auto-Correct] Enforcing price ${promo.final_price} for match ${createdMatch.id}`);
 
             const updatePayload = {
+                time_start: `${promo.booking_date} ${timeFromHHMM}:00`,  // [FIX] Required for recalculation
+                time_end: `${promo.booking_date} ${timeToHHMM}:00`,      // [FIX] Required for recalculation
                 description: `${customerName} ${phoneNumber}`,
-                settings: {
-                    name: customerName,
-                    phone_number: phoneNumber,
-                    note: `Promo: ${promoCode} | Price: ${promo.final_price}`  // Include price in note
-                },
-                change_price: promo.final_price  // Apply discount via change_price
+                change_price: promo.final_price,  // Apply discount via change_price
+                price: promo.final_price          // [FIX] Force base price update for total_price
             };
 
             const updateResponse = await fetch(`${matchdayUrl}/arena/match/${createdMatch.id}`, {
