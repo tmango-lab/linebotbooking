@@ -135,7 +135,7 @@ export async function createMatchdayBooking(params: CreateBookingParams) {
         payment: 'cash',
         method: 'fast-create',
         payment_multi: false,
-        fixed_price: params.price || null, // Send calculated price here
+        fixed_price: null, // [FIX] Do not send fixed_price during create, rely on update
         member_id: null,
         user_id: null
     };
@@ -169,13 +169,18 @@ export async function createMatchdayBooking(params: CreateBookingParams) {
     if (params.price && createdMatch && createdMatch.id) {
         console.log(`[MATCHDAY API] Auto-correcting price for match ${createdMatch.id} to ${params.price}`);
         try {
-            await updateMatchdayBooking(createdMatch.id, {
+            // [FIX] Add delay to prevent race condition with initial price calculation
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const updateRes = await updateMatchdayBooking(createdMatch.id, {
                 time_start: params.timeStart,
                 time_end: params.timeEnd,
                 description: `${params.customerName} ${params.phoneNumber}`,
-                change_price: params.price
+                change_price: params.price,
+                // @ts-ignore
+                fixed_price: null // Ensure fixed price is cleared if it persists
             });
-            console.log(`[MATCHDAY API] Price auto-correction successful.`);
+            console.log(`[MATCHDAY API] Price auto-corrected. New Total Price: ${updateRes?.match?.total_price}`);
         } catch (err) {
             console.error(`[MATCHDAY API] Failed to auto-correct price for match ${createdMatch.id}:`, err);
         }

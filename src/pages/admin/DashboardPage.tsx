@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar, Tag } from 'lucide-react';
 import CalendarDropdown from '../../components/ui/CalendarDropdown';
 import BookingModal from '../../components/ui/BookingModal';
 import BookingDetailModal from '../../components/ui/BookingDetailModal';
+import PromoCodeModal from '../../components/ui/PromoCodeModal';
 
 interface MatchdayMatch {
     id: number;
@@ -57,6 +58,9 @@ export default function DashboardPage() {
 
     // Detail Modal State
     const [viewingBooking, setViewingBooking] = useState<MatchdayMatch | null>(null);
+
+    // Promo Code Modal State
+    const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
 
     useEffect(() => {
         fetchBookings(selectedDate);
@@ -138,10 +142,21 @@ export default function DashboardPage() {
                     }
                 }
 
+                // Extract price from note if it's a promo booking (format: "Promo: CODE | Price: 600")
+                let finalPrice = b.bill?.total || b.total_price || b.price;
+                const note = b.settings?.note || b.remark;
+                if (note && note.includes('Promo:') && note.includes('Price:')) {
+                    const priceMatch = note.match(/Price:\s*(\d+)/);
+                    if (priceMatch) {
+                        finalPrice = parseInt(priceMatch[1], 10);
+                    }
+                }
+
                 return {
                     ...b,
                     name: name || b.name || description, // Fallback
-                    tel: tel
+                    tel: tel,
+                    price: finalPrice  // Use extracted promo price or bill.total
                 };
             });
 
@@ -444,6 +459,14 @@ export default function DashboardPage() {
                     </div>
 
                     <button
+                        onClick={() => setIsPromoModalOpen(true)}
+                        className="flex items-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+                    >
+                        <Tag className="h-4 w-4" />
+                        <span className="hidden md:inline">ใช้โค้ด</span>
+                    </button>
+
+                    <button
                         onClick={() => fetchBookings(selectedDate)}
                         className={`flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
@@ -628,6 +651,16 @@ export default function DashboardPage() {
                 onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => {
                     setViewingBooking(null);
+                    fetchBookings(selectedDate);
+                }}
+            />
+
+            {/* Promo Code Modal */}
+            <PromoCodeModal
+                isOpen={isPromoModalOpen}
+                onClose={() => setIsPromoModalOpen(false)}
+                onSuccess={() => {
+                    setIsPromoModalOpen(false);
                     fetchBookings(selectedDate);
                 }}
             />

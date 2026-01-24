@@ -125,7 +125,7 @@ serve(async (req) => {
             payment: 'cash',
             method: 'fast-create',
             payment_multi: false,
-            fixed_price: price,
+            fixed_price: null, // [FIX] Nullify fixed_price to avoid split-brain
             member_id: null,
             user_id: null
         };
@@ -169,43 +169,41 @@ serve(async (req) => {
                 },
                 body: JSON.stringify(payload)
             });
+            const text = await updateRes.text();
             if (!updateRes.ok) {
-                console.error('Update failed:', await updateRes.text());
+                console.error('Update failed:', text);
+                return { success: false, error: text };
             } else {
                 console.log('Update success');
+                return { success: true, response: text };
             }
         }
 
         let data: any = {};
         let autoCorrected = false;
+        let updateResult: any = null;
+
         if (mdText) {
             try {
                 data = JSON.parse(mdText);
 
                 // Auto-Correct Logic
                 const createdMatch = data.match || (data.matches && data.matches[0]);
-                let autoCorrected = false;
-
-                // Check if we need to enforce price (if Matchday returned different price, or just to be safe)
                 if (createdMatch && createdMatch.id) {
                     // Force update to sync Description (Name + Phone) even if price matches
                     // Add delay to prevent race condition with Matchday's internal creation helpers
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await new Promise(resolve => setTimeout(resolve, 5000));
 
                     if (price > 0) {
                         console.log(`[Auto-Correct] Enforcing price ${price} for match ${createdMatch.id}`);
-                        await updateMatch(createdMatch.id, {
+                        updateResult = await updateMatch(createdMatch.id, {
                             // Don't re-send times, it might cause timezone shifts or disappearance
-                            // time_start: timeStartStr, 
-                            // time_end: timeEndStr,
+                            time_start: timeStartStr,
+                            time_end: timeEndStr,
 
                             description: `${customerName} ${phoneNumber}`,
-                            settings: {
-                                name: customerName,
-                                phone_number: phoneNumber,
-                                note: note || ''
-                            },
-                            change_price: price
+                            change_price: price,
+                            price: price // [FIX] Explicitly set price to update base price and total_price
                         });
                         autoCorrected = true;
                     }
@@ -216,7 +214,7 @@ serve(async (req) => {
             }
         }
 
-        return new Response(JSON.stringify({ success: true, data, price, autoCorrected }), {
+        return new Response(JSON.stringify({ success: true, data, price, autoCorrected, updateResult }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
