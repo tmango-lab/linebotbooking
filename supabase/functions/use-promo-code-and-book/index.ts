@@ -3,11 +3,104 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { pushMessage } from '../_shared/lineClient.ts';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// =====================================================
+// Helper Functions for LINE Notification
+// =====================================================
+
+/**
+ * Get field name in Thai with field type
+ */
+function getFieldName(fieldId: number): string {
+    const fieldNames: Record<number, string> = {
+        1: 'สนาม 1 (5 คน)',
+        2: 'สนาม 2 (5 คน)',
+        3: 'สนาม 3 (7-8 คน)',
+        4: 'สนาม 4 (7 คน)',
+        5: 'สนาม 5 (7 คน)',
+        6: 'สนาม 6 (7 คน)',
+    };
+    return fieldNames[fieldId] || `สนาม ${fieldId}`;
+}
+
+/**
+ * Format date to Thai format (e.g., "27 ม.ค. 2569")
+ */
+function formatThaiDate(dateStr: string): string {
+    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    const date = new Date(dateStr);
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear() + 543; // Convert to Buddhist year
+    return `${day} ${month} ${year}`;
+}
+
+/**
+ * Format booking confirmation message for LINE
+ */
+function formatBookingConfirmation(
+    promo: any,
+    customerName: string,
+    phoneNumber: string
+): string {
+    const fieldName = getFieldName(promo.field_id);
+    const dateStr = formatThaiDate(promo.booking_date);
+    const timeFrom = promo.time_from.substring(0, 5); // "17:30:00" -> "17:30"
+    const timeTo = promo.time_to.substring(0, 5);
+
+    return `✅ การจองของคุณสำเร็จแล้ว!
+
+📍 สนาม: ${fieldName}
+📅 วันที่: ${dateStr}
+⏰ เวลา: ${timeFrom} - ${timeTo} (${promo.duration_h} ชม.)
+
+💰 ราคาเต็ม: ${promo.original_price.toLocaleString()} บาท
+🎟️ ส่วนลด: -${promo.discount_amount.toLocaleString()} บาท (${promo.discount_type === 'percent' ? promo.discount_value + '%' : 'ส่วนลดพิเศษ'})
+✨ ราคาสุทธิ: ${promo.final_price.toLocaleString()} บาท
+
+👤 ชื่อผู้จอง: ${customerName}
+📞 เบอร์โทร: ${phoneNumber}
+
+ชำระเงินได้ที่สนาม
+หากต้องการยกเลิก กรุณาติดต่อ 083-914-4000`;
+}
+
+/**
+ * Send booking notification to user via LINE
+ * Returns success status without throwing errors
+ */
+async function sendBookingNotification(
+    userId: string,
+    promo: any,
+    customerName: string,
+    phoneNumber: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const message = formatBookingConfirmation(promo, customerName, phoneNumber);
+
+        await pushMessage(userId, {
+            type: 'text',
+            text: message
+        });
+
+        console.log(`[Notification] Sent booking confirmation to user ${userId}`);
+        return { success: true };
+
+    } catch (error) {
+        console.error(`[Notification] Failed to send to user ${userId}:`, error);
+        return {
+            success: false,
+            error: error.message || 'Unknown error'
+        };
+    }
+}
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -234,11 +327,25 @@ serve(async (req) => {
             // Don't fail the request, booking is already created
         }
 
+        // Step 4: Send LINE notification to user
+        console.log(`[Notification] Sending booking confirmation to user ${promo.user_id}`);
+        const notificationResult = await sendBookingNotification(
+            promo.user_id,
+            promo,
+            customerName,
+            phoneNumber
+        );
+
+        if (!notificationResult.success) {
+            console.warn('[WARNING] Booking successful but notification failed:', notificationResult.error);
+        }
+
         return new Response(
             JSON.stringify({
                 success: true,
                 booking: booking,
-                promoCode: promo
+                promoCode: promo,
+                notification: notificationResult
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
