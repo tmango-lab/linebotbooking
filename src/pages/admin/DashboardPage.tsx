@@ -33,8 +33,35 @@ const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
 const PIXELS_PER_MINUTE = 1.5; // Adjust for height (1.5 = 90px per hour)
 const SNAP_MINUTES = 30; // Snap to 30 minutes
 
+function getTodayStr() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// Get date from URL or default to today
+function getInitialDate(): string {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return dateParam;
+    }
+
+    return getTodayStr();
+}
+
+// Update URL without page reload
+function updateURL(date: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('date', date);
+    window.history.replaceState({}, '', url.toString());
+}
+
 export default function DashboardPage() {
-    const [selectedDate, setSelectedDate] = useState(getTodayStr());
+    const [selectedDate, setSelectedDate] = useState(getInitialDate());
     const [showCalendar, setShowCalendar] = useState(false);
     const [bookings, setBookings] = useState<MatchdayMatch[]>([]);
     const [loading, setLoading] = useState(false);
@@ -62,6 +89,11 @@ export default function DashboardPage() {
     // Promo Code Modal State
     const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
 
+    // Sync URL when date changes
+    useEffect(() => {
+        updateURL(selectedDate);
+    }, [selectedDate]);
+
     useEffect(() => {
         fetchBookings(selectedDate);
     }, [selectedDate]);
@@ -77,14 +109,6 @@ export default function DashboardPage() {
             }
         }
     }, [loading]);
-
-    function getTodayStr() {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
 
     async function fetchBookings(date: string) {
         setLoading(true);
@@ -659,9 +683,17 @@ export default function DashboardPage() {
             <PromoCodeModal
                 isOpen={isPromoModalOpen}
                 onClose={() => setIsPromoModalOpen(false)}
-                onSuccess={() => {
+                onSuccess={(bookingDate: string) => {
                     setIsPromoModalOpen(false);
-                    fetchBookings(selectedDate);
+
+                    // If booking date is different, navigate to it
+                    if (bookingDate !== selectedDate) {
+                        setSelectedDate(bookingDate);
+                        // fetchBookings will be called automatically via useEffect
+                    } else {
+                        // If booking date is same as current date, manually refresh
+                        fetchBookings(bookingDate);
+                    }
                 }}
             />
         </div>

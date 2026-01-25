@@ -23,7 +23,7 @@ interface PromoCodeDetails {
 interface PromoCodeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (bookingDate: string) => void;
 }
 
 const COURTS = [
@@ -159,9 +159,9 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
             setSuccess(true);
             setError(null);
 
-            // Auto-close after 2 seconds
+            // Auto-close after 2 seconds and navigate to booking date
             setTimeout(() => {
-                onSuccess();
+                onSuccess(promoDetails!.booking_date);
                 handleClose();
             }, 2000);
 
