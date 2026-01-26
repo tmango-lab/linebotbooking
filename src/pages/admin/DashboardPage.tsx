@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar, Tag } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar, Tag, CheckCircle2, Smartphone, Monitor } from 'lucide-react';
 import CalendarDropdown from '../../components/ui/CalendarDropdown';
 import BookingModal from '../../components/ui/BookingModal';
 import BookingDetailModal from '../../components/ui/BookingDetailModal';
@@ -16,6 +16,9 @@ interface MatchdayMatch {
     tel?: string;
     remark?: string;
     admin_note?: string;
+    paid_at?: string | null;
+    source?: string;
+    is_promo?: boolean;
     [key: string]: any;
 }
 
@@ -98,6 +101,20 @@ export default function DashboardPage() {
     useEffect(() => {
         fetchBookings(selectedDate);
     }, [selectedDate]);
+
+    // Sync viewingBooking with updated bookings list to reflect changes (e.g. Payment Status) immediately in the open modal
+    useEffect(() => {
+        if (viewingBooking && bookings.length > 0) {
+            const updatedBooking = bookings.find(b => b.id === viewingBooking.id);
+            if (updatedBooking) {
+                // Only update if there is a change to avoid loops/unnecessary renders
+                // JSON.stringify is a cheap way to compare for this size object, or check specific fields
+                if (JSON.stringify(updatedBooking) !== JSON.stringify(viewingBooking)) {
+                    setViewingBooking(updatedBooking);
+                }
+            }
+        }
+    }, [bookings, viewingBooking]);
 
     // Scroll to current time on load
     useEffect(() => {
@@ -615,9 +632,29 @@ export default function DashboardPage() {
                                                         )}
 
                                                         {/* Price - Bottom aligned */}
+                                                        {/* Price - Bottom aligned with Status Icons */}
                                                         {(booking.price !== undefined && booking.price !== null) && height > 40 && (
-                                                            <div className="mt-auto pt-1 w-full text-right">
-                                                                <span className="inline-flex items-center rounded-sm bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 border border-green-200">
+                                                            <div className="mt-auto pt-1 w-full flex justify-end items-center gap-1">
+                                                                {/* Status Icons */}
+                                                                <div className="flex items-center gap-0.5 mr-auto">
+                                                                    {booking.paid_at ? (
+                                                                        <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                                                    ) : (
+                                                                        <Clock className="w-3 h-3 text-gray-400" />
+                                                                    )}
+
+                                                                    {booking.source === 'line' ? (
+                                                                        <Smartphone className="w-3 h-3 text-gray-400" />
+                                                                    ) : (
+                                                                        <Monitor className="w-3 h-3 text-gray-300" />
+                                                                    )}
+
+                                                                    {booking.is_promo && (
+                                                                        <Tag className="w-3 h-3 text-pink-500" />
+                                                                    )}
+                                                                </div>
+
+                                                                <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold border ${booking.paid_at ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                                                                     ฿{booking.price.toLocaleString()}
                                                                 </span>
                                                             </div>
@@ -679,7 +716,6 @@ export default function DashboardPage() {
                     fetchBookings(selectedDate);
                 }}
                 onBookingUpdated={() => {
-                    setViewingBooking(null);
                     fetchBookings(selectedDate);
                 }}
             />

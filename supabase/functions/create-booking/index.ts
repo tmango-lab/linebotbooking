@@ -1,7 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { supabase } from "../_shared/supabaseClient.ts"; // Use shared client
 
-console.log("Create Booking Function Started (Fully Inlined v2)");
+console.log("Create Booking Function Started (With Local Sync)");
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -22,8 +23,7 @@ const FIELD_MAP: Record<number, number> = {
     2429: 2429, // Field 6
 };
 
-// Pricing Config (same as Dashboard)
-// Pricing Config (Updated from GAS/field_config.gs)
+// Pricing Config
 const PRICING = {
     2424: { pre: 500, post: 700 },  // Field 1
     2425: { pre: 500, post: 700 },  // Field 2
@@ -55,9 +55,6 @@ function calculatePrice(fieldId: number, startTime: string, durationHours: numbe
     let prePrice = preHours * prices.pre;
     let postPrice = postHours * prices.post;
 
-    // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
-    // Apply Rounding Rule: Both Pre and Post prices round UP to nearest 100
-    // User Requirement: 1.5h = 750 -> 800
     if (prePrice > 0 && prePrice % 100 !== 0) {
         prePrice = Math.ceil(prePrice / 100) * 100;
     }
@@ -125,12 +122,10 @@ serve(async (req) => {
             payment: 'cash',
             method: 'fast-create',
             payment_multi: false,
-            fixed_price: null, // [FIX] Nullify fixed_price to avoid split-brain
+            fixed_price: null,
             member_id: null,
             user_id: null
         };
-
-        console.log('[MATCHDAY BOOkING] Payload:', JSON.stringify(body));
 
         const res = await fetch(url, {
             method: 'POST',
@@ -152,65 +147,78 @@ serve(async (req) => {
         }
 
         const mdText = await res.text();
-        console.log('[Matchday Create Response]:', mdText);
-
-        // --- Helper for Update ---
-        async function updateMatch(matchId: number, payload: any) {
-            const updateUrl = `${MD_BASE_URL}/arena/match/${matchId}`;
-            // Ensure payload has phone number if provided (Matchday expects 'tel' in update, 'phone_number' in settings for create)
-            console.log(`[Auto-Correct] Update Payload for ${matchId}:`, JSON.stringify(payload));
-
-            const updateRes = await fetch(updateUrl, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'Origin': 'https://arena.matchday.co.th'
-                },
-                body: JSON.stringify(payload)
-            });
-            const text = await updateRes.text();
-            if (!updateRes.ok) {
-                console.error('Update failed:', text);
-                return { success: false, error: text };
-            } else {
-                console.log('Update success');
-                return { success: true, response: text };
-            }
-        }
 
         let data: any = {};
         let autoCorrected = false;
         let updateResult: any = null;
+        let createdMatchId = null;
 
         if (mdText) {
             try {
                 data = JSON.parse(mdText);
-
-                // Auto-Correct Logic
                 const createdMatch = data.match || (data.matches && data.matches[0]);
+
                 if (createdMatch && createdMatch.id) {
-                    // Force update to sync Description (Name + Phone) even if price matches
-                    // Add delay to prevent race condition with Matchday's internal creation helpers
+                    createdMatchId = createdMatch.id;
+
+                    // --- 1. Insert into Local DB (Sync Source) ---
+                    console.log(`[Local Sync] Inserting match ${createdMatch.id} as source='admin'`);
+                    const { error: insertError } = await supabase
+                        .from('bookings')
+                        .insert({
+                            booking_id: String(createdMatch.id),
+                            user_id: 'MATCHDAY_IMPORT', // Or specific admin ID/Name if available
+                            status: 'confirmed',
+                            booking_date: date, // Deprecated col? Use date
+                            date: date,
+                            time_from: startTime,
+                            time_to: endTime,
+                            duration_h: durationH,
+                            price_total_thb: price,
+                            source: 'admin',
+                            is_promo: false,
+                            updated_at: new Date().toISOString()
+                        });
+
+                    if (insertError) {
+                        console.error('[Local Sync Error]:', insertError);
+                        // Non-blocking
+                    }
+
+                    // --- 2. Auto-Correct Price on Matchday ---
                     await new Promise(resolve => setTimeout(resolve, 5000));
 
                     if (price > 0) {
-                        console.log(`[Auto-Correct] Enforcing price ${price} for match ${createdMatch.id}`);
-                        updateResult = await updateMatch(createdMatch.id, {
-                            // Don't re-send times, it might cause timezone shifts or disappearance
-                            time_start: timeStartStr,
-                            time_end: timeEndStr,
+                        const updateUrl = `${MD_BASE_URL}/arena/match/${createdMatch.id}`;
+                        console.log(`[Auto-Correct] Updating price to ${price}`);
 
-                            description: `${customerName} ${phoneNumber}`,
-                            change_price: price,
-                            price: price // [FIX] Explicitly set price to update base price and total_price
+                        const updateRes = await fetch(updateUrl, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`,
+                                'Origin': 'https://arena.matchday.co.th'
+                            },
+                            body: JSON.stringify({
+                                time_start: timeStartStr,
+                                time_end: timeEndStr,
+                                description: `${customerName} ${phoneNumber}`,
+                                change_price: price,
+                                price: price
+                            })
                         });
-                        autoCorrected = true;
+
+                        const updateText = await updateRes.text();
+                        if (updateRes.ok) {
+                            autoCorrected = true;
+                            updateResult = updateText;
+                        } else {
+                            console.error('[Auto-Correct] Failed:', updateText);
+                        }
                     }
                 }
-
             } catch (e) {
-                console.warn('Matchday returned non-JSON response:', mdText);
+                console.warn('Matchday response parsing error:', e);
             }
         }
 
@@ -219,7 +227,7 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Create Booking Error]:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

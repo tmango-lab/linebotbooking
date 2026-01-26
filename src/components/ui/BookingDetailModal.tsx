@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare } from 'lucide-react';
+import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag } from 'lucide-react';
 import { supabase } from '../../lib/api';
 
 interface BookingDetailModalProps {
@@ -16,6 +16,9 @@ interface BookingDetailModalProps {
         remark?: string;
         court_name?: string;
         admin_note?: string; // New field for internal note
+        paid_at?: string | null;
+        source?: string;
+        is_promo?: boolean;
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void; // New callback for updates
@@ -32,19 +35,27 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const [editPrice, setEditPrice] = useState<string>('');
     const [editNote, setEditNote] = useState('');
 
-    // Reset state when modal opens or booking changes
+    // Optimistic UI state
+    const [optimisticPaid, setOptimisticPaid] = useState<boolean | null>(null);
+
+    // Reset optimistic state when modal opens or booking changes
     useEffect(() => {
         if (isOpen && booking) {
+            setOptimisticPaid(null); // Reset to rely on prop
             setIsEditing(false);
             setEditPrice(booking.price.toString());
+            // ... rest of init
             setEditNote(booking.admin_note || '');
             setError(null);
             setIsConfirming(false);
             setCancelReason('');
         }
-    }, [isOpen, booking]);
+    }, [isOpen, booking]); // Ensure booking ID is key or deep compare if object ref changes
 
     if (!isOpen || !booking) return null;
+
+    // Derived state for display
+    const isPaidDisplay = optimisticPaid !== null ? optimisticPaid : !!booking?.paid_at;
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr.replace(' ', 'T'));
@@ -54,6 +65,57 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr.replace(' ', 'T'));
         return date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+
+    const handleTogglePayment = async () => {
+        if (!booking) return; // Allow click even if "loading" to feel responsive, or debounce
+
+        // 1. Optimistic Update (Immediate)
+        const currentStatus = isPaidDisplay;
+        const newStatus = !currentStatus;
+        setOptimisticPaid(newStatus);
+
+        // don't set global "loading" as it effectively disables the UI, we want it to feel "done"
+        // keeping it responsive. Could show a small spinner elsewhere if needed.
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    matchId: booking.id,
+                    isPaid: newStatus,
+                    timeStart: booking.time_start,
+                    timeEnd: booking.time_end,
+                    customerName: booking.name,
+                    tel: booking.tel,
+                    price: booking.price
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Update payment failed: ${errorText}`);
+            }
+
+            // Success - Notify parent to refresh
+            // When parent refreshes, 'booking' prop updates, and optimistic state resets via useEffect
+            if (onBookingUpdated) {
+                onBookingUpdated();
+            }
+
+        } catch (err: any) {
+            console.error('Toggle payment error:', err);
+            setError(err.message);
+            setOptimisticPaid(currentStatus); // Revert on error
+        }
     };
 
     const handleSave = async () => {
@@ -183,8 +245,15 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
                     <div className="sm:flex sm:items-start w-full">
                         <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
+                            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4 flex items-center gap-2" id="modal-title">
                                 {isEditing ? 'แก้ไขการจอง' : 'รายละเอียดการจอง'}
+                                {!isEditing && (
+                                    <>
+                                        {booking.source === 'line' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
+                                        {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><Monitor className="w-3 h-3 mr-1" />Admin</span>}
+                                        {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" />Promo</span>}
+                                    </>
+                                )}
                             </h3>
 
                             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -226,6 +295,33 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             <span className="font-medium text-gray-900 ml-2">{booking.price.toLocaleString()} บาท</span>
                                         )}
                                     </div>
+
+                                    {/* Payment Status Toggle - Only in View Mode */}
+                                    {!isEditing && (
+                                        <div className="flex items-center text-sm text-gray-600 mt-2">
+                                            <span className="w-4 flex justify-center mr-2 mt-0.5">
+                                                {isPaidDisplay ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-300" />}
+                                            </span>
+                                            <span className="min-w-[40px] font-medium text-gray-900">ชำระเงิน:</span>
+
+                                            {/* Always show Toggle (Live Update) */}
+                                            <button
+                                                type="button"
+                                                onClick={handleTogglePayment}
+                                                // disabled={loading} // Don't disable during optimistic update
+                                                className={`ml-2 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isPaidDisplay ? 'bg-green-600' : 'bg-gray-200'} `}
+                                            >
+                                                <span className="sr-only">Toggle payment</span>
+                                                <span
+                                                    aria-hidden="true"
+                                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isPaidDisplay ? 'translate-x-5' : 'translate-x-0'}`}
+                                                />
+                                            </button>
+                                            <span className="ml-2 text-xs text-gray-400">
+                                                {isPaidDisplay ? '่ายแล้ว' : 'ยังไม่จ่าย'}
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {/* Internal Note (Admin Note) */}
                                     <div className={`flex items-start text-sm text-gray-600 mt-2 ${isEditing ? 'flex-col' : ''}`}>

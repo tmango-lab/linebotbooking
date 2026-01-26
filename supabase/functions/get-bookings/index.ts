@@ -4,7 +4,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
 import { fetchMatchdayMatches } from "../_shared/matchdayApi.ts";
 
-console.log("Get Bookings Function Started (Hybrid Data Source)");
+console.log("Get Bookings Function Started (Hybrid Data Source v2)");
 
 serve(async (req) => {
     // Handle CORS
@@ -37,30 +37,26 @@ serve(async (req) => {
         console.log(`[Process] Fetching bookings for date: ${date}`);
 
         // 1. Fetch from Matchday (Source of Truth for Availability)
-        // We pass 0 as courtId to fetch ALL courts
         const matchdayBookings = await fetchMatchdayMatches(date, 0);
         console.log(`[Matchday] Retrieved ${matchdayBookings.length} records`);
 
         // 2. Fetch from Local Database (Source for Notes & Overrides)
-        // We extract IDs to batch query
-        const ids = matchdayBookings.map(b => String(b.id)); // Ensure ID is string for DB lookup
+        const ids = matchdayBookings.map(b => String(b.id)); // Ensure ID is string
 
-        let noteMap: Record<string, string> = {};
+        // Map for merging
+        let localDataMap: Record<string, any> = {};
 
         if (ids.length > 0) {
             const { data: localData, error } = await supabase
                 .from('bookings')
-                .select('booking_id, admin_note')
+                .select('booking_id, admin_note, paid_at, source, is_promo')
                 .in('booking_id', ids);
 
             if (error) {
                 console.error('[Local DB Error]:', error);
-                // We don't fail the request, just log and continue without notes
             } else if (localData) {
                 localData.forEach((row: any) => {
-                    if (row.admin_note) {
-                        noteMap[row.booking_id] = row.admin_note;
-                    }
+                    localDataMap[row.booking_id] = row;
                 });
                 console.log(`[Local DB] Found ${localData.length} related local records`);
             }
@@ -69,9 +65,14 @@ serve(async (req) => {
         // 3. Merge Data
         const mergedBookings = matchdayBookings.map(booking => {
             const sid = String(booking.id);
+            const local = localDataMap[sid] || {};
+
             return {
                 ...booking,
-                admin_note: noteMap[sid] || null // Attach admin_note if exists
+                admin_note: local.admin_note || null,
+                paid_at: local.paid_at || null,
+                source: local.source || 'import', // Default to import if unknown
+                is_promo: local.is_promo || false
             };
         });
 

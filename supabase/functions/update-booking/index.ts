@@ -4,17 +4,17 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
 import { updateMatchdayBooking } from "../_shared/matchdayApi.ts";
 
-console.log("Update Booking Function Started (Full Sync v4)");
+console.log("Update Booking Function Started (With Payment Status)");
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, courtId } = await req.json();
+        const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source } = await req.json();
 
         if (!matchId) throw new Error('Missing matchId');
 
-        console.log(`[Update Booking] ID: ${matchId}, Price: ${price}`);
+        console.log(`[Update Booking] ID: ${matchId}, Price: ${price}, Paid: ${isPaid}`);
 
         // 1. Matchday Update
         let matchdayResult = null;
@@ -55,11 +55,21 @@ serve(async (req) => {
         if (price !== undefined) updatePayload.price_total_thb = price;
         if (adminNote !== undefined) updatePayload.admin_note = adminNote;
 
+        // Handle Payment Status
+        if (isPaid !== undefined) {
+            updatePayload.paid_at = isPaid ? new Date().toISOString() : null;
+        }
+
+        // Handle Source (Only if provided, and likely only on creation or explicit update)
+        if (source !== undefined) {
+            updatePayload.source = source;
+        }
+
         if (dateStr) {
             updatePayload.date = dateStr;
             updatePayload.time_from = timeFrom;
             updatePayload.time_to = timeTo;
-            updatePayload.duration_h = durationMinutes / 60; // Field name: duration_h
+            updatePayload.duration_h = durationMinutes / 60;
         }
 
         // Check Existence
@@ -86,8 +96,12 @@ serve(async (req) => {
                 booking_id: String(matchId),
                 user_id: 'MATCHDAY_IMPORT',
                 status: 'confirmed',
+                source: 'import', // Default for new unknown imports
                 ...updatePayload
             };
+
+            // If explicit source provided in payload, override
+            if (source) insertPayload.source = source;
 
             const { data, error } = await supabase
                 .from('bookings')
