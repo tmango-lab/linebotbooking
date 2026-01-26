@@ -14,6 +14,47 @@
 
 **Key Concept**: The system acts as a **middleware** between the user interface and the Matchday API, handling price calculations and data transformations.
 
+**Hybrid Data Model**:
+- **Availability & Core Data**: Sourced from Matchday (Single Source of Truth for slots).
+- **Metadata (Notes/Overrides)**: Sourced from Local Supabase DB.
+- **Sync**: `update-booking` writes to both systems to ensure consistency.
+
+---
+
+## LINE Bot Search Workflow
+
+### Overview
+The LINE Bot provides a simplified search interface focusing on **Time** and **Duration** rather than specific fields.
+
+### Flow Steps
+1.  **Select Search Mode**: (Removed in v2) User taps "ค้นหาเวลา".
+2.  **Select Date**: User chooses Today, Tomorrow, or picks a date.
+3.  **Select Duration**: User chooses **1 Hr**, **1.5 Hr**, or **2 Hr**.
+    - *Implementation Check*: This determines the slot size `durationMin`.
+4.  **Display Results**: System searches all fields and displays available start times in a Carousel.
+
+---
+
+## Service Logic: Search Strategy
+
+### Strategy: 30-Minute Grid (Current Standard)
+The system uses a **30-Minute Grid** strategy to find available slots.
+
+- **Step Interval**: 30 minutes (08:00, 08:30, 09:00...)
+- **Why**:
+    - Catches "half-hour" slots (e.g., 14:30) that hourly searches miss.
+    - Easier to implement and more predictable than "Gap Filling".
+    - Maximizes revenue by finding 1.5h holes in the schedule.
+
+### Algorithm
+```typescript
+// searchService.ts
+const STEP = 30; // 30-minute intervals
+for (let t = Open; t + Duration <= Close; t += STEP) {
+    if (!isConflict(t, Duration)) slots.push(t);
+}
+```
+
 ---
 
 ## Complete Booking Flow (Step-by-Step)
@@ -675,3 +716,42 @@ git reset --hard HEAD~1
 3. Wait 5 seconds
 4. Update with `price`, `change_price`, `time_start`, `time_end`
 5. Always include error handling and logging
+
+---
+
+## 6. Hybrid Synchronization Logic
+
+**Purpose**: To support features that Matchday doesn't natively support (Internal Notes) and to ensure price consistency.
+
+**Workflow**:
+
+#### A. Reading Data (`get-bookings`)
+1.  Fetch live slots from **Matchday**.
+2.  Fetch metadata (notes, overrides) from **Local Supabase DB** (`bookings` table).
+3.  **Merge** data:
+    - Match Matchday ID with Local Booking ID.
+    - Attach `admin_note` to the response object.
+    - Return unified object to frontend.
+
+#### B. Writing Data (`update-booking`)
+1.  **Matchday Update**:
+    - Updates `price`, `change_price`, `fixed_price` to ensure display consistency.
+    - Updates `description` (Name + Phone).
+2.  **Local DB Sync (Upsert)**:
+    - Checks if booking exists locally.
+    - If **New**: Inserts record with `user_id: 'MATCHDAY_IMPORT'`, `date`, `time_from`, `time_to`.
+    - If **Existing**: Updates only changed fields.
+    - Saves `admin_note` (Private to Admin).
+
+**Data Flow Diagram**:
+```mermaid
+graph LR
+    A[Admin Dashboard] -- Edit Price/Note --> B(Edge Function: update-booking)
+    B -- 1. API Update --> C[Matchday API]
+    B -- 2. DB Upsert --> D[(Local Supabase DB)]
+    
+    E[Admin Dashboard] -- View Schedule --> F(Edge Function: get-bookings)
+    F -- 1. Fetch --> C
+    F -- 2. Fetch Notes --> D
+    F -- 3. Merge & Return --> E
+```

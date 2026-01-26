@@ -15,6 +15,7 @@ interface MatchdayMatch {
     name?: string;
     tel?: string;
     remark?: string;
+    admin_note?: string;
     [key: string]: any;
 }
 
@@ -674,6 +675,10 @@ export default function DashboardPage() {
                 } : null}
                 onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => {
+                    setViewingBooking(null);
+                    fetchBookings(selectedDate);
+                }}
+                onBookingUpdated={() => {
                     setViewingBooking(null);
                     fetchBookings(selectedDate);
                 }}

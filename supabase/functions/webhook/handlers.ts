@@ -47,6 +47,9 @@ export async function handleMessage(event: LineEvent) {
     }
 
     if (text === 'ค้นหาเวลา') {
+        // [MODIFIED] Skip Select Mode -> Go straight to Search All Date Selection
+        // Old code hidden for future use:
+        /*
         await replyMessage(event.replyToken!, {
             type: 'text',
             text: 'ต้องการค้นหาเวลาแบบไหนคะ 😊',
@@ -54,6 +57,20 @@ export async function handleMessage(event: LineEvent) {
                 items: [
                     { type: 'action', action: { type: 'postback', label: 'ค้นทีละสนาม', data: 'action=chooseSearchMode&mode=single' } },
                     { type: 'action', action: { type: 'postback', label: 'ค้นหาทั้งหมด', data: 'action=chooseSearchMode&mode=all' } }
+                ]
+            }
+        });
+        */
+
+        // New Flow: Ask for Date directly (using Search All logic)
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'อยากค้นหาช่วงเวลาว่างวันไหนคะ 😊\n(ระบบจะแสดงทุกช่วงที่ว่างจนถึง 24:00)',
+            quickReply: {
+                items: [
+                    { type: 'action', action: { type: 'postback', label: 'วันนี้', data: 'action=pickDateSearchAll&mode=today' } },
+                    { type: 'action', action: { type: 'postback', label: 'พรุ่งนี้', data: 'action=pickDateSearchAll&mode=tomorrow' } },
+                    { type: 'action', action: { type: 'datetimepicker', label: 'วันอื่นๆ', data: 'action=setDateSearchAll', mode: 'date' } }
                 ]
             }
         });
@@ -361,18 +378,31 @@ async function handleChooseSearchMode(event: LineEvent, userId: string, params: 
 async function handlePickDateSearchAll(event: LineEvent, userId: string, params: any) {
     const dateStr = params.mode === 'today' ? getTodayStr() : getTomorrowStr();
 
-    // Default to 1 hour (60 minutes)
-    const durationMin = 60;
+    // [MODIFIED] Ask for duration instead of searching immediately
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: 'ต้องการเล่นกี่ชั่วโมงคะ ⏱️',
+        quickReply: {
+            items: [
+                { type: 'action', action: { type: 'postback', label: '1 ชั่วโมง', data: `action=pickDurationSearchAll&date=${dateStr}&duration=60` } },
+                { type: 'action', action: { type: 'postback', label: '1.5 ชั่วโมง', data: `action=pickDurationSearchAll&date=${dateStr}&duration=90` } },
+                { type: 'action', action: { type: 'postback', label: '2 ชั่วโมง', data: `action=pickDurationSearchAll&date=${dateStr}&duration=120` } }
+            ]
+        }
+    });
 
+    // Old code hidden:
+    /*
+    const durationMin = 60;
     const fields = await getActiveFields();
     if (!fields || fields.length === 0) {
         await replyMessage(event.replyToken!, { type: 'text', text: 'ไม่พบข้อมูลสนาม' });
         return;
     }
-
     const resultsByField = await searchAllFieldsForSlots(dateStr, durationMin);
     const carousel = buildSearchAllSlotsCarousel(dateStr, durationMin, resultsByField, fields);
     await replyMessage(event.replyToken!, carousel);
+    */
 }
 
 async function handleSetDateSearchAll(event: LineEvent, userId: string, params: any) {
@@ -383,18 +413,31 @@ async function handleSetDateSearchAll(event: LineEvent, userId: string, params: 
         return;
     }
 
-    // Default to 1 hour (60 minutes)
-    const durationMin = 60;
+    // [MODIFIED] Ask for duration instead of searching immediately
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: 'ต้องการเล่นกี่ชั่วโมงคะ ⏱️',
+        quickReply: {
+            items: [
+                { type: 'action', action: { type: 'postback', label: '1 ชั่วโมง', data: `action=pickDurationSearchAll&date=${dateStr}&duration=60` } },
+                { type: 'action', action: { type: 'postback', label: '1.5 ชั่วโมง', data: `action=pickDurationSearchAll&date=${dateStr}&duration=90` } },
+                { type: 'action', action: { type: 'postback', label: '2 ชั่วโมง', data: `action=pickDurationSearchAll&date=${dateStr}&duration=120` } }
+            ]
+        }
+    });
 
+    // Old code hidden:
+    /*
+    const durationMin = 60;
     const fields = await getActiveFields();
     if (!fields || fields.length === 0) {
         await replyMessage(event.replyToken!, { type: 'text', text: 'ไม่พบข้อมูลสนาม' });
         return;
     }
-
     const resultsByField = await searchAllFieldsForSlots(dateStr, durationMin);
     const carousel = buildSearchAllSlotsCarousel(dateStr, durationMin, resultsByField, fields);
     await replyMessage(event.replyToken!, carousel);
+    */
 }
 
 async function handleReshowSearchAll(event: LineEvent, userId: string, params: any) {

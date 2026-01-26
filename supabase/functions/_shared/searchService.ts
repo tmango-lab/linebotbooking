@@ -5,7 +5,7 @@ import { fetchMatchdayMatches, buildBusyIntervals } from './matchdayApi.ts';
 
 const SEARCH_OPEN_TIME = '16:00';
 const SEARCH_CLOSE_TIME = '24:00';
-const SEARCH_STEP_MIN = 60; // 1 hour intervals
+const SEARCH_STEP_MIN = 30; // 30-minute intervals (Grid System)
 
 /**
  * Search all fields for available slots on a given date and duration
@@ -69,7 +69,8 @@ export async function searchAllFieldsForSlots(dateStr: string, durationMin: numb
             return !hasConflict;
         }
 
-        // Check every hour from start to end
+        // Efficient 30-Minute Grid Search
+        // Checks 08:00, 08:30, 09:00, etc.
         for (let start = searchStartMin; start + durationMin <= endLimitMin; start += SEARCH_STEP_MIN) {
             if (isSlotFree(start)) {
                 slots.push({ start, end: start + durationMin });

@@ -18,8 +18,8 @@ This workflow tests the complete promo code booking flow from LINE Bot to Admin 
 
 1. Open LINE Bot
 2. Send message: `ค้นหาเวลา`
-3. Select search mode: `ค้นหาทั้งหมด`
-4. Select date (e.g., tomorrow)
+3. Select date (e.g., tomorrow)
+4. Select duration (e.g., 1.5 Hours)
 5. Find an available slot
 6. Click on the slot to get booking details
 7. **Copy the 6-digit promo code** displayed
