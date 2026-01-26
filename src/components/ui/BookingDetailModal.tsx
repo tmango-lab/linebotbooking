@@ -87,7 +87,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                 throw new Error(`Update failed: ${errorText}`);
             }
 
-            const result = await response.json();
+            await response.json();
 
             // Notify parent
             if (onBookingUpdated) {
