@@ -18,12 +18,17 @@ interface PromoCodeDetails {
     final_price: number;
     expires_at: string;
     status: 'active' | 'used' | 'expired';
+    profile?: {
+        team_name: string;
+        phone_number: string;
+    };
 }
+
 
 interface PromoCodeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (bookingDate: string) => void;
+    onSuccess: (bookingDate: string, timeFrom?: string) => void;
 }
 
 const COURTS = [
@@ -100,6 +105,13 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
                 field_type: court?.size || ''
             });
 
+            // Auto-fill profile if available
+            if (data.code.profile) {
+                setCustomerName(data.code.profile.team_name || '');
+                setPhoneNumber(data.code.profile.phone_number || '');
+            }
+
+
         } catch (err: any) {
             console.error('Validation error:', err);
             setError(err.message || 'เกิดข้อผิดพลาดในการตรวจสอบโค้ด');
@@ -161,9 +173,10 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
 
             // Auto-close after 2 seconds and navigate to booking date
             setTimeout(() => {
-                onSuccess(promoDetails!.booking_date);
+                onSuccess(promoDetails!.booking_date, promoDetails!.time_from);
                 handleClose();
             }, 2000);
+
 
         } catch (err: any) {
             console.error('Booking error:', err);

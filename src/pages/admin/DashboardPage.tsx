@@ -104,7 +104,9 @@ export default function DashboardPage() {
     const [modifyConfirm, setModifyConfirm] = useState<{ original: MatchdayMatch; new: { courtId: number; startTime: string; endTime: string; price: number } } | null>(null);
     const [modifying, setModifying] = useState(false);
 
+    const [scrollToTime, setScrollToTime] = useState<string | null>(null);
     const hasScrolledRef = useRef(false);
+
 
     useEffect(() => {
         updateURL(selectedDate);
@@ -125,17 +127,28 @@ export default function DashboardPage() {
     }, [bookings, viewingBooking]);
 
     useEffect(() => {
-        // Initial scroll
-        if (containerRef.current && !loading && !hasScrolledRef.current && bookings.length > 0) {
-            const now = new Date();
-            const hours = now.getHours();
-            if (hours >= START_HOUR && hours < END_HOUR) {
-                const minutesFromStart = (hours - START_HOUR) * 60;
-                containerRef.current.scrollTop = minutesFromStart * PIXELS_PER_MINUTE - 100;
-                hasScrolledRef.current = true;
+        if (containerRef.current && !loading && bookings.length > 0) {
+            // Handle explicit scroll request
+            if (scrollToTime) {
+                const y = calculatePosition(scrollToTime);
+                containerRef.current.scrollTo({ top: y - 100, behavior: 'smooth' });
+                setScrollToTime(null);
+                return;
+            }
+
+            // Initial scroll (only once)
+            if (!hasScrolledRef.current) {
+                const now = new Date();
+                const hours = now.getHours();
+                if (hours >= START_HOUR && hours < END_HOUR) {
+                    const minutesFromStart = (hours - START_HOUR) * 60;
+                    containerRef.current.scrollTop = minutesFromStart * PIXELS_PER_MINUTE - 100;
+                    hasScrolledRef.current = true;
+                }
             }
         }
-    }, [loading, bookings]);
+    }, [loading, bookings, scrollToTime]);
+
 
     // --- Helpers ---
     function snapToGrid(y: number) {
@@ -699,7 +712,31 @@ export default function DashboardPage() {
                 onBookingUpdated={() => fetchBookings(selectedDate, true)}
             />
 
-            <PromoCodeModal isOpen={isPromoModalOpen} onClose={() => setIsPromoModalOpen(false)} onSuccess={(d) => { setIsPromoModalOpen(false); setSelectedDate(d); }} />
+            <PromoCodeModal
+                isOpen={isPromoModalOpen}
+                onClose={() => setIsPromoModalOpen(false)}
+                onSuccess={(d, t) => {
+                    setIsPromoModalOpen(false);
+                    if (d !== selectedDate) {
+                        setSelectedDate(d);
+                    } else {
+                        fetchBookings(d);
+                    }
+                    if (t) {
+                        // Append date to time if needed, but calculatePosition expects full string or just handles it.
+                        // calculatePosition uses "new Date(timeStr.replace(' ', 'T'))"
+                        // promoDetails.time_from is likely "HH:mm" or "HH:mm:ss".
+                        // Let's assume we need to pass full string "YYYY-MM-DD HH:mm:ss" if calculatePosition expects it.
+                        // Checking PromoCodeModal code: "time_from: string" -> usually "HH:mm".
+                        // Checking DashboardPage `calculatePosition`: it uses `new Date(timeStr.replace(' ', 'T'))`.
+                        // If timeStr is just "08:00", new Date("08:00") is invalid.
+                        // It expects full date string.
+
+                        setScrollToTime(`${d} ${t}`);
+                    }
+                }}
+            />
+
 
             {/* Confirm Modification Modal */}
             {modifyConfirm && (

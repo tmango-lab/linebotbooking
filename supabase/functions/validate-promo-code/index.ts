@@ -86,14 +86,25 @@ serve(async (req) => {
             );
         }
 
+        // Fetch Profile
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('team_name, phone_number')
+            .eq('user_id', promoCode.user_id)
+            .single();
+
         // Valid!
         return new Response(
             JSON.stringify({
                 valid: true,
-                code: promoCode
+                code: {
+                    ...promoCode,
+                    profile: profile || null
+                }
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+
 
     } catch (err: any) {
         console.error('Error validating promo code:', err);

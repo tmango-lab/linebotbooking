@@ -7,6 +7,8 @@ import { searchAllFieldsForSlots } from '../_shared/searchService.ts';
 import { logStat } from '../_shared/statService.ts';
 import { calculatePrice } from '../_shared/pricingService.ts';
 import { getOrCreatePromoCode } from '../_shared/promoService.ts';
+import { getProfile, upsertProfile, parseProfileInput } from '../_shared/profileService.ts';
+
 import {
     buildSelectDateFlex,
     buildSelectTimeFlex,
@@ -39,30 +41,47 @@ export async function handleMessage(event: LineEvent) {
         message_text: text
     }).catch(err => console.error('Log error:', err));
 
-    if (text === 'จองสนาม') {
-        await saveUserState(userId, { step: 'select_date' });
-        const msg = buildSelectDateFlex();
-        await replyMessage(event.replyToken!, msg);
+    // --- Onboarding Check (Priority) ---
+    const userState = await getUserState(userId);
+
+    if (userState?.step === 'onboarding') {
+        const parsed = parseProfileInput(text || '');
+        if (parsed) {
+            await upsertProfile(userId, parsed.teamName, parsed.phoneNumber);
+            await clearUserState(userId);
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: `บันทึกข้อมูลเรียบร้อยครับ!\nทีม: ${parsed.teamName}\nเบอร์: ${parsed.phoneNumber}\n\nกด "จองสนาม" หรือ "ค้นหาเวลา" ได้เลยครับ 👇`,
+                quickReply: {
+                    items: [
+                        { type: 'action', action: { type: 'message', label: 'จองสนาม', text: 'จองสนาม' } },
+                        { type: 'action', action: { type: 'message', label: 'ค้นหาเวลา', text: 'ค้นหาเวลา' } }
+                    ]
+                }
+            });
+        } else {
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: 'ขอโทษครับ ระบบอ่านข้อมูลไม่ชัดเจน 😅\nรบกวนพิมพ์แบบนี้ครับ: [ชื่อทีม] [เบอร์โทร]\nเช่น "หมูเด้ง เอฟซี 0812345678"'
+            });
+        }
         return;
     }
 
-    if (text === 'ค้นหาเวลา') {
-        // [MODIFIED] Skip Select Mode -> Go straight to Search All Date Selection
-        // Old code hidden for future use:
-        /*
-        await replyMessage(event.replyToken!, {
-            type: 'text',
-            text: 'ต้องการค้นหาเวลาแบบไหนคะ 😊',
-            quickReply: {
-                items: [
-                    { type: 'action', action: { type: 'postback', label: 'ค้นทีละสนาม', data: 'action=chooseSearchMode&mode=single' } },
-                    { type: 'action', action: { type: 'postback', label: 'ค้นหาทั้งหมด', data: 'action=chooseSearchMode&mode=all' } }
-                ]
-            }
-        });
-        */
+    // [MODIFIED] Unify 'จองสนาม' and 'ค้นหาเวลา' to trigger Search All
+    if (text === 'จองสนาม' || text === 'ค้นหาเวลา') {
+        // [PROFILE CHECK]
+        const profile = await getProfile(userId);
+        if (!profile) {
+            await saveUserState(userId, { step: 'onboarding' });
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: 'เพื่อให้การจองสะดวกรวดเร็ว รบกวนแจ้ง [ชื่อทีม] และ [เบอร์โทรศัพท์] ไว้หน่อยครับ 📝\n(พิมพ์ตอบกลับมาได้เลย เช่น "TeamA 0812345678")'
+            });
+            return;
+        }
 
-        // New Flow: Ask for Date directly (using Search All logic)
+        // Trigger Search All Flow directly
         await replyMessage(event.replyToken!, {
             type: 'text',
             text: 'อยากค้นหาช่วงเวลาว่างวันไหนคะ 😊\n(ระบบจะแสดงทุกช่วงที่ว่างจนถึง 24:00)',
@@ -76,6 +95,7 @@ export async function handleMessage(event: LineEvent) {
         });
         return;
     }
+
 }
 
 // === Postback Handler ===

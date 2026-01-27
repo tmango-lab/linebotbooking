@@ -60,6 +60,18 @@ ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
 
 -- Create policies to allow public access (Since we are using Anon key for now and need to migrate data)
 -- WARNING: This is for development/migration. You should tighten these later.
-CREATE POLICY "Enable read/write for all users" ON public.bookings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Enable read/write for all users" ON public.user_states FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable read/write for all users" ON public.logs FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. Table: profiles
+CREATE TABLE IF NOT EXISTS public.profiles (
+    user_id TEXT PRIMARY KEY,
+    team_name TEXT,
+    phone_number TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read/write for all users" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+
