@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar, Tag, AlertTriangle, Save, X } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar, Tag, AlertTriangle } from 'lucide-react';
 import CalendarDropdown from '../../components/ui/CalendarDropdown';
 import BookingModal from '../../components/ui/BookingModal';
 import BookingDetailModal from '../../components/ui/BookingDetailModal';
@@ -289,7 +289,7 @@ export default function DashboardPage() {
         });
     };
 
-    const handleBookingResizeStart = (e: React.MouseEvent, booking: MatchdayMatch, direction: 'TOP' | 'BOTTOM') => {
+    const handleBookingResizeStart = (booking: MatchdayMatch, direction: 'TOP' | 'BOTTOM') => {
         setInteractionMode(direction === 'TOP' ? 'RESIZE_TOP' : 'RESIZE_BOTTOM');
         setActiveBookingId(booking.id);
 
@@ -646,7 +646,7 @@ export default function DashboardPage() {
                                                 height={calculateHeight(b.time_start, b.time_end)}
                                                 onClick={() => setViewingBooking(b)}
                                                 onMoveStart={(e) => handleBookingMoveStart(e, b)}
-                                                onResizeStart={(e, dir) => handleBookingResizeStart(e, b, dir)}
+                                                onResizeStart={(_, dir) => handleBookingResizeStart(b, dir)}
                                             />
                                         );
                                     })
@@ -687,7 +687,14 @@ export default function DashboardPage() {
                 bookingDetails={pendingCreate ? { courtName: COURTS.find(c => c.id === pendingCreate.courtId)?.name || '', date: formatDateHeader(selectedDate), startTime: pendingCreate.startTime, endTime: pendingCreate.endTime, price: pendingCreate.price } : null}
             />
 
-            <BookingDetailModal isOpen={!!viewingBooking} booking={viewingBooking} onClose={() => setViewingBooking(null)}
+            <BookingDetailModal
+                isOpen={!!viewingBooking}
+                booking={viewingBooking ? {
+                    ...viewingBooking,
+                    name: viewingBooking.name || '',
+                    tel: viewingBooking.tel || ''
+                } : null}
+                onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => { setViewingBooking(null); fetchBookings(selectedDate); }}
                 onBookingUpdated={() => fetchBookings(selectedDate, true)}
             />
