@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag } from 'lucide-react';
 import { supabase } from '../../lib/api';
@@ -30,22 +29,24 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const [isConfirming, setIsConfirming] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
 
-    // Edit Mode State
-    const [isEditing, setIsEditing] = useState(false);
+    // State for editable fields
+    const [isEditingDetails, setIsEditingDetails] = useState(false); // Controls visibility of Name, Tel, Price inputs
+    const [editName, setEditName] = useState('');
+    const [editTel, setEditTel] = useState('');
     const [editPrice, setEditPrice] = useState<string>('');
     const [editNote, setEditNote] = useState('');
+    const [isPaid, setIsPaid] = useState(false); // Local state for payment status
 
-    // Optimistic UI state
-    const [optimisticPaid, setOptimisticPaid] = useState<boolean | null>(null);
-
-    // Reset optimistic state when modal opens or booking changes
+    // Reset state when modal opens or booking changes
     useEffect(() => {
         if (isOpen && booking) {
-            setOptimisticPaid(null); // Reset to rely on prop
-            setIsEditing(false);
+            setIsEditingDetails(false);
+            setEditName(booking.name);
+            setEditTel(booking.tel);
             setEditPrice(booking.price.toString());
-            // ... rest of init
             setEditNote(booking.admin_note || '');
+            setIsPaid(!!booking.paid_at);
+
             setError(null);
             setIsConfirming(false);
             setCancelReason('');
@@ -53,9 +54,6 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     }, [isOpen, booking]); // Ensure booking ID is key or deep compare if object ref changes
 
     if (!isOpen || !booking) return null;
-
-    // Derived state for display
-    const isPaidDisplay = optimisticPaid !== null ? optimisticPaid : !!booking?.paid_at;
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr.replace(' ', 'T'));
@@ -67,57 +65,6 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         return date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     };
 
-
-    const handleTogglePayment = async () => {
-        if (!booking) return; // Allow click even if "loading" to feel responsive, or debounce
-
-        // 1. Optimistic Update (Immediate)
-        const currentStatus = isPaidDisplay;
-        const newStatus = !currentStatus;
-        setOptimisticPaid(newStatus);
-
-        // don't set global "loading" as it effectively disables the UI, we want it to feel "done"
-        // keeping it responsive. Could show a small spinner elsewhere if needed.
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    matchId: booking.id,
-                    isPaid: newStatus,
-                    timeStart: booking.time_start,
-                    timeEnd: booking.time_end,
-                    customerName: booking.name,
-                    tel: booking.tel,
-                    price: booking.price
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Update payment failed: ${errorText}`);
-            }
-
-            // Success - Notify parent to refresh
-            // When parent refreshes, 'booking' prop updates, and optimistic state resets via useEffect
-            if (onBookingUpdated) {
-                onBookingUpdated();
-            }
-
-        } catch (err: any) {
-            console.error('Toggle payment error:', err);
-            setError(err.message);
-            setOptimisticPaid(currentStatus); // Revert on error
-        }
-    };
-
     const handleSave = async () => {
         setLoading(true);
         setError(null);
@@ -126,22 +73,26 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+            const updatePayload = {
+                matchId: booking.id,
+                // Always send current values
+                price: parseInt(editPrice, 10),
+                adminNote: editNote,
+                isPaid: isPaid,
+                customerName: editName,
+                tel: editTel,
+                // Pass context for Matchday updates (required by API)
+                timeStart: booking.time_start,
+                timeEnd: booking.time_end,
+            };
+
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    matchId: booking.id,
-                    price: parseInt(editPrice, 10),
-                    adminNote: editNote,
-                    // Pass context for Matchday updates
-                    timeStart: booking.time_start,
-                    timeEnd: booking.time_end,
-                    customerName: booking.name,
-                    tel: booking.tel
-                })
+                body: JSON.stringify(updatePayload)
             });
 
             if (!response.ok) {
@@ -151,14 +102,12 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
             await response.json();
 
-            // Notify parent
+            // Notify parent to refresh data
             if (onBookingUpdated) {
                 onBookingUpdated();
             }
 
-            // Close modal (or switch back to view mode)
-            // User workflow: "When edit finished, update price..." - checking results usually easier if closed or refreshed.
-            // Let's close it to be simple and trigger full refresh.
+            // Close modal after saving
             onClose();
 
         } catch (err: any) {
@@ -207,7 +156,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
     const handleClose = () => {
         setIsConfirming(false);
-        setIsEditing(false);
+        setIsEditingDetails(false);
         setCancelReason('');
         setError(null);
         onClose();
@@ -222,11 +171,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
                 <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
                     <div className="absolute top-0 right-0 pt-4 pr-4 flex gap-2">
-                        {!isEditing && !isConfirming && (
+                        {!isEditingDetails && !isConfirming && (
                             <button
                                 type="button"
                                 className="bg-white rounded-md text-gray-400 hover:text-indigo-600 focus:outline-none"
-                                onClick={() => setIsEditing(true)}
+                                onClick={() => setIsEditingDetails(true)}
                                 title="แก้ไขข้อมูล"
                             >
                                 <span className="sr-only">Edit</span>
@@ -246,18 +195,14 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                     <div className="sm:flex sm:items-start w-full">
                         <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
                             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4 flex items-center gap-2" id="modal-title">
-                                {isEditing ? 'แก้ไขการจอง' : 'รายละเอียดการจอง'}
-                                {!isEditing && (
-                                    <>
-                                        {booking.source === 'line' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
-                                        {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><Monitor className="w-3 h-3 mr-1" />Admin</span>}
-                                        {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" />Promo</span>}
-                                    </>
-                                )}
+                                <span>รายละเอียดการจอง</span>
+                                {booking.source === 'line' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
+                                {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><Monitor className="w-3 h-3 mr-1" />Admin</span>}
+                                {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" />Promo</span>}
                             </h3>
 
                             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                                {/* Read-Only Info */}
+                                {/* Time & Court Info */}
                                 <div className="flex items-center text-sm text-gray-600">
                                     <Calendar className="w-4 h-4 mr-2 text-indigo-500" />
                                     <span className="font-medium text-gray-900">{formatDate(booking.time_start)}</span>
@@ -268,23 +213,51 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                         {formatTime(booking.time_start)} - {formatTime(booking.time_end)}
                                     </span>
                                 </div>
-                                <div className="flex items-center text-sm text-gray-600">
-                                    <User className="w-4 h-4 mr-2 text-indigo-500" />
-                                    <span className="font-medium text-gray-900">{booking.name}</span>
-                                </div>
-                                {booking.tel && (
+                                {booking.court_name && (
                                     <div className="flex items-center text-sm text-gray-600">
-                                        <Phone className="w-4 h-4 mr-2 text-indigo-500" />
-                                        <span>{booking.tel}</span>
+                                        <Monitor className="w-4 h-4 mr-2 text-indigo-500" />
+                                        <span className="font-medium text-gray-900">สนาม: {booking.court_name}</span>
                                     </div>
                                 )}
 
-                                <div className="border-t border-gray-200 pt-3 mt-3">
-                                    {/* Editable Price */}
+                                <div className="border-t border-gray-200 pt-3 mt-3 space-y-3">
+                                    {/* Customer Name */}
                                     <div className="flex items-center text-sm text-gray-600">
-                                        <span className="w-4 flex justify-center mr-2 font-bold text-indigo-500">฿</span>
+                                        <User className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" />
+                                        {isEditingDetails ? (
+                                            <input
+                                                type="text"
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1 border"
+                                                placeholder="ชื่อลูกค้า"
+                                            />
+                                        ) : (
+                                            <span className="font-medium text-gray-900">{editName}</span>
+                                        )}
+                                    </div>
+
+                                    {/* Tel */}
+                                    <div className="flex items-center text-sm text-gray-600">
+                                        <Phone className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" />
+                                        {isEditingDetails ? (
+                                            <input
+                                                type="tel"
+                                                value={editTel}
+                                                onChange={(e) => setEditTel(e.target.value)}
+                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1 border"
+                                                placeholder="เบอร์โทรศัพท์"
+                                            />
+                                        ) : (
+                                            <span>{editTel || '-'}</span>
+                                        )}
+                                    </div>
+
+                                    {/* Price */}
+                                    <div className="flex items-center text-sm text-gray-600">
+                                        <span className="w-4 flex justify-center mr-2 font-bold text-indigo-500 flex-shrink-0">฿</span>
                                         <span className="min-w-[40px]">ราคา:</span>
-                                        {isEditing ? (
+                                        {isEditingDetails ? (
                                             <input
                                                 type="number"
                                                 value={editPrice}
@@ -292,56 +265,53 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                 className="ml-2 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1 border"
                                             />
                                         ) : (
-                                            <span className="font-medium text-gray-900 ml-2">{booking.price.toLocaleString()} บาท</span>
+                                            <span className="font-medium text-gray-900 ml-2">{parseInt(editPrice || '0').toLocaleString()} บาท</span>
                                         )}
                                     </div>
 
-                                    {/* Payment Status Toggle - Only in View Mode */}
-                                    {!isEditing && (
-                                        <div className="flex items-center text-sm text-gray-600 mt-2">
-                                            <span className="w-4 flex justify-center mr-2 mt-0.5">
-                                                {isPaidDisplay ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-300" />}
-                                            </span>
-                                            <span className="min-w-[40px] font-medium text-gray-900">ชำระเงิน:</span>
-
-                                            {/* Always show Toggle (Live Update) */}
+                                    {/* Payment Status (Always Editable Button Group) */}
+                                    <div className="flex items-center text-sm text-gray-600 mt-2">
+                                        <span className="w-4 flex justify-center mr-2 mt-0.5">
+                                            {isPaid ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-300" />}
+                                        </span>
+                                        <span className="min-w-[40px] font-medium text-gray-900 mr-2">สถานะ:</span>
+                                        <span className="relative z-0 inline-flex shadow-sm rounded-md">
                                             <button
                                                 type="button"
-                                                onClick={handleTogglePayment}
-                                                // disabled={loading} // Don't disable during optimistic update
-                                                className={`ml-2 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isPaidDisplay ? 'bg-green-600' : 'bg-gray-200'} `}
+                                                onClick={() => setIsPaid(false)}
+                                                className={`relative inline-flex items-center px-3 py-1 text-xs font-medium rounded-l-md border ${!isPaid
+                                                    ? 'bg-red-50 text-red-700 border-red-300 z-10'
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                    } focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
                                             >
-                                                <span className="sr-only">Toggle payment</span>
-                                                <span
-                                                    aria-hidden="true"
-                                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isPaidDisplay ? 'translate-x-5' : 'translate-x-0'}`}
-                                                />
+                                                ยังไม่จ่าย
                                             </button>
-                                            <span className="ml-2 text-xs text-gray-400">
-                                                {isPaidDisplay ? '่ายแล้ว' : 'ยังไม่จ่าย'}
-                                            </span>
-                                        </div>
-                                    )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsPaid(true)}
+                                                className={`relative -ml-px inline-flex items-center px-3 py-1 text-xs font-medium rounded-r-md border ${isPaid
+                                                    ? 'bg-green-50 text-green-700 border-green-300 z-10'
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                    } focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
+                                            >
+                                                จ่ายแล้ว
+                                            </button>
+                                        </span>
+                                    </div>
 
-                                    {/* Internal Note (Admin Note) */}
-                                    <div className={`flex items-start text-sm text-gray-600 mt-2 ${isEditing ? 'flex-col' : ''}`}>
+                                    {/* Internal Note (Always Editable) */}
+                                    <div className="flex flex-col items-start text-sm text-gray-600 mt-2">
                                         <div className="flex items-center mb-1">
                                             <MessageSquare className="w-4 h-4 mr-2 text-indigo-500 mt-0.5" />
-                                            <span className="min-w-[60px] font-medium text-indigo-900">Note (ภายใน):</span>
+                                            <span className="font-medium text-indigo-900">Note (ภายใน):</span>
                                         </div>
-                                        {isEditing ? (
-                                            <textarea
-                                                value={editNote}
-                                                onChange={(e) => setEditNote(e.target.value)}
-                                                rows={3}
-                                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                                placeholder="บันทึกข้อความถึงทีมงาน..."
-                                            />
-                                        ) : (
-                                            <span className="ml-2 text-gray-800 bg-yellow-50 px-2 py-1 rounded w-full block min-h-[24px]">
-                                                {booking.admin_note || '-'}
-                                            </span>
-                                        )}
+                                        <textarea
+                                            value={editNote}
+                                            onChange={(e) => setEditNote(e.target.value)}
+                                            rows={3}
+                                            className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                            placeholder="บันทึกข้อความถึงทีมงาน..."
+                                        />
                                     </div>
 
                                     {/* Original Remark (Matchday Note) - Always Read Only */}
@@ -367,28 +337,8 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                 </div>
                             )}
 
-                            {/* Actions */}
-                            {isEditing ? (
-                                <div className="mt-6 flex flex-col sm:flex-row-reverse gap-2">
-                                    <button
-                                        type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm disabled:opacity-50"
-                                        onClick={handleSave}
-                                        disabled={loading}
-                                    >
-                                        {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                                        บันทึก
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm"
-                                        onClick={() => setIsEditing(false)}
-                                        disabled={loading}
-                                    >
-                                        ยกเลิก
-                                    </button>
-                                </div>
-                            ) : isConfirming ? (
+                            {/* Actions Footer */}
+                            {isConfirming ? (
                                 <div className="mt-6 border-t border-gray-100 pt-4">
                                     <label htmlFor="cancel_reason" className="block text-sm font-medium text-gray-700 mb-2">
                                         สาเหตุการยกเลิก (ระบุหรือไม่ก็ได้)
@@ -409,7 +359,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             disabled={loading}
                                         >
                                             {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : null}
-                                            ยืนยันการยกเลิก
+                                            ยืนยันดารยกเลิก
                                         </button>
                                         <button
                                             type="button"
@@ -422,21 +372,35 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                     </div>
                                 </div>
                             ) : (
-                                <div className="mt-6 flex flex-col sm:flex-row-reverse gap-2">
+                                <div className="mt-6 flex justify-between items-center w-full">
+                                    {/* Left: Cancel Booking */}
                                     <button
                                         type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-100 text-base font-medium text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:w-auto sm:text-sm"
+                                        className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                                         onClick={() => setIsConfirming(true)}
                                     >
                                         ยกเลิกการจอง
                                     </button>
-                                    <button
-                                        type="button"
-                                        className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
-                                        onClick={handleClose}
-                                    >
-                                        ปิด
-                                    </button>
+
+                                    {/* Right: Save & Close */}
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm"
+                                            onClick={handleClose}
+                                        >
+                                            ปิด
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm disabled:opacity-50"
+                                            onClick={handleSave}
+                                            disabled={loading}
+                                        >
+                                            {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                                            บันทึก
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

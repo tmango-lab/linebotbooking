@@ -201,6 +201,8 @@ interface UpdateMatchPayload {
         note?: string;
         [key: string]: any;
     };
+    courts?: string[];
+    court_id?: number;
 }
 
 /**

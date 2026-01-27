@@ -1,25 +1,27 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
-import { updateMatchdayBooking } from "../_shared/matchdayApi.ts";
+import { updateMatchdayBooking, cancelMatchdayBooking, createMatchdayBooking } from "../_shared/matchdayApi.ts";
 
-console.log("Update Booking Function Started (With Payment Status)");
+console.log("Update Booking Function Started (With Court Move Support)");
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source } = await req.json();
+        const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source, courtId } = await req.json();
 
         if (!matchId) throw new Error('Missing matchId');
 
-        console.log(`[Update Booking] ID: ${matchId}, Price: ${price}, Paid: ${isPaid}`);
+        console.log(`[Update Booking] ID: ${matchId}, Price: ${price}, Paid: ${isPaid}, Court: ${courtId}`);
 
-        // 1. Matchday Update
+        let finalMatchId = String(matchId);
         let matchdayResult = null;
+
+        // Initialize matchdayResult
+        // Try direct update first (Preserves ID)
         if (price !== undefined && price !== null) {
-            matchdayResult = await updateMatchdayBooking(matchId, {
+            const payload: any = {
                 time_start: timeStart,
                 time_end: timeEnd,
                 description: (customerName && tel) ? `${customerName} ${tel}` : undefined,
@@ -27,10 +29,20 @@ serve(async (req) => {
                 // @ts-ignore
                 fixed_price: price,
                 price: price
-            });
+            };
+
+            if (courtId) {
+                console.log(`[Move Court] Attempting direct move for ${matchId} to court ${courtId}`);
+                payload.court_id = parseInt(courtId);
+                payload.courts = [String(courtId)];
+            }
+
+            matchdayResult = await updateMatchdayBooking(matchId, payload);
+            console.log(`[Matchday Update] Result:`, matchdayResult);
         }
 
-        // 2. Local DB Sync
+
+        // 2. Local DB Sync (Update Details on Final ID)
         // Parse Times
         let dateStr = null;
         let timeFrom = null;
@@ -60,7 +72,7 @@ serve(async (req) => {
             updatePayload.paid_at = isPaid ? new Date().toISOString() : null;
         }
 
-        // Handle Source (Only if provided, and likely only on creation or explicit update)
+        // Handle Source
         if (source !== undefined) {
             updatePayload.source = source;
         }
@@ -72,11 +84,11 @@ serve(async (req) => {
             updatePayload.duration_h = durationMinutes / 60;
         }
 
-        // Check Existence
+        // Check Existence (using finalMatchId)
         const { data: existing } = await supabase
             .from('bookings')
             .select('booking_id')
-            .eq('booking_id', String(matchId))
+            .eq('booking_id', finalMatchId)
             .single();
 
         let localData, localError;
@@ -85,7 +97,7 @@ serve(async (req) => {
             const { data, error } = await supabase
                 .from('bookings')
                 .update(updatePayload)
-                .eq('booking_id', String(matchId))
+                .eq('booking_id', finalMatchId)
                 .select()
                 .single();
             localData = data;
@@ -93,14 +105,12 @@ serve(async (req) => {
         } else {
             // New Insert
             const insertPayload = {
-                booking_id: String(matchId),
+                booking_id: finalMatchId,
                 user_id: 'MATCHDAY_IMPORT',
                 status: 'confirmed',
-                source: 'import', // Default for new unknown imports
+                source: 'import',
                 ...updatePayload
             };
-
-            // If explicit source provided in payload, override
             if (source) insertPayload.source = source;
 
             const { data, error } = await supabase

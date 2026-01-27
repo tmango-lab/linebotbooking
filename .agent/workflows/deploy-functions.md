@@ -49,6 +49,12 @@ npx supabase functions deploy get-bookings --no-verify-jwt
 npx supabase functions deploy cancel-booking --no-verify-jwt
 ```
 
+// turbo
+7. Deploy update-booking function
+```bash
+npx supabase functions deploy update-booking --no-verify-jwt
+```
+
 7. Verify deployment
 ```bash
 npx supabase functions list

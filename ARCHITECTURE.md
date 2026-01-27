@@ -741,7 +741,7 @@ git reset --hard HEAD~1
     - Checks if booking exists locally.
     - If **New**: Inserts record with `user_id: 'MATCHDAY_IMPORT'`, `date`, `time_from`, `time_to`.
     - If **Existing**: Updates only changed fields.
-    - Saves `admin_note` (Private to Admin).
+    - Saves `admin_note`, `paid_at`, `source`, `is_promo`.
 
 **Data Flow Diagram**:
 ```mermaid
@@ -755,3 +755,61 @@ graph LR
     F -- 2. Fetch Notes --> D
     F -- 3. Merge & Return --> E
 ```
+
+---
+
+## Admin Booking Management (Drag & Drop)
+
+### Overview
+The Admin Dashboard provides an interactive interface for managing bookings through drag-and-drop actions. This allows admins to:
+1.  **Move Bookings**: Change time or court by dragging.
+2.  **Resize Bookings**: Extend or shorten duration by dragging the edges.
+3.  **Edit Details**: Click to edit price, name, or phone number.
+
+### Drag & Drop Logic
+
+**Component**: `BookingCard` within `DashboardPage`
+
+1.  **Interaction**:
+    - **Click**: Opens `BookingDetailModal`. (Threshold: < 5px movement)
+    - **Drag**: Initiates move operation. (Threshold: > 5px movement)
+    - **Resize**: Triggered by top/bottom handles.
+
+2.  **Validation**:
+    - **Collision Detection**: Prevents dragging onto existing bookings.
+    - **Boundaries**: Constrained within opening hours (08:00 - 00:00).
+    - **Snap to Grid**: 30-minute intervals.
+
+3.  **Price Recalculation**:
+    - Automatically recalculates price based on new time and duration (Pre/Post 18:00 rules).
+    - Updates UI immediately (Ghost Element).
+
+### Move Court Strategy (Backend)
+
+**Edge Function**: `update-booking`
+
+**Challenge**: Moving a booking to a different court requires changing the `courts` array in Matchday, which not all update endpoints support equally.
+
+**Implementation**:
+- **Direct Update**: The system sends a `PUT` request to Matchday with `court_id` and `courts: [id]`.
+- **Payload**:
+    ```typescript
+    {
+        time_start: "YYYY-MM-DD HH:mm:ss",
+        time_end: "YYYY-MM-DD HH:mm:ss",
+        court_id: 2426,       // Target Court ID
+        courts: ["2426"],     // Target Court Array
+        change_price: 1200,   // Recalculated Price
+        price: 1200,          // Base Price Update
+        description: "Name Phone" // Preserve details
+    }
+    ```
+- **Result**: The Booking ID is **preserved**. The booking simply moves to the new lane.
+
+### Data Synchronization
+
+When a booking is modified:
+1.  **Matchday**: Receives new time, court, and price. (Source of Truth for Schedule)
+2.  **Local DB**: Receives update signal.
+    - If `court_id` changes, Local DB metadata (notes, payment status) remains attached to the **Booking ID**.
+    - `booking_id` is the stable key linking both systems.
