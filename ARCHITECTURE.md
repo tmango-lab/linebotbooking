@@ -21,17 +21,66 @@
 
 ---
 
+## Data Model (Supabase)
+
+### 1. `profiles` Table
+Stores customer information for quick booking and promotion auto-fill.
+```sql
+CREATE TABLE profiles (
+    user_id TEXT PRIMARY KEY,       -- LINE User ID
+    team_name TEXT,                 -- Team Name
+    phone_number TEXT,              -- Contact Number
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 2. `promo_codes` Table
+Stores generated discount codes linked to specific slots.
+```sql
+CREATE TABLE promo_codes (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(6) UNIQUE NOT NULL,
+    user_id TEXT NOT NULL,
+    -- ... (Booking Details: field, date, time)
+    status VARCHAR(20) DEFAULT 'active',
+    expires_at TIMESTAMPTZ NOT NULL
+);
+```
+
+### 3. `bookings` Table (Local Metadata)
+Stores local overrides and metadata for Matchday bookings.
+```sql
+CREATE TABLE bookings (
+    id BIGINT PRIMARY KEY,          -- Matchday Match ID
+    user_id TEXT,                   -- 'MATCHDAY_IMPORT' or LINE User ID
+    admin_note TEXT,                -- Internal Notes
+    is_promo BOOLEAN DEFAULT FALSE,
+    -- ... (Synced Fields: price, time, etc.)
+);
+```
+
+---
+
 ## LINE Bot Search Workflow
 
 ### Overview
 The LINE Bot provides a simplified search interface focusing on **Time** and **Duration** rather than specific fields.
 
 ### Flow Steps
-1.  **Select Search Mode**: (Removed in v2) User taps "ค้นหาเวลา".
-2.  **Select Date**: User chooses Today, Tomorrow, or picks a date.
-3.  **Select Duration**: User chooses **1 Hr**, **1.5 Hr**, or **2 Hr**.
-    - *Implementation Check*: This determines the slot size `durationMin`.
-4.  **Display Results**: System searches all fields and displays available start times in a Carousel.
+### Flow Steps
+1.  **User Interaction**: User taps "จองสนาม" or "ค้นหาเวลา".
+2.  **Profile Check (Onboarding)**:
+    - System checks `profiles` table for `user_id`.
+    - **If Missing**: Bot asks for **Team Name** and **Phone Number**.
+    - **If Found**: Proceeds to next step.
+3.  **Search All Fields**:
+    - User selects **Date** (Today/Tomorrow/Custom).
+    - User selects **Duration** (1hr, 1.5hr, 2hr).
+    - System searches all fields and displays available slots in a Carousel.
+4.  **Booking/Promo**:
+    - User selects a time slot.
+    - System generates a **Promo Code** for that slot.
 
 ---
 
@@ -351,18 +400,17 @@ Checks:
 - Status is 'active'
 - Not expired
 
-**Step 2.2: Display Booking Details**
+**Step 2.2: Display Booking Details & Auto-Fill**
 
 Modal shows:
 - Court name and type
 - Date and time
-- Original price: 700 THB
-- Discount: 10% (-70 THB)
-- **Final price: 630 THB** ← This is what should appear everywhere
+- Prices (Original, Discount, Final)
+- **Auto-Fill**: If the user has a profile, **Customer Name** and **Phone Number** are automatically filled in.
 
 **Step 2.3: Admin Confirms**
 
-Admin enters:
+Admin reviews/edits:
 - Customer name
 - Phone number
 

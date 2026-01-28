@@ -8,11 +8,15 @@ import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/admin/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import PromoCodePage from './pages/admin/PromoCodePage';
+import WalletPage from './pages/user/WalletPage';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 // Simple status page (Legacy/Root)
 function StatusPage() {
   const [status, setStatus] = useState<string>('Initializing...');
   const [connectionCheck, setConnectionCheck] = useState<string>('Checking data...');
+  const [secretInput, setSecretInput] = useState('');
+  const navigate = useNavigate(); // Hook for navigation
 
   useEffect(() => {
     if (supabase) {
@@ -36,6 +40,13 @@ function StatusPage() {
     checkConnection();
   }, []);
 
+  const handleSecretCheck = (val: string) => {
+    setSecretInput(val);
+    if (val === 'ภากร') {
+      navigate('/wallet?userId=debughero');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <h1>Supabase Status</h1>
@@ -47,6 +58,17 @@ function StatusPage() {
         <div style={{ marginTop: '2rem' }}>
           <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
         </div>
+
+        {/* Secret Trigger Area */}
+        <div style={{ marginTop: '3rem', opacity: 0.1, }}>
+          <input
+            value={secretInput}
+            onChange={(e) => handleSecretCheck(e.target.value)}
+            placeholder="..."
+            style={{ border: 'none', background: 'transparent', textAlign: 'center', outline: 'none' }}
+          />
+        </div>
+
       </div>
     </div>
   );
@@ -58,6 +80,9 @@ function App() {
       <Routes>
         {/* Public Status Page */}
         <Route path="/" element={<StatusPage />} />
+
+        {/* User Routes (V2) */}
+        <Route path="/wallet" element={<WalletPage />} />
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<LoginPage />} />
