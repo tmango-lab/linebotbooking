@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/api';
 import { RefreshCw, ChevronLeft, ChevronRight, Clock, Calendar, Tag, AlertTriangle } from 'lucide-react';
 import CalendarDropdown from '../../components/ui/CalendarDropdown';
 import BookingModal from '../../components/ui/BookingModal';
@@ -86,6 +85,7 @@ export default function DashboardPage() {
         startMin: number;
         endMin: number;
         price: number;
+        paid: boolean;
         valid: boolean;
     } | null>(null);
 

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag } from 'lucide-react';
-import { supabase } from '../../lib/api';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
