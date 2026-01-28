@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Loader2, Ticket, Gift, Lock, Search } from 'lucide-react';
+import { Loader2, Ticket, Gift, Lock } from 'lucide-react';
 
 interface Coupon {
     id: string; // user_coupon_id
