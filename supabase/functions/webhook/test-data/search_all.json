@@ -1,0 +1,16 @@
+{
+    "destination": "Uaf1234567890abcdef1234567890abcdef",
+    "events": [
+        {
+            "type": "postback",
+            "postback": {
+                "data": "action=pickDurationSearchAll&date=2026-01-29&duration=60"
+            },
+            "source": {
+                "userId": "Utestuser123",
+                "type": "user"
+            },
+            "replyToken": "test_reply_token"
+        }
+    ]
+}

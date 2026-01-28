@@ -1,7 +1,6 @@
 // supabase/functions/_shared/searchService.ts
 
 import { supabase } from './supabaseClient.ts';
-import { fetchMatchdayMatches, buildBusyIntervals } from './matchdayApi.ts';
 
 const SEARCH_OPEN_TIME = '16:00';
 const SEARCH_CLOSE_TIME = '24:00';
@@ -9,7 +8,7 @@ const SEARCH_STEP_MIN = 30; // 30-minute intervals (Grid System)
 
 /**
  * Search all fields for available slots on a given date and duration
- * OPTIMIZED: Parallel processing + fetch Matchday data once per field
+ * Uses Local Supabase Database Only
  */
 export async function searchAllFieldsForSlots(dateStr: string, durationMin: number) {
     const { data: fields } = await supabase
@@ -26,39 +25,49 @@ export async function searchAllFieldsForSlots(dateStr: string, durationMin: numb
     console.log(`[SEARCH DEBUG] Date: ${dateStr}, Duration: ${durationMin}min`);
     console.log(`[SEARCH DEBUG] Search range: ${minuteToTime(searchStartMin)} - ${minuteToTime(endLimitMin)}`);
 
-    // ===== OPTIMIZATION 2: Parallel Processing =====
-    // Process all fields in parallel instead of sequentially
+    // Fetch all bookings for this date from Local DB
+    const { data: bookings } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('date', dateStr)
+        .neq('status', 'cancelled'); // Exclude cancelled bookings
+
+    console.log(`[SEARCH DEBUG] Found ${bookings?.length || 0} bookings for ${dateStr}`);
+
+    // Process all fields in parallel
     const fieldPromises = fields.map(async (field: any) => {
         const slots: Array<{ start: number, end: number }> = [];
 
-        // Fetch Matchday data ONCE for this field
-        let matchdayBusy: Array<{ start: Date, end: Date }> = [];
-        if (field.matchday_court_id) {
-            try {
-                const matches = await fetchMatchdayMatches(dateStr, field.matchday_court_id);
-                matchdayBusy = buildBusyIntervals(matches);
-                console.log(`[SEARCH DEBUG] Field ${field.id}: ${matchdayBusy.length} busy intervals`);
+        // Get bookings for this specific field
+        const fieldBookings = (bookings || []).filter((b: any) => b.field_no === field.id);
+        console.log(`[SEARCH DEBUG] Field ${field.id}: ${fieldBookings.length} bookings`);
 
-                // Log each busy interval for debugging
-                matchdayBusy.forEach((interval, idx) => {
-                    console.log(`[SEARCH DEBUG] Field ${field.id} Busy #${idx + 1}: ${interval.start.toISOString()} - ${interval.end.toISOString()}`);
-                });
-            } catch (err) {
-                console.error(`Matchday API Error for field ${field.id}:`, err);
-            }
-        }
+        // Build busy intervals from local bookings
+        const busyIntervals: Array<{ start: Date, end: Date }> = fieldBookings.map((b: any) => {
+            // Normalize time to HH:MM:00 to avoid "16:00:00:00" invalid format
+            const startStr = b.time_from.substring(0, 5); // Ensure HH:MM
+            const endStr = b.time_to.substring(0, 5);     // Ensure HH:MM
+            const start = new Date(`${b.date}T${startStr}:00+07:00`);
+            const end = new Date(`${b.date}T${endStr}:00+07:00`);
+            return { start, end };
+        });
 
-        // Helper to check if a slot is free (in-memory only!)
+        // Log busy intervals for debugging
+        busyIntervals.forEach((interval, idx) => {
+            console.log(`[SEARCH DEBUG] Field ${field.id} Busy #${idx + 1}: ${interval.start.toISOString()} - ${interval.end.toISOString()}`);
+        });
+
+        // Helper to check if a slot is free
         function isSlotFree(startMin: number): boolean {
             // Create date with Bangkok timezone (+07:00)
             const startDt = new Date(`${dateStr}T00:00:00+07:00`);
             startDt.setMinutes(startMin);
 
-            // Add duration in milliseconds to avoid day overflow issues
+            // Add duration in milliseconds
             const endDt = new Date(startDt.getTime() + durationMin * 60 * 1000);
 
-            // Check Matchday bookings
-            const hasConflict = matchdayBusy.some(b => {
+            // Check for conflicts with existing bookings
+            const hasConflict = busyIntervals.some(b => {
                 const conflict = startDt < b.end && endDt > b.start;
                 if (field.id === 6) {
                     console.log(`[SEARCH DEBUG] Field 6 Slot ${minuteToTime(startMin)}-${minuteToTime(startMin + durationMin)}: ${conflict ? 'BLOCKED' : 'FREE'} (slot: ${startDt.toISOString()} - ${endDt.toISOString()}, busy: ${b.start.toISOString()} - ${b.end.toISOString()})`);
@@ -70,7 +79,7 @@ export async function searchAllFieldsForSlots(dateStr: string, durationMin: numb
         }
 
         // Efficient 30-Minute Grid Search
-        // Checks 08:00, 08:30, 09:00, etc.
+        // Checks 16:00, 16:30, 17:00, etc.
         for (let start = searchStartMin; start + durationMin <= endLimitMin; start += SEARCH_STEP_MIN) {
             if (isSlotFree(start)) {
                 slots.push({ start, end: start + durationMin });

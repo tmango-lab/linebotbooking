@@ -171,11 +171,11 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
             setSuccess(true);
             setError(null);
 
-            // Auto-close after 2 seconds and navigate to booking date
+            // Auto-close after 1.5 seconds
             setTimeout(() => {
                 onSuccess(promoDetails!.booking_date, promoDetails!.time_from);
                 handleClose();
-            }, 2000);
+            }, 1500);
 
 
         } catch (err: any) {

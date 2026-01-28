@@ -1,40 +1,36 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { supabase } from "../_shared/supabaseClient.ts"; // Use shared client
+import { supabase } from "../_shared/supabaseClient.ts";
 
-console.log("Create Booking Function Started (With Local Sync)");
+console.log("Create Booking Function Started (Local DB Only)");
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// @ts-ignore
-const token = Deno.env.get('MATCHDAY_TOKEN');
-const MD_BASE_URL = 'https://arena.matchday-backend.com';
-
-// Hardcoded Mapping for stability
+// Field ID Mapping (Matchday court_id to local field_no)
 const FIELD_MAP: Record<number, number> = {
-    2424: 2424, // Field 1
-    2425: 2425, // Field 2
-    2428: 2428, // Field 3
-    2426: 2426, // Field 4
-    2427: 2427, // Field 5
-    2429: 2429, // Field 6
+    2424: 1, // Field 1
+    2425: 2, // Field 2
+    2428: 3, // Field 3
+    2426: 4, // Field 4
+    2427: 5, // Field 5
+    2429: 6, // Field 6
 };
 
 // Pricing Config
 const PRICING = {
-    2424: { pre: 500, post: 700 },  // Field 1
-    2425: { pre: 500, post: 700 },  // Field 2
-    2428: { pre: 1000, post: 1200 }, // Field 3
-    2426: { pre: 800, post: 1000 },  // Field 4
-    2427: { pre: 800, post: 1000 },  // Field 5
-    2429: { pre: 1000, post: 1200 }, // Field 6
+    1: { pre: 500, post: 700 },  // Field 1
+    2: { pre: 500, post: 700 },  // Field 2
+    3: { pre: 1000, post: 1200 }, // Field 3
+    4: { pre: 800, post: 1000 },  // Field 4
+    5: { pre: 800, post: 1000 },  // Field 5
+    6: { pre: 1000, post: 1200 }, // Field 6
 };
 
-function calculatePrice(fieldId: number, startTime: string, durationHours: number) {
-    const prices = PRICING[fieldId as keyof typeof PRICING];
+function calculatePrice(fieldNo: number, startTime: string, durationHours: number) {
+    const prices = PRICING[fieldNo as keyof typeof PRICING];
     if (!prices) return 0;
 
     const [h, m] = startTime.split(':').map(Number);
@@ -83,13 +79,8 @@ serve(async (req) => {
 
         console.log(`[Create Booking] Received: F${fieldId} on ${date} ${startTime}-${endTime}`);
 
-        const matchdayCourtId = FIELD_MAP[fieldId];
-        if (!matchdayCourtId) {
-            return new Response(JSON.stringify({ error: `Unknown Field ID: ${fieldId}` }), {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-        }
+        // Map Matchday court_id to local field_no
+        const fieldNo = FIELD_MAP[fieldId] || fieldId;
 
         // Calculate Duration
         const [startH, startM] = startTime.split(':').map(Number);
@@ -98,131 +89,56 @@ serve(async (req) => {
         const endMin = endH * 60 + endM;
         const durationH = (endMin - startMin) / 60;
 
-        const price = calculatePrice(fieldId, startTime, durationH);
-        console.log(`[Create Booking] Price: ${price}`);
+        const price = calculatePrice(fieldNo, startTime, durationH);
+        console.log(`[Create Booking] Field: ${fieldNo}, Price: ${price}`);
 
-        if (!token) {
-            throw new Error('MATCHDAY_TOKEN is missing');
-        }
-
-        // Call Matchday API
-        const url = `${MD_BASE_URL}/arena/create-match`;
-        const timeStartStr = `${date} ${startTime}:00`;
-        const timeEndStr = `${date} ${endTime}:00`;
-
-        const body = {
-            courts: [matchdayCourtId.toString()],
-            time_start: timeStartStr,
-            time_end: timeEndStr,
-            settings: {
-                name: customerName,
+        // Create booking in Local DB
+        const { data: booking, error: insertError } = await supabase
+            .from('bookings')
+            .insert({
+                user_id: 'admin', // Admin created booking
+                booking_id: Date.now().toString(), // Generate numeric ID for compatibility
+                field_no: fieldNo,
+                status: 'confirmed',
+                date: date,
+                time_from: startTime,
+                time_to: endTime,
+                duration_h: durationH,
+                price_total_thb: price,
+                display_name: customerName,
                 phone_number: phoneNumber,
-                note: note || ''
-            },
-            payment: 'cash',
-            method: 'fast-create',
-            payment_multi: false,
-            fixed_price: null,
-            member_id: null,
-            user_id: null
-        };
+                admin_note: note || null,
+                source: 'admin',
+                is_promo: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
 
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'Origin': 'https://arena.matchday.co.th'
-            },
-            body: JSON.stringify(body)
-        });
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error(`Matchday Create Error: ${res.status} - ${errorText}`);
-            return new Response(JSON.stringify({ error: `Matchday API Error: ${errorText}` }), {
-                status: 502,
+        if (insertError) {
+            console.error('[Create Booking Error]:', insertError);
+            return new Response(JSON.stringify({ error: insertError.message }), {
+                status: 500,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
         }
 
-        const mdText = await res.text();
+        console.log(`[Create Booking] Success: ID ${booking.booking_id}`);
 
-        let data: any = {};
-        let autoCorrected = false;
-        let updateResult: any = null;
-        let createdMatchId = null;
-
-        if (mdText) {
-            try {
-                data = JSON.parse(mdText);
-                const createdMatch = data.match || (data.matches && data.matches[0]);
-
-                if (createdMatch && createdMatch.id) {
-                    createdMatchId = createdMatch.id;
-
-                    // --- 1. Insert into Local DB (Sync Source) ---
-                    console.log(`[Local Sync] Inserting match ${createdMatch.id} as source='admin'`);
-                    const { error: insertError } = await supabase
-                        .from('bookings')
-                        .insert({
-                            booking_id: String(createdMatch.id),
-                            user_id: 'MATCHDAY_IMPORT', // Or specific admin ID/Name if available
-                            status: 'confirmed',
-                            booking_date: date, // Deprecated col? Use date
-                            date: date,
-                            time_from: startTime,
-                            time_to: endTime,
-                            duration_h: durationH,
-                            price_total_thb: price,
-                            source: 'admin',
-                            is_promo: false,
-                            updated_at: new Date().toISOString()
-                        });
-
-                    if (insertError) {
-                        console.error('[Local Sync Error]:', insertError);
-                        // Non-blocking
-                    }
-
-                    // --- 2. Auto-Correct Price on Matchday ---
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-
-                    if (price > 0) {
-                        const updateUrl = `${MD_BASE_URL}/arena/match/${createdMatch.id}`;
-                        console.log(`[Auto-Correct] Updating price to ${price}`);
-
-                        const updateRes = await fetch(updateUrl, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`,
-                                'Origin': 'https://arena.matchday.co.th'
-                            },
-                            body: JSON.stringify({
-                                time_start: timeStartStr,
-                                time_end: timeEndStr,
-                                description: `${customerName} ${phoneNumber}`,
-                                change_price: price,
-                                price: price
-                            })
-                        });
-
-                        const updateText = await updateRes.text();
-                        if (updateRes.ok) {
-                            autoCorrected = true;
-                            updateResult = updateText;
-                        } else {
-                            console.error('[Auto-Correct] Failed:', updateText);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('Matchday response parsing error:', e);
+        return new Response(JSON.stringify({
+            success: true,
+            booking: {
+                id: booking.booking_id,
+                field_no: booking.field_no,
+                date: booking.date,
+                time_from: booking.time_from,
+                time_to: booking.time_to,
+                price: booking.price_total_thb,
+                customer_name: booking.display_name,
+                phone_number: booking.phone_number
             }
-        }
-
-        return new Response(JSON.stringify({ success: true, data, price, autoCorrected, updateResult }), {
+        }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });

@@ -212,8 +212,9 @@ export default function DashboardPage() {
         if (!silent) setLoading(true);
         setError(null);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Use Service Role Key for admin access (bypasses RLS)
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+            console.log(`[Dashboard] Fetching bookings... Token available? ${!!token} Length: ${token?.length}`);
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -298,6 +299,7 @@ export default function DashboardPage() {
             courtId: booking.court_id,
             startMin, endMin,
             price: booking.price,
+            paid: !!booking.paid_at,
             valid: true
         });
     };
@@ -316,6 +318,7 @@ export default function DashboardPage() {
             startMin: yToMinutes(startY),
             endMin: yToMinutes(startY + height),
             price: booking.price,
+            paid: !!booking.paid_at,
             valid: true
         });
     };
@@ -492,8 +495,8 @@ export default function DashboardPage() {
         if (!modifyConfirm) return;
         setModifying(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Use Service Role Key for admin access
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             // Call update-booking
             const payload = {
@@ -535,8 +538,8 @@ export default function DashboardPage() {
     const handleConfirmCreate = async (data: { name: string; phone: string; note: string }) => {
         if (!pendingCreate) return;
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Use Service Role Key for admin access (same as get-bookings)
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-booking`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -557,6 +560,7 @@ export default function DashboardPage() {
             alert(e.message);
         }
     };
+
 
     // --- Render Helpers ---
     const formatDateHeader = (d: string) => new Date(d).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -665,16 +669,26 @@ export default function DashboardPage() {
                                     })
                                     }
 
-                                    {/* Ghost for Modify */}
                                     {
                                         ghostState && ghostState.courtId === court.id && (isDraggingConfirmed || interactionMode.startsWith('RESIZE')) && (
                                             <div
-                                                className={`absolute inset-x-1 rounded border-2 z-20 pointer-events-none flex flex-col items-center justify-center text-xs shadow-lg transition-all ${ghostState.valid ? 'bg-indigo-100/80 border-indigo-500 text-indigo-700' : 'bg-red-100/80 border-red-500 text-red-700'}`}
+                                                className={`absolute inset-x-1 rounded shadow-sm border-l-[3px] px-2 py-1 z-20 pointer-events-none flex flex-col justify-start items-start text-xs shadow-lg transition-all ${ghostState.valid ? 'bg-blue-50 border-blue-600 text-blue-700' : 'bg-red-100/80 border-red-500 text-red-700'}`}
                                                 style={{ top: `${ghostState.top}px`, height: `${ghostState.height}px` }}
                                             >
-                                                <span className="font-bold text-sm">{minutesToTime(ghostState.startMin)} - {minutesToTime(ghostState.endMin)}</span>
-                                                <span className="font-medium bg-white/50 px-1 rounded mt-1">฿{ghostState.price.toLocaleString()}</span>
-                                                {!ghostState.valid && <span className="font-bold mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> ชนกับคิวอื่น</span>}
+                                                {/* Header / Time */}
+                                                <div className="font-semibold text-xs leading-tight mb-0.5 w-full flex justify-between items-center">
+                                                    <span>{minutesToTime(ghostState.startMin)} - {minutesToTime(ghostState.endMin)}</span>
+                                                    {!ghostState.valid && <AlertTriangle className="w-3 h-3 text-red-600" />}
+                                                </div>
+
+                                                {/* Price Badge (Bottom aligned like card) */}
+                                                <div className="mt-auto w-full flex justify-end">
+                                                    <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold border ${ghostState.paid ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                                                        ฿{ghostState.price.toLocaleString()}
+                                                    </span>
+                                                </div>
+
+                                                {!ghostState.valid && <span className="font-bold mt-1 text-[10px]">ชนคิวอื่น</span>}
                                             </div>
                                         )
                                     }
@@ -682,9 +696,12 @@ export default function DashboardPage() {
                                     {/* Ghost for Create */}
                                     {
                                         interactionMode === 'CREATE' && isDraggingCreate && createCourtId === court.id && createStartY !== null && createCurrentY !== null && (
-                                            <div className="absolute inset-x-1 rounded bg-green-100/80 border-2 border-green-500 border-dashed z-20 pointer-events-none flex items-center justify-center text-green-700 font-semibold text-xs shadow-lg"
+                                            <div className="absolute inset-x-1 rounded bg-green-100/80 border-2 border-green-500 border-dashed z-20 pointer-events-none flex flex-col items-center justify-center text-green-700 font-semibold text-xs shadow-lg"
                                                 style={{ top: `${createStartY}px`, height: `${createCurrentY - createStartY}px` }}>
-                                                {minutesToTime(yToMinutes(createStartY))} - {minutesToTime(yToMinutes(createCurrentY))}
+                                                <span>{minutesToTime(yToMinutes(createStartY))} - {minutesToTime(yToMinutes(createCurrentY))}</span>
+                                                <span className="mt-0.5 bg-white/60 px-1.5 rounded text-[10px] font-bold">
+                                                    ฿{calculateEstimatedPrice(createCourtId, yToMinutes(createStartY), yToMinutes(createCurrentY)).toLocaleString()}
+                                                </span>
                                             </div>
                                         )
                                     }

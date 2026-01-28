@@ -70,8 +70,8 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         setError(null);
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Use Service Role Key for admin access
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             const updatePayload = {
                 matchId: booking.id,
@@ -123,8 +123,8 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         setError(null);
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Use Service Role Key for admin access
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-booking`, {
                 method: 'POST',

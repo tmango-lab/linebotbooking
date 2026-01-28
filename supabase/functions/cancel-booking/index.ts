@@ -1,8 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { cancelMatchdayBooking } from "../_shared/matchdayApi.ts";
+import { supabase } from "../_shared/supabaseClient.ts";
 
-console.log("Cancel Booking Function Started");
+console.log("Cancel Booking Function Started (Local DB Only)");
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -25,16 +25,40 @@ serve(async (req) => {
             });
         }
 
-        console.log(`[Cancel Booking] Request to cancel match ${matchId}. Reason: ${reason}`);
+        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}`);
 
-        await cancelMatchdayBooking(matchId, reason || "Cancelled via System");
+        // Update booking status to cancelled in Local DB
+        const { data, error } = await supabase
+            .from('bookings')
+            .update({
+                status: 'cancelled',
+                admin_note: reason || 'Cancelled via System',
+                updated_at: new Date().toISOString()
+            })
+            .eq('booking_id', String(matchId))
+            .select()
+            .single();
 
-        return new Response(JSON.stringify({ success: true, message: `Match ${matchId} cancelled successfully` }), {
+        if (error) {
+            console.error('[Cancel Booking Error]:', error);
+            return new Response(JSON.stringify({ error: error.message }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+
+        console.log(`[Cancel Booking] Success: ${matchId}`);
+
+        return new Response(JSON.stringify({
+            success: true,
+            message: `Booking ${matchId} cancelled successfully`,
+            booking: data
+        }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Cancel Booking Error]:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

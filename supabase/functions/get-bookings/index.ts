@@ -2,9 +2,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
-import { fetchMatchdayMatches } from "../_shared/matchdayApi.ts";
 
-console.log("Get Bookings Function Started (Hybrid Data Source v2)");
+console.log("Get Bookings Function Started (Local Database v4 - Admin)");
 
 serve(async (req) => {
     // Handle CORS
@@ -36,47 +35,54 @@ serve(async (req) => {
 
         console.log(`[Process] Fetching bookings for date: ${date}`);
 
-        // 1. Fetch from Matchday (Source of Truth for Availability)
-        const matchdayBookings = await fetchMatchdayMatches(date, 0);
-        console.log(`[Matchday] Retrieved ${matchdayBookings.length} records`);
+        // Fetch from Local Database (Single Source of Truth)
+        // Using Service Role Key for admin access (bypasses RLS)
+        const { data: localBookings, error } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('date', date)
+            .neq('status', 'cancelled') // Exclude cancelled bookings
+            .order('time_from');
 
-        // 2. Fetch from Local Database (Source for Notes & Overrides)
-        const ids = matchdayBookings.map(b => String(b.id)); // Ensure ID is string
-
-        // Map for merging
-        let localDataMap: Record<string, any> = {};
-
-        if (ids.length > 0) {
-            const { data: localData, error } = await supabase
-                .from('bookings')
-                .select('booking_id, admin_note, paid_at, source, is_promo')
-                .in('booking_id', ids);
-
-            if (error) {
-                console.error('[Local DB Error]:', error);
-            } else if (localData) {
-                localData.forEach((row: any) => {
-                    localDataMap[row.booking_id] = row;
-                });
-                console.log(`[Local DB] Found ${localData.length} related local records`);
-            }
+        if (error) {
+            console.error('[Database Error]:', error);
+            return new Response(JSON.stringify({ error: error.message }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
         }
 
-        // 3. Merge Data
-        const mergedBookings = matchdayBookings.map(booking => {
-            const sid = String(booking.id);
-            const local = localDataMap[sid] || {};
+        console.log(`[Database] Retrieved ${localBookings?.length || 0} records`);
 
-            return {
-                ...booking,
-                admin_note: local.admin_note || null,
-                paid_at: local.paid_at || null,
-                source: local.source || 'import', // Default to import if unknown
-                is_promo: local.is_promo || false
-            };
-        });
+        // Map field_no back to court_id for frontend compatibility
+        const fieldToCourtMap: Record<number, number> = {
+            1: 2424, // สนาม #1
+            2: 2425, // สนาม #2
+            3: 2428, // สนาม #3
+            4: 2426, // สนาม #4
+            5: 2427, // สนาม #5
+            6: 2429  // สนาม #6
+        };
 
-        return new Response(JSON.stringify({ bookings: mergedBookings }), {
+        // Transform to match Matchday API format for frontend compatibility
+        const bookings = (localBookings || []).map(b => ({
+            id: parseInt(b.booking_id),
+            court_id: fieldToCourtMap[b.field_no] || b.field_no,
+            time_start: `${b.date} ${b.time_from}`,
+            time_end: `${b.date} ${b.time_to}`,
+            name: b.display_name || '',
+            tel: b.phone_number || '', // Map phone_number to tel
+            description: b.display_name || '',
+            price: b.price_total_thb,
+            total_price: b.price_total_thb,
+            cancel: b.status === 'cancelled' ? 1 : 0,
+            admin_note: b.admin_note || null,
+            paid_at: b.paid_at || null,
+            source: b.source || 'admin',
+            is_promo: b.is_promo || false
+        }));
+
+        return new Response(JSON.stringify({ bookings }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
         });

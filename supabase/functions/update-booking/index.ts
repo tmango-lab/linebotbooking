@@ -1,9 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
-import { updateMatchdayBooking, cancelMatchdayBooking, createMatchdayBooking } from "../_shared/matchdayApi.ts";
 
-console.log("Update Booking Function Started (With Court Move Support)");
+console.log("Update Booking Function Started (Local DB Only)");
+
+// Field ID Mapping (Matchday court_id to local field_no)
+const FIELD_MAP: Record<number, number> = {
+    2424: 1, 2425: 2, 2428: 3, 2426: 4, 2427: 5, 2429: 6
+};
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -15,34 +19,6 @@ serve(async (req) => {
 
         console.log(`[Update Booking] ID: ${matchId}, Price: ${price}, Paid: ${isPaid}, Court: ${courtId}`);
 
-        let finalMatchId = String(matchId);
-        let matchdayResult = null;
-
-        // Initialize matchdayResult
-        // Try direct update first (Preserves ID)
-        if (price !== undefined && price !== null) {
-            const payload: any = {
-                time_start: timeStart,
-                time_end: timeEnd,
-                description: (customerName && tel) ? `${customerName} ${tel}` : undefined,
-                change_price: price,
-                // @ts-ignore
-                fixed_price: price,
-                price: price
-            };
-
-            if (courtId) {
-                console.log(`[Move Court] Attempting direct move for ${matchId} to court ${courtId}`);
-                payload.court_id = parseInt(courtId);
-                payload.courts = [String(courtId)];
-            }
-
-            matchdayResult = await updateMatchdayBooking(matchId, payload);
-            console.log(`[Matchday Update] Result:`, matchdayResult);
-        }
-
-
-        // 2. Local DB Sync (Update Details on Final ID)
         // Parse Times
         let dateStr = null;
         let timeFrom = null;
@@ -64,8 +40,16 @@ serve(async (req) => {
         const updatePayload: any = {
             updated_at: new Date().toISOString(),
         };
+
         if (price !== undefined) updatePayload.price_total_thb = price;
         if (adminNote !== undefined) updatePayload.admin_note = adminNote;
+        if (customerName !== undefined) updatePayload.display_name = customerName;
+        if (tel !== undefined) {
+            updatePayload.phone_number = tel;
+            console.log(`[Update Booking] Updating phone_number to: ${tel}`);
+        } else {
+            console.log(`[Update Booking] No tel provided in payload`);
+        }
 
         // Handle Payment Status
         if (isPaid !== undefined) {
@@ -77,6 +61,13 @@ serve(async (req) => {
             updatePayload.source = source;
         }
 
+        // Handle Court Move (map Matchday court_id to local field_no)
+        if (courtId !== undefined) {
+            const fieldNo = FIELD_MAP[courtId] || courtId;
+            updatePayload.field_no = fieldNo;
+            console.log(`[Move Court] Updating field_no to ${fieldNo} (from courtId ${courtId})`);
+        }
+
         if (dateStr) {
             updatePayload.date = dateStr;
             updatePayload.time_from = timeFrom;
@@ -84,34 +75,34 @@ serve(async (req) => {
             updatePayload.duration_h = durationMinutes / 60;
         }
 
-        // Check Existence (using finalMatchId)
+        // Check Existence
         const { data: existing } = await supabase
             .from('bookings')
             .select('booking_id')
-            .eq('booking_id', finalMatchId)
+            .eq('booking_id', String(matchId))
             .single();
 
         let localData, localError;
 
         if (existing) {
+            // Update existing booking
             const { data, error } = await supabase
                 .from('bookings')
                 .update(updatePayload)
-                .eq('booking_id', finalMatchId)
+                .eq('booking_id', String(matchId))
                 .select()
                 .single();
             localData = data;
             localError = error;
         } else {
-            // New Insert
+            // Create new booking if not exists
             const insertPayload = {
-                booking_id: finalMatchId,
-                user_id: 'MATCHDAY_IMPORT',
+                booking_id: String(matchId),
+                user_id: 'admin',
                 status: 'confirmed',
-                source: 'import',
+                source: source || 'admin',
                 ...updatePayload
             };
-            if (source) insertPayload.source = source;
 
             const { data, error } = await supabase
                 .from('bookings')
@@ -124,7 +115,9 @@ serve(async (req) => {
 
         if (localError) throw new Error(`Local DB Update Failed: ${localError.message}`);
 
-        return new Response(JSON.stringify({ success: true, matchday: matchdayResult, local: localData }), {
+        console.log(`[Update Booking] Success: ${matchId}`);
+
+        return new Response(JSON.stringify({ success: true, booking: localData }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 

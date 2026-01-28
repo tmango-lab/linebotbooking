@@ -86,6 +86,40 @@ serve(async (req) => {
             );
         }
 
+        // Check if slot is still available
+        const timeFromHHMM = promoCode.time_from.substring(0, 5);
+        const timeToHHMM = promoCode.time_to.substring(0, 5);
+
+        const { data: existingBookings } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('field_no', promoCode.field_id)
+            .eq('date', promoCode.booking_date)
+            .neq('status', 'cancelled');
+
+        const hasConflict = (existingBookings || []).some((b: any) => {
+            const existingStartStr = b.time_from.substring(0, 5);
+            const existingEndStr = b.time_to.substring(0, 5);
+
+            const existingStart = new Date(`${b.date}T${existingStartStr}:00+07:00`);
+            const existingEnd = new Date(`${b.date}T${existingEndStr}:00+07:00`);
+
+            const promoStart = new Date(`${promoCode.booking_date}T${timeFromHHMM}:00+07:00`);
+            const promoEnd = new Date(`${promoCode.booking_date}T${timeToHHMM}:00+07:00`);
+
+            return promoStart < existingEnd && promoEnd > existingStart;
+        });
+
+        if (hasConflict) {
+            return new Response(
+                JSON.stringify({
+                    valid: false,
+                    reason: 'สนามไม่ว่างแล้ว (มีผู้จองตัดหน้าเมื่อสักครู่)'
+                }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
         // Fetch Profile
         const { data: profile } = await supabase
             .from('profiles')
