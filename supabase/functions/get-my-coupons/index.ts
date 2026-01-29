@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -12,72 +13,105 @@ serve(async (req) => {
     }
 
     try {
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-        );
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const url = new URL(req.url);
-        const userId = url.searchParams.get('userId');
-
-        if (!userId) {
-            throw new Error('Missing userId parameter');
+        // Get User ID from Body (POST) or Query (GET)
+        // For security, ideally we rely on Auth Header, but for LIFF/Line verify we often pass userId explicitly signed.
+        // Simplified for this phase.
+        let userId = '';
+        if (req.method === 'POST') {
+            const body = await req.json();
+            userId = body.userId;
+        } else {
+            const url = new URL(req.url);
+            userId = url.searchParams.get('userId') ?? '';
         }
 
-        // Fetch user coupons with campaign details
+        if (!userId) {
+            throw new Error('User ID is required');
+        }
+
+        console.log(`[Fetching Coupons] User: ${userId}`);
+
+        const now = new Date().toISOString();
+
+        // Fetch User's Active Coupons + Campaign Details
         const { data: coupons, error } = await supabase
             .from('user_coupons')
             .select(`
-        id,
-        status,
-        expires_at,
-        created_at,
-        campaign:campaigns (
-          id,
-          name,
-          coupon_type,
-          benefit_type,
-          benefit_value,
-          conditions
-        )
-      `)
+                id,
+                status,
+                expires_at,
+                campaign:campaigns (
+                    id,
+                    name,
+                    description,
+                    coupon_type,
+                    benefit_type,
+                    benefit_value,
+                    conditions,
+                    image_url,
+                    eligible_fields,
+                    payment_methods,
+                    allowed_time_range,
+                    days_of_week
+                )
+            `)
             .eq('user_id', userId)
-            .eq('status', 'ACTIVE'); // Only ACTIVE coupons
+            .eq('status', 'ACTIVE')
+            .gt('expires_at', now); // Must not be expired
 
         if (error) throw error;
 
-        // Group by type: MAIN vs ONTOP
-        const wallet = {
-            main: [] as any[],
-            on_top: [] as any[]
-        };
+        // Group by Type (Main vs On-Top)
+        // Note: Supabase returns foreign key as single object or array depending on relation. REFERENCES campaigns(id) is singular.
+        const mainCoupons: any[] = [];
+        const onTopCoupons: any[] = [];
 
-        coupons?.forEach((c: any) => {
-            const type = c.campaign?.coupon_type;
-            const item = {
-                id: c.id, // user_coupon_id
-                campaign_id: c.campaign.id,
-                name: c.campaign.name,
-                benefit_type: c.campaign.benefit_type,
-                benefit_value: c.campaign.benefit_value,
-                conditions: c.campaign.conditions,
-                expires_at: c.expires_at,
-                created_at: c.created_at
+        coupons.forEach((c: any) => {
+            const campaign = c.campaign;
+            if (!campaign) return;
+
+            const formatted = {
+                coupon_id: c.id,
+                campaign_id: campaign.id,
+                name: campaign.name,
+                description: campaign.description,
+                expiry: c.expires_at,
+                image: campaign.image_url,
+                benefit: {
+                    type: campaign.benefit_type,
+                    value: campaign.benefit_value
+                },
+                conditions: {
+                    fields: campaign.eligible_fields,
+                    payment: campaign.payment_methods,
+                    time: campaign.allowed_time_range,
+                    days: campaign.days_of_week
+                }
             };
 
-            if (type === 'MAIN') {
-                wallet.main.push(item);
-            } else if (type === 'ONTOP') {
-                wallet.on_top.push(item);
+            if (campaign.coupon_type === 'MAIN') {
+                mainCoupons.push(formatted);
+            } else {
+                onTopCoupons.push(formatted);
             }
         });
 
-        return new Response(JSON.stringify(wallet), {
+        return new Response(JSON.stringify({
+            success: true,
+            main: mainCoupons,
+            on_top: onTopCoupons,
+            total: coupons.length
+        }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
         });
 
     } catch (error: any) {
+        console.error('[Get Coupons Error]', error.message);
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400,

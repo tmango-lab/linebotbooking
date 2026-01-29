@@ -2,6 +2,29 @@
 
 > **Purpose**: This document explains the complete booking flow from start to finish. Use this as context when creating new functions or explaining the system to AI.
 
+## Race Condition & Availability Check Policy (Strict)
+
+**Core Rule**: NEVER trust a slot is open just because it was displayed in the UI or a previous message.
+
+### 1. The "Double-Check" Rule
+Every critical action (Booking, Promo Redemption, Payment) MUST perform a real-time availability check **immediately before** execution.
+
+| Action | Check Required | Implementation |
+|--------|----------------|----------------|
+| **Admin Booking** | ✅ Yes | `create-booking` performs DB conflict check. |
+| **Promo Code V1** | ✅ Yes | `validate-promo-code` checks `bookings` table before returning valid. |
+| **Promo Code V2** | ✅ Yes | (Future) Must check availability before deducting coupon. |
+| **LINE Bot Search** | ✅ Yes | `handleCheckTimeSearchAll` checks `checkAvailability` before showing confirmation. |
+| **LINE Bot Book** | ✅ Yes | If user clicks "Book" from old message, system re-checks. |
+
+### 2. User Feedback Standard
+- **If Slot Taken**: Return a clear error message: "สนามไม่ว่างแล้ว (มีผู้จองตัดหน้าเมื่อสักครู่)"
+- **Bot Behavior**: If a user clicks a button from an old carousel (e.g., from 1 hour ago), the system must validate the slot again. If taken, reply: "ขออภัยครับ ช่วงเวลานี้ถูกจองไปแล้ว 😅"
+
+### 3. Database Integrity
+- Use database constraints where possible.
+- Use atomic transactions when handling coupon deductions + booking creation.
+
 ---
 
 ## System Overview
@@ -144,13 +167,14 @@ Returns the created booking object immediately. No external API delays.
 ### 2. Admin Uses Promo Code
 **Location**: Admin Dashboard -> "ใช้โค้ด/Redeem Code"
 **API Call**: `POST /functions/v1/validate-promo-code`
-- **Validation**: Checks status (active), expiry, and **Real-Time Slot Availability** (as of 2026-01-29).
+- **Validation**: Checks status (active), expiry, and **Real-Time Slot Availability** (Double-Check).
+- **Error Handling**: If taken, returns "สนามไม่ว่างแล้ว" to prevent conflicts.
 
 ### 3. Create Booking with Discount
 **File**: `supabase/functions/use-promo-code-and-book/index.ts`
 
 **Steps**:
-1.  **Re-Validate**: Checks code and availability again.
+1.  **Re-Validate**: Checks code status AND slot availability again (Triple-Check) to ensure no race condition occurred during the modal review.
 2.  **Create Booking (Local Insert)**:
     - Inserts into `bookings` with `is_promo: true`, `source: 'line'`.
     - Sets `price_total_thb` to the discounted `final_price`.
@@ -288,28 +312,49 @@ The Admin Dashboard provides an interactive interface for managing bookings thro
 
 **Edge Function**: `update-booking`
 
-**Challenge**: Moving a booking to a different court requires changing the `courts` array in Matchday, which not all update endpoints support equally.
-
 **Implementation**:
-- **Direct Update**: The system sends a `PUT` request to Matchday with `court_id` and `courts: [id]`.
-- **Payload**:
-    ```typescript
-    {
-        time_start: "YYYY-MM-DD HH:mm:ss",
-        time_end: "YYYY-MM-DD HH:mm:ss",
-        court_id: 2426,       // Target Court ID
-        courts: ["2426"],     // Target Court Array
-        change_price: 1200,   // Recalculated Price
-        price: 1200,          // Base Price Update
-        description: "Name Phone" // Preserve details
-    }
-    ```
-- **Result**: The Booking ID is **preserved**. The booking simply moves to the new lane.
+- **Direct Update**: Updates the `bookings` table directly via Supabase.
+- **Fields Updated**: `field_no`, `time_from`, `time_to`, `price_total_thb`.
+- **Preservation**: `booking_id`, `customer_id`, and `payment_status` are preserved unchanged.
 
 ### Data Synchronization
 
-When a booking is modified:
-1.  **Matchday**: Receives new time, court, and price. (Source of Truth for Schedule)
-2.  **Local DB**: Receives update signal.
-    - If `court_id` changes, Local DB metadata (notes, payment status) remains attached to the **Booking ID**.
-    - `booking_id` is the stable key linking both systems.
+Since the system is now **Standalone**, there is no external synchronization.
+- **Single Source of Truth**: The local `bookings` table.
+- **Real-time**: All updates are immediate.
+
+---
+
+## Promotion V2 Architecture (Collectible Wallet)
+
+### 1. Data Model Extension
+Two new tables support the advanced coupon system:
+
+**`campaigns` Table**:
+- Defines the promotion rules (Discount vs Item, Quantity, Limits).
+- **Inventory Control**: uses `remaining_quantity` for atomic deduction.
+- **Constraints**: `eligible_fields`, `days_of_week`, `allowed_time_range`.
+
+**`user_coupons` Table**:
+- The "Wallet" for users.
+- Links `user_id` (LINE UID) to `campaign_id`.
+- Tracks `status` ('active', 'used', 'expired').
+
+### 2. Logic Flow: "Check-Before-Act" (Strict)
+
+**A. Collecting a Coupon (`collect-coupon`)**
+1.  **Validate**: Campaign Active? User Quota full?
+2.  **Inventory Check (Atomic)**:
+    ```sql
+    UPDATE campaigns SET remaining_quantity = remaining_quantity - 1 
+    WHERE id = ? AND remaining_quantity > 0
+    ```
+3.  **Grant**: Insert into `user_coupons`.
+
+**B. Using a Coupon (`book-with-coupon`)**
+1.  **Validate**: Coupon Active? Conditions Met (Field/Time)?
+2.  **Lock Slot**: Check Booking Table for overlaps.
+3.  **Execute**:
+    - Create Booking (`is_promo: true`).
+    - Mark Coupon as `USED`.
+
