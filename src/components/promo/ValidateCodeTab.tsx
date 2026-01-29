@@ -1,6 +1,6 @@
 // src/components/promo/ValidateCodeTab.tsx
 import { useState } from 'react';
-import { validatePromoCode, usePromoCode, getFieldInfo, type PromoCode } from '../../lib/promoApi';
+import { validatePromoCode, getFieldInfo, type PromoCode } from '../../lib/promoApi';
 import { Search, CheckCircle, AlertCircle, Clock, Calendar, DollarSign, MapPin, Tag, User } from 'lucide-react';
 
 export default function ValidateCodeTab() {
@@ -56,30 +56,7 @@ export default function ValidateCodeTab() {
         }
     };
 
-    const handleUseCode = async () => {
-        if (!promoData) return;
 
-        setLoading(true);
-        setError('');
-        setSuccess('');
-
-        try {
-            const adminId = 'admin'; // TODO: Get from auth context
-            const result = await usePromoCode(promoData.code, adminId);
-
-            if (result) {
-                setSuccess('บันทึกการใช้งานโค้ดสำเร็จ!');
-                setPromoData({ ...promoData, status: 'used' });
-            } else {
-                setError('ไม่สามารถบันทึกการใช้งานได้');
-            }
-        } catch (err) {
-            console.error('Error using code:', err);
-            setError('เกิดข้อผิดพลาด');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -172,7 +149,7 @@ export default function ValidateCodeTab() {
                             ${promoData.status === 'expired' ? 'bg-red-100 text-red-700' : ''}
                         `}>
                             <div className={`w-2 h-2 rounded-full ${promoData.status === 'active' ? 'bg-green-500' :
-                                    promoData.status === 'used' ? 'bg-gray-500' : 'bg-red-500'
+                                promoData.status === 'used' ? 'bg-gray-500' : 'bg-red-500'
                                 }`} />
                             {promoData.status === 'active' ? 'ใช้งานได้' :
                                 promoData.status === 'used' ? 'ถูกใช้แล้ว' : 'หมดอายุ'}
@@ -262,15 +239,10 @@ export default function ValidateCodeTab() {
                         )}
 
                         {promoData.status === 'active' && (
-                            <div className="mt-8 pt-6 border-t border-gray-100">
-                                <button
-                                    onClick={handleUseCode}
-                                    disabled={loading}
-                                    className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:transform-none disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-                                >
-                                    <CheckCircle className="w-5 h-5" />
-                                    {loading ? 'กำลังบันทึก...' : 'ยืนยันการใช้โค้ดส่วนลด'}
-                                </button>
+                            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                                <p className="text-gray-500 italic">
+                                    * หน้าจอนี้สำหรับตรวจสอบสถานะเท่านั้น ไม่สามารถกดใช้สิทธิ์ได้ *
+                                </p>
                             </div>
                         )}
                     </div>
