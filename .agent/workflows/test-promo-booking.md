@@ -99,3 +99,26 @@ This workflow tests the complete promo code booking flow from LINE Bot to Admin 
 - Verify `LINE_CHANNEL_ACCESS_TOKEN` is configured
 - Check function logs for `[Notification]` messages
 - Note: Booking will still succeed even if notification fails
+
+### Part 5: Stress Test (Anti-Gaming & Price Logic)
+
+This verifies the system correctly handles dragging/resizing bookings with promo codes.
+
+**Scenario A: Upsell (Increase Duration)**
+21. Select the booking (e.g., 1 Hour).
+22. Drag usage to extend to **1.5 Hours**.
+23. **Verify Preview**: Price should increase (e.g., 600 -> 1000) but **Discount is RETAINED**.
+24. Save.
+
+**Scenario B: Revert (Fair Policy)**
+25. Select the same booking (now 1.5 Hours).
+26. Drag usage back to **1 Hour** (Original).
+27. **Verify Preview**: Price should return to **Original Discounted Price** (e.g., 600).
+28. Save. **Result**: Coupon still valid.
+
+**Scenario C: Downsell (Gaming Attempt)**
+29. Select the same booking (now 1 Hour).
+30. Drag usage to **30 Minutes** (Below Original).
+31. **Verify Preview**: Price should be standard rate (No Discount shown).
+32. Save. **Result**: Coupon is **BURNED** (Status: `burned`, removed from booking).
+

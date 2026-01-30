@@ -28,15 +28,70 @@ export default function WalletPage() {
     const [collecting, setCollecting] = useState(false);
     const [sendingFlex, setSendingFlex] = useState(false);
 
-    // Check URL for userId
+    // Check URL for userId and Auto-Collect Action
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const uid = params.get('userId');
+        const action = params.get('action');
+        const code = params.get('code');    // Secret Code
+        const cid = params.get('id') || params.get('campaignId'); // Campaign ID
+
         if (uid) {
             setUserId(uid);
             fetchWallet(uid);
+
+            // Auto-Collect Flow (The Pa-Kao Flow)
+            if (action === 'collect' && code && cid) {
+                // Delay slightly to ensure UI is ready or just call it
+                console.log('Auto-collecting secret coupon...', { code, cid });
+
+                // We need to set state first because handleCollect uses state
+                // But handleCollect is async and state might not update instantly if we call it immediately
+                // Better to refactor handleCollect or pass args. 
+                // Let's refactor handleCollect to accept args optional.
+                doAutoCollect(uid, cid, code);
+            }
         }
     }, []);
+
+    const doAutoCollect = async (uid: string, cid: string, code: string) => {
+        setCollecting(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    userId: uid,
+                    campaignId: cid,
+                    secretCode: code
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to collect');
+
+            // Success UI
+            alert(`🎉 ยินดีด้วย! คุณเจอโค้ดลับ "${code}"\nเก็บคูปองเรียบร้อยแล้วครับ!`);
+
+            // Clear URL params to prevent re-collect on refresh
+            const newUrl = window.location.pathname + `?userId=${uid}`;
+            window.history.replaceState({}, '', newUrl);
+
+            // Refresh Wallet
+            fetchWallet(uid);
+
+        } catch (error: any) {
+            alert(`เสียใจด้วยครับ 😅\n${error.message}`);
+        } finally {
+            setCollecting(false);
+        }
+    };
 
     const fetchWallet = async (uid: string) => {
         if (!uid) return;

@@ -613,3 +613,102 @@ export function buildSearchAllSlotsCarousel(
         }
     };
 }
+// 7. Coupon Flex Message (Pa-Kao)
+// 7. Coupon Flex Message (Pa-Kao)
+export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string) {
+    // Note: Use environment variable or helper for LIFF Base URL in real app
+    // Assuming VITE_LIFF_ID is not available in Deno directly without pulling from shared config or env
+    // We will construct the Deep Link: https://liff.line.me/<LIFF_ID>/user/wallet?action=collect&code=...
+    // For now, using a placeholder LIFF ID. User must replace this.
+    const LIFF_ID = '1657000000-xxxxxxx';
+    // Construct Deep Link to Wallet Page with Action
+    // URL Encode: action=collect, code=SECRET, id=CAMPAIGN_UUID
+    const walletPath = `/user/wallet?action=collect&code=${secretCode}&id=${campaignId}`;
+    const liffUrl = `https://liff.line.me/${LIFF_ID}${walletPath}`;
+
+    // Fallback Image
+    const coverImage = imageUrl || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1000&auto=format&fit=crop";
+
+    return {
+        type: "flex",
+        altText: `🎉 คุณเจอโค้ดลับ: ${secretCode}`,
+        contents: {
+            type: "bubble",
+            hero: {
+                type: "image",
+                url: coverImage,
+                size: "full",
+                aspectRatio: "20:13",
+                aspectMode: "cover",
+                action: { type: "uri", uri: liffUrl }
+            },
+            body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                    {
+                        type: "text",
+                        text: "Secret Discovered! 🕵️‍♀️",
+                        weight: "bold",
+                        size: "xs",
+                        color: "#D4AF37",
+                        align: "center",
+                        letterSpacing: "1px"
+                    },
+                    {
+                        type: "text",
+                        text: couponName,
+                        weight: "bold",
+                        size: "xl",
+                        margin: "md",
+                        align: "center",
+                        color: "#333333",
+                        wrap: true
+                    },
+                    {
+                        type: "text",
+                        text: desc || "สิทธิ์พิเศษสำหรับคนรู้รหัสลับ! กดรับคูปองส่วนลดพิเศษได้ทันที",
+                        size: "sm",
+                        color: "#666666",
+                        wrap: true,
+                        margin: "md",
+                        align: "center"
+                    },
+                    {
+                        type: "separator",
+                        margin: "lg"
+                    },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "lg",
+                        spacing: "sm",
+                        contents: [
+                            {
+                                type: "button",
+                                style: "primary",
+                                action: { type: "uri", label: "👉 เก็บเข้า Wallet", uri: liffUrl },
+                                color: "#000000",
+                                height: "sm"
+                            }
+                        ]
+                    }
+                ]
+            },
+            footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                    {
+                        type: "text",
+                        text: `Code: ${secretCode}`,
+                        size: "xs",
+                        color: "#aaaaaa",
+                        align: "center"
+                    }
+                ]
+            }
+        }
+    };
+}

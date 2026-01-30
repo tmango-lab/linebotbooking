@@ -64,6 +64,24 @@ serve(async (req) => {
             6: 2429  // สนาม #6
         };
 
+        // Fetch Promo Codes for these bookings
+        const bookingIds = (localBookings || []).map(b => b.booking_id);
+        let promoMap: Record<string, number> = {};
+
+        if (bookingIds.length > 0) {
+            const { data: promos } = await supabase
+                .from('promo_codes')
+                .select('booking_id, discount_amount')
+                .in('booking_id', bookingIds)
+                .eq('status', 'used'); // Only count used promos
+
+            if (promos) {
+                promos.forEach((p: any) => {
+                    promoMap[p.booking_id] = Number(p.discount_amount) || 0;
+                });
+            }
+        }
+
         // Transform to match Matchday API format for frontend compatibility
         const bookings = (localBookings || []).map(b => ({
             id: b.booking_id,
@@ -79,7 +97,9 @@ serve(async (req) => {
             admin_note: b.admin_note || null,
             paid_at: b.paid_at || null,
             source: b.source || 'admin',
-            is_promo: b.is_promo || false
+            is_promo: b.is_promo || false,
+            // Attach discount if exists
+            discount: promoMap[b.booking_id] || 0
         }));
 
         return new Response(JSON.stringify({ bookings }), {

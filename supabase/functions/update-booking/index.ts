@@ -83,9 +83,9 @@ serve(async (req) => {
             .single();
 
         if (fetchError || !existing) {
-             // If not found, perhaps it's a new booking (handled below), but for update logic we expect it to exist if 'matchId' implies update.
-             // However, the original code allowed creating if not exists.
-             // If it's a NEW booking, anti-gaming doesn't apply (no previous coupon used).
+            // If not found, perhaps it's a new booking (handled below), but for update logic we expect it to exist if 'matchId' implies update.
+            // However, the original code allowed creating if not exists.
+            // If it's a NEW booking, anti-gaming doesn't apply (no previous coupon used).
         }
 
         let localData, localError;
@@ -99,7 +99,7 @@ serve(async (req) => {
             // Determine New Values
             // If price is in payload, use it; otherwise use old.
             const newPrice = price !== undefined ? Number(price) : oldPrice;
-            
+
             // If time is in payload, usage `durationMinutes/60`; otherwise use old.
             // Note: durationMinutes is calculated above if timeStart/timeEnd exist.
             const newDuration = (timeStart && timeEnd) ? (durationMinutes / 60) : oldDuration;
@@ -113,7 +113,7 @@ serve(async (req) => {
 
             if (isPriceDecreased || isDurationDecreased) {
                 console.log(`[Anti-Gaming] Triggered! Releasing coupons for booking ${matchId}`);
-                
+
                 // Release Coupons
                 const { error: releaseError } = await supabase
                     .from('user_coupons')
@@ -124,12 +124,48 @@ serve(async (req) => {
                     })
                     .eq('booking_id', String(matchId))
                     .eq('status', 'USED');
-                
+
                 if (releaseError) {
                     console.error('[Anti-Gaming] Failed to release coupons:', releaseError);
                 } else {
                     console.log('[Anti-Gaming] Coupons released successfully.');
                 }
+            }
+
+            // --- Anti-Gaming Logic (V1: Promo Codes) ---
+            // Fair Policy: Compare with ORIGINAL Promo Duration
+            const { data: promo } = await supabase
+                .from('promo_codes')
+                .select('duration_h, status')
+                .eq('booking_id', String(matchId))
+                .single();
+
+            // Only proceed if there is an active/used promo to check
+            if (promo && promo.status === 'USED') {
+                const originalDuration = Number(promo.duration_h || 0);
+
+                // Check ONLY Duration for V1 Fair Policy (Price check is secondary or covered by duration usually)
+                // Logic: If New Duration is LESS than Original Commitment -> BURN
+                if (newDuration < originalDuration - 0.01) {
+                    console.log(`[Anti-Gaming V1] New Duration (${newDuration}) < Original (${originalDuration}). Burning.`);
+
+                    const { error: releaseV1Error } = await supabase
+                        .from('promo_codes')
+                        .update({
+                            status: 'burned',
+                            booking_id: null,
+                        })
+                        .eq('booking_id', String(matchId));
+
+                    if (releaseV1Error) console.error('[Anti-Gaming V1] Failed to burn promo:', releaseV1Error);
+                    else console.log('[Anti-Gaming V1] Promo burned successfully.');
+
+                } else {
+                    console.log(`[Anti-Gaming V1] New Duration (${newDuration}) >= Original (${originalDuration}). Safe (Revert Allowed).`);
+                }
+            } else if (isPriceDecreased || isDurationDecreased) {
+                // Fallback: If no V1 promo found (maybe V2?), or just logging
+                // For now, V2 logic is separate (above). This block effectively does nothing for non-V1.
             }
             // --- Anti-Gaming Logic End ---
 

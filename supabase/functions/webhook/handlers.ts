@@ -8,6 +8,7 @@ import { logStat } from '../_shared/statService.ts';
 import { calculatePrice } from '../_shared/pricingService.ts';
 import { getOrCreatePromoCode } from '../_shared/promoService.ts';
 import { getProfile, upsertProfile, parseProfileInput } from '../_shared/profileService.ts';
+import { supabase } from '../_shared/supabaseClient.ts';
 
 import {
     buildSelectDateFlex,
@@ -15,7 +16,8 @@ import {
     buildSelectDurationFlex,
     buildSelectFieldFlex,
     buildConfirmationFlex,
-    buildSearchAllSlotsCarousel
+    buildSearchAllSlotsCarousel,
+    buildCouponFlex
 } from './flexMessages.ts';
 
 // Helper to parse query string style data
@@ -66,6 +68,43 @@ export async function handleMessage(event: LineEvent) {
             });
         }
         return;
+    }
+
+    // [NEW] Secret Keyword Listener "The Pa-Kao Flow"
+    // Query campaigns active with matching secret code
+    if (text && text.length < 20) { // optimization: ignore long texts
+        const { data: campaign } = await supabase
+            .from('campaigns')
+            .select('id, name, image_url, secret_codes')
+            .contains('secret_codes', [text]) // Case-sensitive? usually yes in JSON/Array. 
+            .eq('status', 'ACTIVE')
+            .maybeSingle();
+
+        if (campaign) {
+            console.log(`[Secret Code] Match found for '${text}' -> Campaign: ${campaign.name}`);
+
+            // Send "Secret Discovered" Flex
+            const flexMsg = buildCouponFlex(
+                campaign.id,
+                text,
+                campaign.name,
+                "สิทธิ์พิเศษสำหรับคนรู้รหัสลับ! กดรับคูปองส่วนลดพิเศษได้ทันที",
+                campaign.image_url
+            );
+            await replyMessage(event.replyToken!, flexMsg);
+
+            // Log Stat
+            logStat({
+                user_id: userId,
+                source_type: 'user',
+                event_type: 'message',
+                action: 'secret_code_triggered',
+                label: text, // The keyword used
+                extra_json: { campaign_id: campaign.id }
+            }).catch(err => console.error('Log error:', err));
+
+            return;
+        }
     }
 
     // [MODIFIED] Unify 'จองสนาม' and 'ค้นหาเวลา' to trigger Search All

@@ -19,6 +19,7 @@ interface MatchdayMatch {
     paid_at?: string | null;
     source?: string;
     is_promo?: boolean;
+    discount?: number;
     [key: string]: any;
 }
 
@@ -164,7 +165,7 @@ export default function DashboardPage() {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
 
-    function calculateEstimatedPrice(courtId: number, startMin: number, endMin: number): number {
+    function calculateEstimatedPrice(courtId: number, startMin: number, endMin: number, existingBookingId?: string | number): number {
         const court = COURTS.find(c => c.id === courtId);
         if (!court) return 0;
         const durationH = (endMin - startMin) / 60;
@@ -188,7 +189,18 @@ export default function DashboardPage() {
         if (prePrice > 0 && prePrice % 100 !== 0) prePrice = Math.ceil(prePrice / 100) * 100;
         if (postPrice > 0 && postPrice % 100 !== 0) postPrice = Math.ceil(postPrice / 100) * 100;
 
-        return Math.round(prePrice + postPrice);
+        let basePrice = Math.round(prePrice + postPrice);
+
+        // Check for existing discount
+        if (existingBookingId) {
+            const booking = bookings.find(b => b.id === existingBookingId);
+            // Verify if this is the same booking we are modifying (it usually is)
+            if (booking.discount && booking.discount > 0) {
+                // Apply discount (Backend handles Anti-Gaming validation)
+                basePrice = Math.max(0, basePrice - booking.discount);
+            }
+        }
+        return basePrice;
     }
 
     function isOverlapping(courtId: number, startMin: number, endMin: number, excludeId?: string | number): boolean {
@@ -379,7 +391,7 @@ export default function DashboardPage() {
             const newEndMin = newMsg + (ghostState.height / PIXELS_PER_MINUTE);
 
             const valid = !isOverlapping(targetCourtId, newStartMin, newEndMin, activeBookingId!);
-            const price = calculateEstimatedPrice(targetCourtId, newStartMin, newEndMin);
+            const price = calculateEstimatedPrice(targetCourtId, newStartMin, newEndMin, activeBookingId!);
 
             setGhostState({
                 ...ghostState,
@@ -420,7 +432,7 @@ export default function DashboardPage() {
 
             // Collision check (Resizing stays on same court)
             const valid = !isOverlapping(ghostState.courtId, newStartMin, newEndMin, activeBookingId!);
-            const price = calculateEstimatedPrice(ghostState.courtId, newStartMin, newEndMin);
+            const price = calculateEstimatedPrice(ghostState.courtId, newStartMin, newEndMin, activeBookingId!);
 
             setGhostState({
                 ...ghostState,
