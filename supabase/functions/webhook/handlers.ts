@@ -114,8 +114,9 @@ export async function handleMessage(event: LineEvent) {
                     campaign.id,
                     text,
                     campaign.name,
-                    "สิทธิ์พิเศษสำหรับคนรู้รหัสลับ! กดรับคูปองส่วนลดพิเศษได้ทันที",
-                    campaign.image_url
+                    campaign.description || 'สิทธิ์พิเศษสำหรับคนรู้รหัสลับ!',
+                    campaign.image_url,
+                    userId // [NEW] Pass UserID to Flex
                 );
                 await replyMessage(event.replyToken!, flexMsg);
 
