@@ -1,17 +1,34 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>booking-system</title>
-  </head>
-  <body>
-    <div id="root">
-      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #666;">
-        Loading Application...
-      </div>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>booking-system</title>
+</head>
+
+<body>
+  <div id="root">
+    <div style="padding: 20px; font-family: monospace; color: #333;">
+      <h1 style="color: red;">LOADING... (HTML OK)</h1>
+      <div id="debug-log">Log started...</div>
     </div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  </div>
+  <script>
+    // Inline Diagnostic - Runs before everything
+    const logDiv = document.getElementById('debug-log');
+    const log = (msg) => logDiv.innerHTML += `<div>${new Date().toISOString().split('T')[1]} - ${msg}</div>`;
+    log("Inline Script Running");
+
+    window.onerror = (msg, src, ln, col, err) => {
+      log(`❌ ERROR: ${msg} (${src}:${ln})`);
+      document.body.style.backgroundColor = 'pink';
+    };
+
+    window.addEventListener('load', () => log("Window Loaded"));
+  </script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>
