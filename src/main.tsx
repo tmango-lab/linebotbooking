@@ -26,7 +26,10 @@ const log = (msg: string) => {
 }
 
 window.onerror = (msg, source, lineno, colno, error) => {
-  log(`❌ Global Error: ${msg} (${source}:${lineno})`);
+  log(`❌ Global Error: ${msg} (${source}:${lineno}:${colno})`);
+  if (error) {
+    log(`Stack: ${error.stack}`);
+  }
 };
 
 window.onunhandledrejection = (event) => {
