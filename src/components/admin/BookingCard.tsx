@@ -3,7 +3,7 @@ import { CheckCircle2, Clock, Smartphone, Monitor, Tag } from 'lucide-react';
 
 interface BookingCardProps {
     booking: {
-        id: number;
+        id: string | number;
         name?: string;
         tel?: string;
         time_start: string;

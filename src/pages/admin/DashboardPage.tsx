@@ -7,7 +7,7 @@ import PromoCodeModal from '../../components/ui/PromoCodeModal';
 import BookingCard from '../../components/admin/BookingCard';
 
 interface MatchdayMatch {
-    id: number;
+    id: string | number;
     court_id: number;
     time_start: string;
     time_end: string;
@@ -77,7 +77,7 @@ export default function DashboardPage() {
     const [createCourtId, setCreateCourtId] = useState<number | null>(null);
 
     // Modify State
-    const [activeBookingId, setActiveBookingId] = useState<number | null>(null);
+    const [activeBookingId, setActiveBookingId] = useState<number | string | null>(null);
     const [ghostState, setGhostState] = useState<{
         top: number;
         height: number;

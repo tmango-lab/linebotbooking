@@ -5,7 +5,7 @@ interface BookingDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     booking: {
-        id: number;
+        id: string | number;
         name: string;
         tel: string;
         time_start: string;

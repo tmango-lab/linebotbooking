@@ -1,0 +1,1 @@
+ALTER TABLE user_coupons ADD COLUMN IF NOT EXISTS booking_id TEXT;

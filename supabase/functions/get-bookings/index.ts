@@ -66,7 +66,7 @@ serve(async (req) => {
 
         // Transform to match Matchday API format for frontend compatibility
         const bookings = (localBookings || []).map(b => ({
-            id: parseInt(b.booking_id),
+            id: b.booking_id,
             court_id: fieldToCourtMap[b.field_no] || b.field_no,
             time_start: `${b.date} ${b.time_from}`,
             time_end: `${b.date} ${b.time_to}`,

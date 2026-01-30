@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Loader2, Ticket, Gift, Lock } from 'lucide-react';
+import { Loader2, Ticket, Gift, Lock, Send } from 'lucide-react';
+import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
 
 interface Coupon {
     id: string; // user_coupon_id
     campaign_id: string;
     name: string;
+    description?: string;
     benefit_type: 'DISCOUNT' | 'REWARD';
     benefit_value: any;
     conditions: any;
@@ -24,6 +26,7 @@ export default function WalletPage() {
     const [loading, setLoading] = useState(false);
     const [collectDetails, setCollectDetails] = useState({ campaignId: '', secretCode: '' });
     const [collecting, setCollecting] = useState(false);
+    const [sendingFlex, setSendingFlex] = useState(false);
 
     // Check URL for userId
     useEffect(() => {
@@ -51,7 +54,6 @@ export default function WalletPage() {
             setWallet(data);
         } catch (error) {
             console.error(error);
-            alert('Error fetching wallet');
         } finally {
             setLoading(false);
         }
@@ -84,7 +86,8 @@ export default function WalletPage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to collect');
 
-            alert('Coupon Collected Successfully!');
+            // Optionally send Flex here if real app, but we have a dedicated button for testing flex.
+            alert('Coupon Collected Successfully! 🎉');
             setCollectDetails({ campaignId: '', secretCode: '' });
             fetchWallet(userId);
 
@@ -95,136 +98,213 @@ export default function WalletPage() {
         }
     };
 
-    const CouponCard = ({ coupon, type }: { coupon: Coupon, type: 'Main' | 'On-top' }) => (
-        <div className={`p-4 rounded-lg border ${type === 'Main' ? 'border-indigo-200 bg-indigo-50' : 'border-pink-200 bg-pink-50'} flex flex-col gap-2 relative overflow-hidden`}>
-            <div className="flex justify-between items-start z-10">
-                <div>
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${type === 'Main' ? 'bg-indigo-200 text-indigo-800' : 'bg-pink-200 text-pink-800'}`}>
-                        {type}
-                    </span>
-                    <h3 className="font-bold text-gray-900 mt-1">{coupon.name}</h3>
-                    <p className="text-sm text-gray-600">
-                        {coupon.benefit_type === 'DISCOUNT'
-                            ? (coupon.benefit_value.amount ? `฿${coupon.benefit_value.amount} off` : `${coupon.benefit_value.percent}% off`)
-                            : `Free ${coupon.benefit_value.item}`
-                        }
-                    </p>
+    const handleTestFlex = async () => {
+        if (!userId) return alert('Please enter User ID');
+        setSendingFlex(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            // Call test-flex function
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-flex`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ userId })
+            });
+
+            if (!res.ok) {
+                const d = await res.json();
+                throw new Error(d.error || 'Failed to send Flex');
+            }
+            alert('Flex Message Sent! Check your LINE.');
+        } catch (e: any) {
+            console.error(e);
+            alert('Error: ' + e.message);
+        } finally {
+            setSendingFlex(false);
+        }
+    }
+
+    const CouponCard = ({ coupon, type }: { coupon: Coupon, type: 'Main' | 'On-top' }) => {
+        const isMain = type === 'Main';
+        // Premium Styles
+        const bgClass = isMain
+            ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
+            : 'bg-white border border-gray-100 text-gray-900';
+
+        const borderClass = isMain ? 'border border-gray-700' : 'border border-gray-200';
+        const iconColor = isMain ? 'text-yellow-400' : 'text-indigo-500';
+        const badgeClass = isMain ? 'bg-yellow-500 text-black' : 'bg-indigo-100 text-indigo-700';
+
+        return (
+            <div className={`relative p-5 rounded-2xl shadow-lg ${bgClass} ${borderClass} overflow-hidden transition-all hover:scale-[1.02]`}>
+                {/* Decorative Circles */}
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
+                <div className="absolute top-10 -left-10 w-24 h-24 bg-current opacity-5 rounded-full blur-xl"></div>
+
+                <div className="relative z-10 flex justify-between items-start">
+                    <div className="flex-1 pr-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${badgeClass}`}>
+                                {type}
+                            </span>
+                            {coupon.benefit_type === 'DISCOUNT' && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                                    Discount
+                                </span>
+                            )}
+                        </div>
+                        <h3 className="font-bold text-lg leading-tight mb-1">{coupon.name}</h3>
+                        <p className={`text-sm ${isMain ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {coupon.benefit_type === 'DISCOUNT'
+                                ? (coupon.benefit_value.amount ? `Save ฿${coupon.benefit_value.amount}` : `Save ${coupon.benefit_value.percent}%`)
+                                : `Free ${coupon.benefit_value.item}`
+                            }
+                        </p>
+                    </div>
+                    <div className={`p-3 rounded-full ${isMain ? 'bg-white/10' : 'bg-indigo-50'}`}>
+                        <Ticket className={`w-6 h-6 ${iconColor}`} />
+                    </div>
                 </div>
-                <Ticket className={`w-6 h-6 ${type === 'Main' ? 'text-indigo-400' : 'text-pink-400'}`} />
+
+                <div className={`my-4 border-t border-dashed ${isMain ? 'border-gray-700' : 'border-gray-200'}`}></div>
+
+                <div className="flex justify-between items-end">
+                    <div className="text-xs opacity-60">
+                        <p>Code: <span className="font-mono tracking-widest font-bold">{coupon.id.slice(0, 8)}...</span></p>
+                        <p>Exp: {coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : 'No Expiry'}</p>
+                    </div>
+                    <button className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
+                        Use Now
+                    </button>
+                </div>
             </div>
-            <div className="border-t border-dashed border-gray-300 my-1"></div>
-            <div className="text-xs text-gray-500 flex justify-between">
-                <span>Exp: {coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : 'No Expiry'}</span>
-            </div>
-        </div>
-    );
+        );
+    };
 
     const [showSelectionModal, setShowSelectionModal] = useState(false);
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4 pb-20">
-            <header className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">My Coupons</h1>
-                <p className="text-gray-500 text-sm">Collect and manage your discounts</p>
-            </header>
+        <div className="min-h-screen bg-gray-50 pb-20 font-sans">
+            {/* Header */}
+            <div className="bg-white pb-6 pt-8 px-6 shadow-sm rounded-b-[2rem] mb-6">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Wallet</h1>
+                        <p className="text-gray-500 text-sm">Your premium rewards</p>
+                    </div>
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Gift className="w-5 h-5 text-gray-600" />
+                    </div>
+                </div>
 
-            {/* Debug / Login Section */}
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-6 space-y-3">
-                <div className="flex gap-2">
+                {/* User Input (Dev) */}
+                <div className="flex gap-2 mt-4">
                     <input
-                        className="flex-1 p-2 border rounded text-sm"
-                        placeholder="User ID (LINE UID)"
                         value={userId}
-                        onChange={(e) => setUserId(e.target.value)}
+                        onChange={e => setUserId(e.target.value)}
+                        placeholder="Enter LINE User ID"
+                        className="flex-1 bg-gray-100 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-gray-900 outline-none"
                     />
                     <button
                         onClick={() => fetchWallet(userId)}
-                        className="bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium"
+                        className="bg-gray-900 text-white px-5 rounded-xl font-medium text-sm hover:bg-gray-800 transition-colors"
                     >
                         Load
                     </button>
                 </div>
             </div>
 
-            {/* Collect Section */}
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-6 space-y-3">
-                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                    <Gift className="w-4 h-4 text-green-600" /> Collect Coupon
-                </h2>
-                <input
-                    className="w-full p-2 border rounded text-sm"
-                    placeholder="Campaign ID (UUID)"
-                    value={collectDetails.campaignId}
-                    onChange={(e) => setCollectDetails({ ...collectDetails, campaignId: e.target.value })}
-                />
-                <div className="relative">
-                    <Lock className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <input
-                        className="w-full p-2 pl-9 border rounded text-sm"
-                        placeholder="Secret Code (Optional)"
-                        value={collectDetails.secretCode}
-                        onChange={(e) => setCollectDetails({ ...collectDetails, secretCode: e.target.value })}
-                    />
-                </div>
-                <button
-                    onClick={handleCollect}
-                    disabled={collecting}
-                    className="w-full bg-green-600 text-white py-2 rounded font-medium disabled:opacity-50"
-                >
-                    {collecting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Collect Now'}
-                </button>
+            <div className="px-5 space-y-8">
+                {/* Collect Section */}
+                <section>
+                    <div className="flex justify-between items-center mb-3 px-1">
+                        <h2 className="font-bold text-gray-900">Add Coupon</h2>
+                    </div>
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+                        <input
+                            className="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="Campaign ID (UUID)"
+                            value={collectDetails.campaignId}
+                            onChange={(e) => setCollectDetails({ ...collectDetails, campaignId: e.target.value })}
+                        />
+                        <div className="relative">
+                            <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                            <input
+                                className="w-full bg-gray-50 border-0 rounded-xl p-3 pl-10 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="Secret Code (Optional)"
+                                value={collectDetails.secretCode}
+                                onChange={(e) => setCollectDetails({ ...collectDetails, secretCode: e.target.value })}
+                            />
+                        </div>
+                        <button
+                            onClick={handleCollect}
+                            disabled={collecting}
+                            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                        >
+                            {collecting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Collect Coupon'}
+                        </button>
+                    </div>
+                </section>
+
+                {/* Coupons List */}
+                <section>
+                    <div className="flex justify-between items-center mb-3 px-1">
+                        <h2 className="font-bold text-gray-900">Your Coupons</h2>
+                        {wallet.main.length + wallet.on_top.length > 0 && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{wallet.main.length + wallet.on_top.length}</span>}
+                    </div>
+
+                    {loading ? (
+                        <div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-gray-300 mx-auto" /></div>
+                    ) : (
+                        <div className="space-y-4">
+                            {wallet.main.map(c => <CouponCard key={c.id} coupon={c} type="Main" />)}
+                            {wallet.on_top.map(c => <CouponCard key={c.id} coupon={c} type="On-top" />)}
+
+                            {wallet.main.length === 0 && wallet.on_top.length === 0 && (
+                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <Ticket className="w-8 h-8 text-gray-300" />
+                                    </div>
+                                    <h3 className="text-gray-900 font-medium">No coupons yet</h3>
+                                    <p className="text-gray-400 text-sm mt-1">Enter a campaign ID above to start.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </section>
+
+                {/* Dev Tools */}
+                <section className="pt-4 border-t border-gray-100">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase mb-3 text-center">Developer Tools</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={() => setShowSelectionModal(true)}
+                            className="bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
+                        >
+                            Simulate Booking
+                        </button>
+                        <button
+                            onClick={handleTestFlex}
+                            disabled={sendingFlex}
+                            className="bg-green-50 text-green-700 py-3 rounded-xl font-semibold text-sm hover:bg-green-100 transition-colors flex items-center justify-center gap-2"
+                        >
+                            {sendingFlex ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            Test Flex Msg
+                        </button>
+                    </div>
+                </section>
             </div>
-
-            {/* Test Booking Section (V2 Integration) */}
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-6 border border-indigo-100">
-                <h2 className="font-semibold text-gray-800 mb-2">Simulate Booking (V2)</h2>
-                <button
-                    onClick={() => setShowSelectionModal(true)}
-                    disabled={!userId}
-                    className="w-full bg-indigo-600 text-white py-2 rounded font-medium disabled:opacity-50"
-                >
-                    Book with Coupons
-                </button>
-            </div>
-
-            {/* Wallet List */}
-            {loading ? (
-                <div className="flex justify-center p-8"><Loader2 className="animate-spin text-gray-400" /></div>
-            ) : (
-                <div className="space-y-6">
-                    {wallet.main.length > 0 && (
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Main Coupons</h3>
-                            <div className="space-y-3">
-                                {wallet.main.map(c => <CouponCard key={c.id} coupon={c} type="Main" />)}
-                            </div>
-                        </div>
-                    )}
-
-                    {wallet.on_top.length > 0 && (
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">On-Top Coupons</h3>
-                            <div className="space-y-3">
-                                {wallet.on_top.map(c => <CouponCard key={c.id} coupon={c} type="On-top" />)}
-                            </div>
-                        </div>
-                    )}
-
-                    {wallet.main.length === 0 && wallet.on_top.length === 0 && userId && (
-                        <div className="text-center py-10 text-gray-400">
-                            <Ticket className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                            <p>No coupons found</p>
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* Helper Modal */}
             <CouponSelectionModal
                 isOpen={showSelectionModal}
                 onClose={() => setShowSelectionModal(false)}
                 userId={userId}
-                totalPrice={1500} // Mock price
+                totalPrice={1500}
                 onConfirm={(ids, discount, final) => {
                     alert(`Booking Confirmed!\nUsed Coupon IDs: ${ids.join(', ')}\nDiscount: ${discount}\nFinal Price: ${final}`);
                     setShowSelectionModal(false);
@@ -233,4 +313,3 @@ export default function WalletPage() {
         </div>
     );
 }
-import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
