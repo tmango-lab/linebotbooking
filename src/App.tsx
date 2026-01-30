@@ -17,6 +17,9 @@ function StatusPage() {
   const [connectionCheck, setConnectionCheck] = useState<string>('Checking data...');
   const [secretInput, setSecretInput] = useState('');
   const navigate = useNavigate(); // Hook for navigation
+  // Debug State
+  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [manualLink, setManualLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (supabase) {
@@ -44,31 +47,41 @@ function StatusPage() {
     const params = new URLSearchParams(window.location.search);
     let action = params.get('action');
     let queryString = window.location.search;
+    let debugLog = `Raw Params: ${window.location.search}\n`;
 
     const liffState = params.get('liff.state');
     if (liffState) {
+      debugLog += `Found liff.state: ${liffState.substring(0, 20)}...\n`;
       // LIFF encodes the target path/params in liff.state
-      // e.g. ?action=collect&code=...
       const decodedState = decodeURIComponent(liffState);
-      // If it starts with ?, remove it for URLSearchParams, or just append
-      console.log("LIFF State Decoded:", decodedState);
+      debugLog += `Decoded: ${decodedState}\n`;
 
-      // Extract params from the decoded state
-      // It might be "/user/wallet?action=..." or just "?action=..." depending on what we passed
-      // We passed: `/?action=collect...` so it's likely just `?action=collect...`
-
-      // Let's parse it
       const stateParams = new URLSearchParams(decodedState.startsWith('?') ? decodedState : `?${decodedState}`);
       if (stateParams.get('action')) {
         action = stateParams.get('action');
+        // We want to pass the INNER params to the wallet, not the outer liff.state wrapper
         queryString = decodedState.startsWith('?') ? decodedState : `?${decodedState}`;
+        debugLog += `Extracted Action: ${action}\n`;
       }
     }
 
+    setDebugInfo(debugLog);
+
     if (action === 'collect') {
-      // Navigate to wallet, preserving query params
+      const targetHash = `/wallet${queryString}`;
+      debugLog += `Target: ${targetHash}\n`;
+      setDebugInfo(debugLog);
+      setManualLink(targetHash);
+
       console.log("Redirecting to Wallet for Action:", action);
-      navigate(`/wallet${queryString}`);
+
+      // Attempt Auto-Redirect
+      setTimeout(() => {
+        // Try explicit hash set first (more robust for HashRouter init)
+        window.location.hash = targetHash;
+        // Fallback to navigate if needed (though hash set usually triggers router)
+        // navigate(targetHash); 
+      }, 500); // Small delay to let React render
     }
   }, []);
 
@@ -80,8 +93,28 @@ function StatusPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
       <h1>Supabase Status</h1>
+
+      {/* MANUAL REDIRECT BUTTON (If Auto fails) */}
+      {manualLink && (
+        <div style={{ margin: '20px', padding: '20px', backgroundColor: '#e6ffe6', borderRadius: '10px', border: '2px solid #00cc00' }}>
+          <h3>🚀 พบข้อมูลคูปอง!</h3>
+          <p>ระบบกำลังพาท่านไปหน้า Wallet...</p>
+          <p>(ถ้าไม่เด้งอัตโนมัติ ให้กดปุ่มด้านล่าง)</p>
+          <button
+            onClick={() => window.location.hash = manualLink}
+            style={{ padding: '15px 30px', fontSize: '18px', backgroundColor: '#06C755', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', marginTop: '10px' }}
+          >
+            👉 ไปเก็บคูปอง
+          </button>
+          <details style={{ marginTop: '15px', color: '#666' }}>
+            <summary>Debug Info</summary>
+            <pre style={{ fontSize: '10px', textAlign: 'left', overflow: 'auto' }}>{debugInfo}</pre>
+          </details>
+        </div>
+      )}
+
       <div style={{ padding: '2rem', border: '1px solid #ccc', borderRadius: '8px', marginTop: '2rem', textAlign: 'center' }}>
         <p><strong>Status:</strong> {status}</p>
         <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
