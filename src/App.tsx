@@ -94,7 +94,7 @@ function StatusPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa' }}>
       <h1>Supabase Status (Debug v3)</h1>
 
       {/* ALWAYS SHOW LOGS IF LIFF.STATE EXISTS */}
