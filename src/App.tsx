@@ -18,8 +18,11 @@ function StatusPage() {
   const [secretInput, setSecretInput] = useState('');
   const navigate = useNavigate(); // Hook for navigation
   // Debug State
-  const [debugInfo, setDebugInfo] = useState<string>('');
-  const [manualLink, setManualLink] = useState<string | null>(null);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [showButton, setShowButton] = useState(false);
+
+  // Helper to add log
+  const addLog = (msg: string) => setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
 
   useEffect(() => {
     if (supabase) {
@@ -43,45 +46,31 @@ function StatusPage() {
     checkConnection();
 
     // [NEW] LIFF/Deep Link Redirect for HashRouter
-    // Handle 'liff.state' which LIFF uses to pass params
     const params = new URLSearchParams(window.location.search);
-    let action = params.get('action');
-    let queryString = window.location.search;
-    let debugLog = `Raw Params: ${window.location.search}\n`;
-
     const liffState = params.get('liff.state');
+
+    addLog(`Checking Params: ${window.location.search}`);
+
     if (liffState) {
-      debugLog += `Found liff.state: ${liffState.substring(0, 20)}...\n`;
-      // LIFF encodes the target path/params in liff.state
-      const decodedState = decodeURIComponent(liffState);
-      debugLog += `Decoded: ${decodedState}\n`;
+      setShowButton(true);
+      addLog(`Found liff.state: ${liffState.substring(0, 15)}...`);
 
-      const stateParams = new URLSearchParams(decodedState.startsWith('?') ? decodedState : `?${decodedState}`);
-      if (stateParams.get('action')) {
-        action = stateParams.get('action');
-        // We want to pass the INNER params to the wallet, not the outer liff.state wrapper
-        queryString = decodedState.startsWith('?') ? decodedState : `?${decodedState}`;
-        debugLog += `Extracted Action: ${action}\n`;
+      try {
+        const decodedState = decodeURIComponent(liffState);
+        addLog(`Decoded: ${decodedState}`);
+
+        // Construct Target
+        const target = `/wallet${decodedState.startsWith('?') ? decodedState : '?' + decodedState}`;
+        addLog(`Target: ${target}`);
+
+        // Auto Redirect with Delay
+        addLog("Attempting Auto-Redirect in 1s...");
+        setTimeout(() => {
+          window.location.hash = target;
+        }, 1000);
+      } catch (e: any) {
+        addLog(`Error parsing: ${e.message}`);
       }
-    }
-
-    setDebugInfo(debugLog);
-
-    if (action === 'collect') {
-      const targetHash = `/wallet${queryString}`;
-      debugLog += `Target: ${targetHash}\n`;
-      setDebugInfo(debugLog);
-      setManualLink(targetHash);
-
-      console.log("Redirecting to Wallet for Action:", action);
-
-      // Attempt Auto-Redirect
-      setTimeout(() => {
-        // Try explicit hash set first (more robust for HashRouter init)
-        window.location.hash = targetHash;
-        // Fallback to navigate if needed (though hash set usually triggers router)
-        // navigate(targetHash); 
-      }, 500); // Small delay to let React render
     }
   }, []);
 
@@ -92,26 +81,39 @@ function StatusPage() {
     }
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
-      <h1>Supabase Status</h1>
+  const handleManualRedir = () => {
+    // Fallback: Just take everything from search and append to wallet hash
+    const params = new URLSearchParams(window.location.search);
+    const liffState = params.get('liff.state');
+    if (liffState) {
+      const decoded = decodeURIComponent(liffState);
+      window.location.hash = `/wallet${decoded.startsWith('?') ? decoded : '?' + decoded}`;
+    } else {
+      navigate('/wallet');
+    }
+  };
 
-      {/* MANUAL REDIRECT BUTTON (If Auto fails) */}
-      {manualLink && (
-        <div style={{ margin: '20px', padding: '20px', backgroundColor: '#e6ffe6', borderRadius: '10px', border: '2px solid #00cc00' }}>
-          <h3>🚀 พบข้อมูลคูปอง!</h3>
-          <p>ระบบกำลังพาท่านไปหน้า Wallet...</p>
-          <p>(ถ้าไม่เด้งอัตโนมัติ ให้กดปุ่มด้านล่าง)</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace' }}>
+      <h1>Supabase Status (Debug v3)</h1>
+
+      {/* ALWAYS SHOW LOGS IF LIFF.STATE EXISTS */}
+      {showButton && (
+        <div style={{ width: '90%', maxWidth: '600px', margin: '20px', padding: '20px', backgroundColor: '#fff3cd', borderRadius: '10px', border: '2px solid #ffc107', color: '#000' }}>
+          <h3 style={{ margin: 0 }}>⚠️ LIFF Redirect Mode</h3>
+          <p>ระบบกำลังพยายามพาไปหน้า Wallet...</p>
+
           <button
-            onClick={() => window.location.hash = manualLink}
-            style={{ padding: '15px 30px', fontSize: '18px', backgroundColor: '#06C755', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', marginTop: '10px' }}
+            onClick={handleManualRedir}
+            style={{ width: '100%', padding: '15px', fontSize: '18px', backgroundColor: '#06C755', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}
           >
-            👉 ไปเก็บคูปอง
+            👉 คลิกที่นี่เพื่อไปหน้า Wallet
           </button>
-          <details style={{ marginTop: '15px', color: '#666' }}>
-            <summary>Debug Info</summary>
-            <pre style={{ fontSize: '10px', textAlign: 'left', overflow: 'auto' }}>{debugInfo}</pre>
-          </details>
+
+          <div style={{ marginTop: '15px', background: '#333', color: '#0f0', padding: '10px', borderRadius: '5px', fontSize: '12px', textAlign: 'left', maxHeight: '150px', overflow: 'auto' }}>
+            <div style={{ borderBottom: '1px solid #555', paddingBottom: '5px', marginBottom: '5px' }}>Debug Log:</div>
+            {debugLog.map((log, i) => <div key={i}>{log}</div>)}
+          </div>
         </div>
       )}
 
