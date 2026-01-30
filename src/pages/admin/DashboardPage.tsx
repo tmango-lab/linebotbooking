@@ -191,7 +191,7 @@ export default function DashboardPage() {
         return Math.round(prePrice + postPrice);
     }
 
-    function isOverlapping(courtId: number, startMin: number, endMin: number, excludeId?: number): boolean {
+    function isOverlapping(courtId: number, startMin: number, endMin: number, excludeId?: string | number): boolean {
         return bookings.some(b => {
             if (b.court_id !== courtId) return false;
             if (excludeId && b.id === excludeId) return false;
