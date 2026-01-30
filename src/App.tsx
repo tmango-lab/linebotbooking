@@ -40,14 +40,35 @@ function StatusPage() {
     checkConnection();
 
     // [NEW] LIFF/Deep Link Redirect for HashRouter
-    // If query params exist (e.g. ?action=collect) but we are at root /, redirect to /wallet
+    // Handle 'liff.state' which LIFF uses to pass params
     const params = new URLSearchParams(window.location.search);
-    const action = params.get('action');
+    let action = params.get('action');
+    let queryString = window.location.search;
+
+    const liffState = params.get('liff.state');
+    if (liffState) {
+      // LIFF encodes the target path/params in liff.state
+      // e.g. ?action=collect&code=...
+      const decodedState = decodeURIComponent(liffState);
+      // If it starts with ?, remove it for URLSearchParams, or just append
+      console.log("LIFF State Decoded:", decodedState);
+
+      // Extract params from the decoded state
+      // It might be "/user/wallet?action=..." or just "?action=..." depending on what we passed
+      // We passed: `/?action=collect...` so it's likely just `?action=collect...`
+
+      // Let's parse it
+      const stateParams = new URLSearchParams(decodedState.startsWith('?') ? decodedState : `?${decodedState}`);
+      if (stateParams.get('action')) {
+        action = stateParams.get('action');
+        queryString = decodedState.startsWith('?') ? decodedState : `?${decodedState}`;
+      }
+    }
+
     if (action === 'collect') {
       // Navigate to wallet, preserving query params
-      // HashRouter: window.location.search is distinct from the hash path
       console.log("Redirecting to Wallet for Action:", action);
-      navigate(`/wallet${window.location.search}`);
+      navigate(`/wallet${queryString}`);
     }
   }, []);
 
