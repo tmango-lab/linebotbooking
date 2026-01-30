@@ -195,7 +195,7 @@ export default function DashboardPage() {
         if (existingBookingId) {
             const booking = bookings.find(b => b.id === existingBookingId);
             // Verify if this is the same booking we are modifying (it usually is)
-            if (booking.discount && booking.discount > 0) {
+            if (booking?.discount && booking.discount > 0) {
                 // Apply discount (Backend handles Anti-Gaming validation)
                 basePrice = Math.max(0, basePrice - booking.discount);
             }
