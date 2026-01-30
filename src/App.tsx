@@ -46,10 +46,26 @@ function StatusPage() {
     checkConnection();
 
     // [NEW] LIFF/Deep Link Redirect for HashRouter
-    const params = new URLSearchParams(window.location.search);
-    const liffState = params.get('liff.state');
+    addLog(`URL: ${window.location.href}`); // Log full URL
 
-    addLog(`Checking Params: ${window.location.search}`);
+    // Check both Search AND Hash for params
+    const searchParams = new URLSearchParams(window.location.search);
+    let liffState = searchParams.get('liff.state');
+
+    if (!liffState) {
+      // Try extracting from hash (e.g. #/?liff.state=...)
+      const hash = window.location.hash;
+      if (hash.includes('?')) {
+        const hashQuery = hash.split('?')[1];
+        const hashParams = new URLSearchParams(hashQuery);
+        liffState = hashParams.get('liff.state');
+        if (liffState) addLog("Found liff.state in HASH");
+      }
+    } else {
+      addLog("Found liff.state in SEARCH");
+    }
+
+    addLog(`Checking Params: ${window.location.search} | Hash: ${window.location.hash}`);
 
     if (liffState) {
       setShowButton(true);
