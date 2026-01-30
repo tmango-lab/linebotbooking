@@ -614,16 +614,18 @@ export function buildSearchAllSlotsCarousel(
     };
 }
 // 7. Coupon Flex Message (Pa-Kao)
-// 7. Coupon Flex Message (Pa-Kao)
 export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string) {
     // Note: Use environment variable or helper for LIFF Base URL in real app
     // Assuming VITE_LIFF_ID is not available in Deno directly without pulling from shared config or env
     // We will construct the Deep Link: https://liff.line.me/<LIFF_ID>/user/wallet?action=collect&code=...
+    // We will construct the Deep Link: https://liff.line.me/<LIFF_ID>/user/wallet?action=collect&code=...
     // For now, using a placeholder LIFF ID. User must replace this.
-    const LIFF_ID = '1657000000-xxxxxxx';
+    const LIFF_ID = '2009013698-RcmHMN8h';
     // Construct Deep Link to Wallet Page with Action
-    // URL Encode: action=collect, code=SECRET, id=CAMPAIGN_UUID
-    const walletPath = `/user/wallet?action=collect&code=${secretCode}&id=${campaignId}`;
+    // For GitHub Pages + HashRouter, we send to ROOT with query params
+    // e.g. https://domain.com/?action=collect...
+    // App.tsx handles redirect to /#/wallet
+    const walletPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}`;
     const liffUrl = `https://liff.line.me/${LIFF_ID}${walletPath}`;
 
     // Fallback Image
@@ -652,8 +654,7 @@ export function buildCouponFlex(campaignId: string, secretCode: string, couponNa
                         weight: "bold",
                         size: "xs",
                         color: "#D4AF37",
-                        align: "center",
-                        letterSpacing: "1px"
+                        align: "center"
                     },
                     {
                         type: "text",

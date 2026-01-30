@@ -70,41 +70,84 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
+    // PING CHECK
+    if (text === 'ping') {
+        await replyMessage(event.replyToken!, { type: 'text', text: 'pong' });
+        return;
+    }
+
     // [NEW] Secret Keyword Listener "The Pa-Kao Flow"
-    // Query campaigns active with matching secret code
-    if (text && text.length < 20) { // optimization: ignore long texts
-        const { data: campaign } = await supabase
-            .from('campaigns')
-            .select('id, name, image_url, secret_codes')
-            .contains('secret_codes', [text]) // Case-sensitive? usually yes in JSON/Array. 
-            .eq('status', 'ACTIVE')
-            .maybeSingle();
+    try {
+        // [DEBUG] Log entry
+        console.log(`[Pa-Kao] Checking keyword: '${text}'`);
 
-        if (campaign) {
-            console.log(`[Secret Code] Match found for '${text}' -> Campaign: ${campaign.name}`);
+        if (text && text.length < 20) {
+            // Execute DB Query (Timeout wrapper removed as DB is proven fast enough, but keep race if desired? 
+            // Logs showed 1.1s local, cloud log timestamps show fast execution too: Start .060 -> Found .282 (222ms!). 
+            // So DB is SUPER FAST. The "Silence" was purely the 400 Error crashing the function or LINE ignoring the invalid reply.
+            // I will revert to standard async/await for cleanliness, or keep race for safety. 
+            // Let's keep it simple standard await.
 
-            // Send "Secret Discovered" Flex
-            const flexMsg = buildCouponFlex(
-                campaign.id,
-                text,
-                campaign.name,
-                "สิทธิ์พิเศษสำหรับคนรู้รหัสลับ! กดรับคูปองส่วนลดพิเศษได้ทันที",
-                campaign.image_url
-            );
-            await replyMessage(event.replyToken!, flexMsg);
+            const { data: campaign, error } = await supabase
+                .from('campaigns')
+                .select('id, name, image_url, secret_codes')
+                .contains('secret_codes', [text])
+                .eq('status', 'ACTIVE')
+                .maybeSingle();
 
-            // Log Stat
-            logStat({
-                user_id: userId,
-                source_type: 'user',
-                event_type: 'message',
-                action: 'secret_code_triggered',
-                label: text, // The keyword used
-                extra_json: { campaign_id: campaign.id }
-            }).catch(err => console.error('Log error:', err));
+            if (error) {
+                console.error("[Pa-Kao] DB Error:", error);
+                if (text === 'ป้าขาว' || text === 'PAKAO') {
+                    await replyMessage(event.replyToken!, {
+                        type: 'text',
+                        text: `⚠️ Database Error: ${error.message}\nCode: ${error.code}`
+                    });
+                    return;
+                }
+            }
 
-            return;
-        }
+            if (campaign) {
+                console.log(`[Pa-Kao] Match found: ${campaign.name}`);
+
+                // Send "Secret Discovered" Flex
+                const flexMsg = buildCouponFlex(
+                    campaign.id,
+                    text,
+                    campaign.name,
+                    "สิทธิ์พิเศษสำหรับคนรู้รหัสลับ! กดรับคูปองส่วนลดพิเศษได้ทันที",
+                    campaign.image_url
+                );
+                await replyMessage(event.replyToken!, flexMsg);
+
+                // Log Stat
+                logStat({
+                    user_id: userId,
+                    source_type: 'user',
+                    event_type: 'message',
+                    action: 'secret_code_triggered',
+                    label: text, // The keyword used
+                    extra_json: { campaign_id: campaign.id }
+                }).catch(err => console.error('Log error:', err));
+
+                return;
+            } else {
+                // Not found
+                if (text === 'ป้าขาว' || text === 'PAKAO') {
+                    await replyMessage(event.replyToken!, {
+                        type: 'text',
+                        text: `❌ ไม่พบข้อมูลแคมเปญ (Not Found)\nkeyword: "${text}"\n(ตรวจสอบว่า Status=ACTIVE และ secret_codes ถูกต้อง)`
+                    });
+                    return;
+                }
+            }
+        } // end if text check
+    } catch (err: any) {
+        console.error("Pa-Kao Flow Crash:", err);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: `🔥 System Error during Pa-Kao check: ${err.message}\nStack: ${err.stack}`
+        });
+        return; // Stop further processing if crashed
     }
 
     // [MODIFIED] Unify 'จองสนาม' and 'ค้นหาเวลา' to trigger Search All

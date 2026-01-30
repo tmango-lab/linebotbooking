@@ -38,6 +38,17 @@ function StatusPage() {
       }
     };
     checkConnection();
+
+    // [NEW] LIFF/Deep Link Redirect for HashRouter
+    // If query params exist (e.g. ?action=collect) but we are at root /, redirect to /wallet
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (action === 'collect') {
+      // Navigate to wallet, preserving query params
+      // HashRouter: window.location.search is distinct from the hash path
+      console.log("Redirecting to Wallet for Action:", action);
+      navigate(`/wallet${window.location.search}`);
+    }
   }, []);
 
   const handleSecretCheck = (val: string) => {

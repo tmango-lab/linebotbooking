@@ -16,12 +16,9 @@ serve(async (req) => {
         console.log("Received Event:", body);
 
         // 1. Verify Signature
-        // Bypass for testing if key is 'bypass'
-        if (signature !== 'bypass') {
-            if (!(await verifySignature(body, signature, LINE_CHANNEL_SECRET))) {
-                console.error("Invalid Signature");
-                return new Response("Invalid signature", { status: 401 });
-            }
+        if (!(await verifySignature(body, signature, LINE_CHANNEL_SECRET))) {
+            console.error("Invalid Signature");
+            return new Response("Invalid signature", { status: 401 });
         }
 
         // 2. Parse Events
