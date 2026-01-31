@@ -93,7 +93,9 @@ serve(async (req) => {
                 }
             };
 
-            if (campaign.coupon_type === 'MAIN') {
+            // Case-insensitive comparison
+            const couponType = (campaign.coupon_type || 'main').toUpperCase();
+            if (couponType === 'MAIN') {
                 mainCoupons.push(formatted);
             } else {
                 onTopCoupons.push(formatted);
