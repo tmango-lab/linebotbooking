@@ -64,8 +64,12 @@ serve(async (req) => {
 
         // 5. Validate Campaign Status & Time
         const now = new Date();
-        if (campaign.status !== 'ACTIVE') {
-            throw new Error('Campaign is not active');
+
+        console.log(`[Campaign Check] status: "${campaign.status}", type: ${typeof campaign.status}, length: ${campaign.status?.length}`);
+
+        const campaignStatus = (campaign.status || '').toString().trim().toUpperCase();
+        if (campaignStatus !== 'ACTIVE') {
+            throw new Error(`Campaign is not active (status: ${campaign.status})`);
         }
         if (campaign.start_date && now < new Date(campaign.start_date)) {
             throw new Error('Campaign has not started yet');
