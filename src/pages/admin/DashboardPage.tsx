@@ -207,11 +207,15 @@ export default function DashboardPage() {
                 const isPriceDecreased = basePrice < originalPrice;
                 const isDurationDecreased = newDurationMin < originalDurationMin;
 
+                console.log(`[Anti-Gaming] Original: ${originalPrice}, New: ${basePrice}, Discount: ${booking.discount}, isPriceDecreased: ${isPriceDecreased}, isDurationDecreased: ${isDurationDecreased}`);
+
                 // Only apply discount if NEITHER price nor duration decreased
                 if (!isPriceDecreased && !isDurationDecreased) {
                     basePrice = Math.max(0, basePrice - booking.discount);
+                    console.log(`[Anti-Gaming] Applying discount. Final: ${basePrice}`);
+                } else {
+                    console.log(`[Anti-Gaming] NOT applying discount (triggered). Final: ${basePrice}`);
                 }
-                // else: Anti-Gaming triggered - charge full price
             }
         }
         return basePrice;
