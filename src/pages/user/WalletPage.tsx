@@ -107,6 +107,7 @@ export default function WalletPage() {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
+                    'apikey': token,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ userId: uid })
