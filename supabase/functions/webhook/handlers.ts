@@ -263,7 +263,10 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
     try {
         // Call the collect-coupon Edge Function
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
-        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY"); // Changed from SERVICE_ROLE_KEY to ANON_KEY
+
+        console.log(`[Before Fetch] URL: ${supabaseUrl}/functions/v1/collect-coupon`);
+        console.log(`[Before Fetch] Body:`, JSON.stringify({ userId, campaignId, secretCode }));
 
         const response = await fetch(`${supabaseUrl}/functions/v1/collect-coupon`, {
             method: 'POST',
@@ -278,7 +281,11 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
             })
         });
 
+        console.log(`[After Fetch] Status: ${response.status}, OK: ${response.ok}`);
+
         const result = await response.json();
+
+        console.log(`[Response Data]`, JSON.stringify(result));
 
         if (response.ok && result.success) {
             // Success - send confirmation message
@@ -300,6 +307,7 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
         } else {
             // Error - send error message
             const errorMsg = result.error || 'ไม่สามารถเก็บคูปองได้';
+            console.log(`[Collect Failed] Error: ${errorMsg}`);
             await replyMessage(event.replyToken!, {
                 type: 'text',
                 text: `❌ ${errorMsg}\n\nลองอีกครั้งหรือติดต่อแอดมินนะคะ 🙏`
@@ -308,6 +316,7 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
 
     } catch (error: any) {
         console.error('[Collect Coupon Error]:', error);
+        console.error('[Error Stack]:', error.stack);
         await replyMessage(event.replyToken!, {
             type: 'text',
             text: `⚠️ เกิดข้อผิดพลาด: ${error.message}\n\nกรุณาลองใหม่อีกครั้งค่ะ`
