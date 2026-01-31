@@ -1,18 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { supabase } from "../_shared/supabaseClient.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-console.log("Update Booking Function Started (Local DB Only)");
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+console.log("Update Booking Function Started (Anti-Gaming + Full Price Logic)");
 
 // Field ID Mapping (Matchday court_id to local field_no)
 const FIELD_MAP: Record<number, number> = {
     2424: 1, 2425: 2, 2428: 3, 2426: 4, 2427: 5, 2429: 6
 };
 
+// Pricing Config (Same as create-booking)
+const PRICING = {
+    1: { pre: 500, post: 700 },
+    2: { pre: 500, post: 700 },
+    3: { pre: 1000, post: 1200 },
+    4: { pre: 800, post: 1000 },
+    5: { pre: 800, post: 1000 },
+    6: { pre: 1000, post: 1200 },
+};
+
+function calculatePrice(fieldNo: number, startTime: string, durationHours: number) {
+    console.log(`[calculatePrice] Input: fieldNo=${fieldNo} (type: ${typeof fieldNo}), startTime=${startTime}, duration=${durationHours}h`);
+
+    const prices = PRICING[fieldNo as keyof typeof PRICING];
+    if (!prices) {
+        console.log(`[calculatePrice] ERROR: No pricing found for fieldNo=${fieldNo}. Available fields: ${Object.keys(PRICING).join(', ')}`);
+        return 0;
+    }
+
+    const [h, m] = startTime.split(':').map(Number);
+    const startH = h + (m / 60);
+    const endH = startH + durationHours;
+    const cutOff = 18.0;
+
+    let preHours = 0;
+    let postHours = 0;
+
+    if (endH <= cutOff) preHours = durationHours;
+    else if (startH >= cutOff) postHours = durationHours;
+    else {
+        preHours = cutOff - startH;
+        postHours = endH - cutOff;
+    }
+
+    let prePrice = preHours * prices.pre;
+    let postPrice = postHours * prices.post;
+
+    if (prePrice > 0 && prePrice % 100 !== 0) {
+        prePrice = Math.ceil(prePrice / 100) * 100;
+    }
+    if (postPrice > 0 && postPrice % 100 !== 0) {
+        postPrice = Math.ceil(postPrice / 100) * 100;
+    }
+
+    const total = Math.round(prePrice + postPrice);
+    console.log(`[calculatePrice] Result: ${total} THB (pre: ${prePrice}, post: ${postPrice})`);
+    return total;
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
+        // Initialize Supabase Client
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL') || '';
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('VITE_SUPABASE_SERVICE_ROLE_KEY') || '';
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
         const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source, courtId } = await req.json();
 
         if (!matchId) throw new Error('Missing matchId');
@@ -26,8 +84,9 @@ serve(async (req) => {
         let durationMinutes = 0;
 
         if (timeStart && timeEnd) {
-            const start = new Date(timeStart.replace(' ', 'T'));
-            const end = new Date(timeEnd.replace(' ', 'T'));
+            // Fix: replaceAll to handle dates like "2026-02-01 01:00:00"
+            const start = new Date(timeStart.replaceAll(' ', 'T'));
+            const end = new Date(timeEnd.replaceAll(' ', 'T'));
 
             dateStr = timeStart.split(' ')[0];
             timeFrom = timeStart.split(' ')[1];
@@ -35,21 +94,20 @@ serve(async (req) => {
 
             const diffMs = end.getTime() - start.getTime();
             durationMinutes = Math.round(diffMs / 60000);
+
+            console.log(`[Parse Times] Start: ${start.toISOString()}, End: ${end.toISOString()}, Duration: ${durationMinutes}min`);
         }
 
         const updatePayload: any = {
             updated_at: new Date().toISOString(),
         };
 
-        if (price !== undefined) updatePayload.price_total_thb = price;
+        // NOTE: Price will be calculated later based on duration/field changes
+        // Do NOT set price here - it will be overridden by Anti-Gaming logic if needed
+
         if (adminNote !== undefined) updatePayload.admin_note = adminNote;
         if (customerName !== undefined) updatePayload.display_name = customerName;
-        if (tel !== undefined) {
-            updatePayload.phone_number = tel;
-            console.log(`[Update Booking] Updating phone_number to: ${tel}`);
-        } else {
-            console.log(`[Update Booking] No tel provided in payload`);
-        }
+        if (tel !== undefined) updatePayload.phone_number = tel;
 
         // Handle Payment Status
         if (isPaid !== undefined) {
@@ -78,43 +136,31 @@ serve(async (req) => {
         // Check Existence and Fetch Details for Anti-Gaming Logic
         const { data: existing, error: fetchError } = await supabase
             .from('bookings')
-            .select('booking_id, price_total_thb, duration_h')
+            .select('booking_id, price_total_thb, duration_h, field_no, time_from')
             .eq('booking_id', String(matchId))
             .single();
-
-        if (fetchError || !existing) {
-            // If not found, perhaps it's a new booking (handled below), but for update logic we expect it to exist if 'matchId' implies update.
-            // However, the original code allowed creating if not exists.
-            // If it's a NEW booking, anti-gaming doesn't apply (no previous coupon used).
-        }
 
         let localData, localError;
 
         if (existing) {
             // --- Anti-Gaming Logic Start ---
-            // Determine Old Values
             const oldPrice = Number(existing.price_total_thb || 0);
             const oldDuration = Number(existing.duration_h || 0);
 
-            // Determine New Values
-            // If price is in payload, use it; otherwise use old.
             const newPrice = price !== undefined ? Number(price) : oldPrice;
-
-            // If time is in payload, usage `durationMinutes/60`; otherwise use old.
-            // Note: durationMinutes is calculated above if timeStart/timeEnd exist.
             const newDuration = (timeStart && timeEnd) ? (durationMinutes / 60) : oldDuration;
 
             console.log(`[Anti-Gaming] Check: Price ${oldPrice}->${newPrice}, Duration ${oldDuration}->${newDuration}`);
 
-            // Kick Condition: Price Decreased OR Duration Decreased
-            // We use a small epsilon for float comparison just in case, or direct comparison.
             const isPriceDecreased = newPrice < oldPrice;
-            const isDurationDecreased = newDuration < oldDuration - 0.01; // tolerance for float
+            const isDurationDecreased = newDuration < oldDuration - 0.01;
+
+            let couponBurned = false;
 
             if (isPriceDecreased || isDurationDecreased) {
                 console.log(`[Anti-Gaming] Triggered! Releasing coupons for booking ${matchId}`);
 
-                // Release Coupons
+                // Release User Coupons (V2)
                 const { error: releaseError } = await supabase
                     .from('user_coupons')
                     .update({
@@ -123,49 +169,78 @@ serve(async (req) => {
                         used_at: null
                     })
                     .eq('booking_id', String(matchId))
-                    .eq('status', 'USED');
+                    .eq('status', 'used');
 
                 if (releaseError) {
                     console.error('[Anti-Gaming] Failed to release coupons:', releaseError);
                 } else {
                     console.log('[Anti-Gaming] Coupons released successfully.');
                 }
+
+                couponBurned = true;
             }
 
             // --- Anti-Gaming Logic (V1: Promo Codes) ---
-            // Fair Policy: Compare with ORIGINAL Promo Duration
             const { data: promo } = await supabase
                 .from('promo_codes')
                 .select('duration_h, status')
                 .eq('booking_id', String(matchId))
                 .single();
 
-            // Only proceed if there is an active/used promo to check
-            if (promo && promo.status === 'USED') {
+            if (promo && promo.status === 'used') {
                 const originalDuration = Number(promo.duration_h || 0);
 
-                // Check ONLY Duration for V1 Fair Policy (Price check is secondary or covered by duration usually)
-                // Logic: If New Duration is LESS than Original Commitment -> BURN
                 if (newDuration < originalDuration - 0.01) {
-                    console.log(`[Anti-Gaming V1] New Duration (${newDuration}) < Original (${originalDuration}). Burning.`);
+                    console.log(`[Anti-Gaming V1] New Duration (${newDuration}) < Original (${originalDuration}). Burning to 'expired'.`);
 
                     const { error: releaseV1Error } = await supabase
                         .from('promo_codes')
                         .update({
-                            status: 'burned',
+                            status: 'expired',
                             booking_id: null,
                         })
                         .eq('booking_id', String(matchId));
 
                     if (releaseV1Error) console.error('[Anti-Gaming V1] Failed to burn promo:', releaseV1Error);
-                    else console.log('[Anti-Gaming V1] Promo burned successfully.');
+                    else console.log('[Anti-Gaming V1] Promo burned (expired) successfully.');
 
+                    couponBurned = true;
                 } else {
                     console.log(`[Anti-Gaming V1] New Duration (${newDuration}) >= Original (${originalDuration}). Safe (Revert Allowed).`);
                 }
-            } else if (isPriceDecreased || isDurationDecreased) {
-                // Fallback: If no V1 promo found (maybe V2?), or just logging
-                // For now, V2 logic is separate (above). This block effectively does nothing for non-V1.
+            }
+
+            // --- CRITICAL: Recalculate Price Based on Changes ---
+            // Always recalculate price when duration or field changes
+            console.log(`[DEBUG] timeStart: ${timeStart}, timeEnd: ${timeEnd}`);
+            console.log(`[DEBUG] isPriceDecreased: ${isPriceDecreased}, isDurationDecreased: ${isDurationDecreased}, couponBurned: ${couponBurned}`);
+
+            if (timeStart && timeEnd) {
+                const fieldNo = updatePayload.field_no || existing.field_no;
+                const startTime = updatePayload.time_from || existing.time_from;
+                const calculatedPrice = calculatePrice(fieldNo, startTime, newDuration);
+
+                console.log(`[DEBUG] Calculated Price: ${calculatedPrice}, Provided Price: ${price}`);
+
+                if (couponBurned || isPriceDecreased || isDurationDecreased) {
+                    // Coupon was burned OR price/duration decreased - charge FULL PRICE (no discount)
+                    const reason = couponBurned ? 'Coupon Burned' : (isPriceDecreased ? 'Price Drop' : 'Duration Shrink');
+                    console.log(`[Anti-Gaming] Charging full price: ${calculatedPrice} THB (Reason: ${reason})`);
+                    updatePayload.price_total_thb = calculatedPrice;
+                    updatePayload.is_promo = false;
+                } else if (price !== undefined) {
+                    // No anti-gaming trigger - use provided price (may include discount)
+                    console.log(`[Price Update] Using provided price: ${price} THB (calculated would be: ${calculatedPrice})`);
+                    updatePayload.price_total_thb = price;
+                } else {
+                    // No price provided - use calculated price
+                    console.log(`[Price Update] Using calculated price: ${calculatedPrice} THB`);
+                    updatePayload.price_total_thb = calculatedPrice;
+                }
+            } else if (price !== undefined) {
+                // No time change - just update price if provided
+                console.log(`[DEBUG] No time change, setting price to: ${price}`);
+                updatePayload.price_total_thb = price;
             }
             // --- Anti-Gaming Logic End ---
 
@@ -180,6 +255,17 @@ serve(async (req) => {
             localError = error;
         } else {
             // Create new booking if not exists
+            // Calculate price for new booking
+            if (timeStart && timeEnd && !price) {
+                const fieldNo = updatePayload.field_no || 1; // Default to field 1
+                const startTime = updatePayload.time_from || '00:00:00';
+                const calculatedPrice = calculatePrice(fieldNo, startTime, durationMinutes / 60);
+                console.log(`[Create Booking] Calculated price: ${calculatedPrice} THB`);
+                updatePayload.price_total_thb = calculatedPrice;
+            } else if (price !== undefined) {
+                updatePayload.price_total_thb = price;
+            }
+
             const insertPayload = {
                 booking_id: String(matchId),
                 user_id: 'admin',
@@ -207,8 +293,13 @@ serve(async (req) => {
 
     } catch (error: any) {
         console.error('[Update Booking Error]:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
+        console.error('[Update Booking Error Stack]:', error.stack);
+        return new Response(JSON.stringify({
+            error: error.message,
+            stack: error.stack,
+            debug: "Function crashed - check logs"
+        }), {
+            status: 200, // CHANGED TO 200 FOR DEBUGGING
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
     }

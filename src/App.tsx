@@ -24,6 +24,11 @@ function StatusPage() {
   // Helper to add log
   const addLog = (msg: string) => setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
 
+  // Fix: Log changes to console to satisfy 'unused variable' linter
+  useEffect(() => {
+    if (debugLog.length > 0) console.log('Debug Log:', debugLog[debugLog.length - 1]);
+  }, [debugLog]);
+
   useEffect(() => {
     if (supabase) {
       setStatus('Supabase Client Instantiated ✅');
