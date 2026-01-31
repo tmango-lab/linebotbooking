@@ -103,8 +103,13 @@ export default function WalletPage() {
             const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             // 1. Fetch My Coupons
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons?userId=${uid}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userId: uid })
             });
 
             if (!res.ok) throw new Error('Failed to fetch wallet');
