@@ -99,7 +99,18 @@ export default function WalletPage() {
         if (!uid) return;
         setLoading(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            let { data: { session } } = await supabase.auth.getSession();
+
+            // If no session, create anonymous session to get valid JWT
+            if (!session) {
+                const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+                if (authError) {
+                    console.error('Failed to create anonymous session:', authError);
+                    throw new Error('Authentication failed');
+                }
+                session = authData.session;
+            }
+
             const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             // 1. Fetch My Coupons
@@ -107,7 +118,7 @@ export default function WalletPage() {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'apikey': token,
+                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ userId: uid })
