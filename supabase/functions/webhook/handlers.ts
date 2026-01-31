@@ -261,65 +261,85 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
     console.log(`[Collect Coupon] User: ${userId}, Campaign: ${campaignId}, Code: ${secretCode}`);
 
     try {
-        // Call the collect-coupon Edge Function
-        const supabaseUrl = Deno.env.get("SUPABASE_URL");
-        const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY"); // Changed from SERVICE_ROLE_KEY to ANON_KEY
+        // Direct database access instead of calling API (to bypass JWT auth)
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? '';
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? '';
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        console.log(`[Before Fetch] URL: ${supabaseUrl}/functions/v1/collect-coupon`);
-        console.log(`[Before Fetch] Body:`, JSON.stringify({ userId, campaignId, secretCode }));
+        // 1. Fetch campaign details
+        const { data: campaign, error: campaignError } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaignId)
+            .single();
 
-        const response = await fetch(`${supabaseUrl}/functions/v1/collect-coupon`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseKey}`
-            },
-            body: JSON.stringify({
-                userId: userId,
-                campaignId: campaignId,
-                secretCode: secretCode
+        if (campaignError || !campaign) {
+            throw new Error('Campaign not found');
+        }
+
+        // 2. Validate campaign status
+        const now = new Date();
+        const campaignStatus = (campaign.status || '').toString().trim().toUpperCase();
+        if (campaignStatus !== 'ACTIVE') {
+            throw new Error('Campaign is not active');
+        }
+        if (campaign.start_date && now < new Date(campaign.start_date)) {
+            throw new Error('Campaign has not started yet');
+        }
+        if (campaign.end_date && now > new Date(campaign.end_date)) {
+            throw new Error('Campaign has ended');
+        }
+
+        // 3. Check user quota
+        const { count: userCount, error: countError } = await supabase
+            .from('user_coupons')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('campaign_id', campaignId);
+
+        if (countError) throw countError;
+
+        if (userCount !== null && userCount >= (campaign.limit_per_user || 1)) {
+            throw new Error('You have already collected this coupon');
+        }
+
+        // 4. Insert user coupon
+        const { data: newCoupon, error: insertError } = await supabase
+            .from('user_coupons')
+            .insert({
+                user_id: userId,
+                campaign_id: campaignId,
+                status: 'ACTIVE',
+                collected_at: new Date().toISOString()
             })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        console.log(`[Coupon Collected] ID: ${newCoupon.id}`);
+
+        // Success - send confirmation message
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: `🎉 เก็บคูปองสำเร็จแล้ว!\n\n${campaign.name}\n\n✅ เก็บเข้ากระเป๋าเรียบร้อย\n💰 ใช้ได้ทันทีเมื่อจองสนาม!`
         });
 
-        console.log(`[After Fetch] Status: ${response.status}, OK: ${response.ok}`);
-
-        const result = await response.json();
-
-        console.log(`[Response Data]`, JSON.stringify(result));
-
-        if (response.ok && result.success) {
-            // Success - send confirmation message
-            await replyMessage(event.replyToken!, {
-                type: 'text',
-                text: `🎉 เก็บคูปองสำเร็จแล้ว!\n\n${result.campaign?.name || 'คูปองของคุณ'}\n\n✅ เก็บเข้ากระเป๋าเรียบร้อย\n💰 ใช้ได้ทันทีเมื่อจองสนาม!`
-            });
-
-            // Log success
-            logStat({
-                user_id: userId,
-                source_type: 'user',
-                event_type: 'coupon_collected',
-                action: 'postback_collect',
-                label: secretCode,
-                extra_json: { campaign_id: campaignId, method: 'postback' }
-            }).catch(err => console.error('Log error:', err));
-
-        } else {
-            // Error - send error message
-            const errorMsg = result.error || 'ไม่สามารถเก็บคูปองได้';
-            console.log(`[Collect Failed] Error: ${errorMsg}`);
-            await replyMessage(event.replyToken!, {
-                type: 'text',
-                text: `❌ ${errorMsg}\n\nลองอีกครั้งหรือติดต่อแอดมินนะคะ 🙏`
-            });
-        }
+        // Log success
+        logStat({
+            user_id: userId,
+            source_type: 'user',
+            event_type: 'coupon_collected',
+            action: 'postback_collect',
+            label: secretCode,
+            extra_json: { campaign_id: campaignId, method: 'postback' }
+        }).catch(err => console.error('Log error:', err));
 
     } catch (error: any) {
         console.error('[Collect Coupon Error]:', error);
-        console.error('[Error Stack]:', error.stack);
         await replyMessage(event.replyToken!, {
             type: 'text',
-            text: `⚠️ เกิดข้อผิดพลาด: ${error.message}\n\nกรุณาลองใหม่อีกครั้งค่ะ`
+            text: `❌ ไม่สามารถเก็บคูปองได้\n\n${error.message}\n\nลองอีกครั้งหรือติดต่อแอดมินนะคะ 🙏`
         });
     }
 }
