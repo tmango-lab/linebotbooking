@@ -95,6 +95,8 @@ serve(async (req) => {
 
         if (countError) throw countError;
 
+        console.log(`[Quota Check] userId: ${userId}, campaignId: ${targetCampaignId}, userCount: ${userCount}, limit: ${campaign.limit_per_user || 1}`);
+
         if (userCount !== null && userCount >= (campaign.limit_per_user || 1)) {
             throw new Error('You have already collected this coupon (Limit reached)');
         }
