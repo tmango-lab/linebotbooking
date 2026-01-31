@@ -111,48 +111,44 @@ function StatusPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa', color: '#333' }}>
-      <h1>Supabase Status (Debug v3)</h1>
+      <h1>Booking System</h1>
 
-      {/* ALWAYS SHOW LOGS IF LIFF.STATE EXISTS */}
-      {showButton && (
-        <div style={{ width: '90%', maxWidth: '600px', margin: '20px', padding: '20px', backgroundColor: '#fff3cd', borderRadius: '10px', border: '2px solid #ffc107', color: '#000' }}>
-          <h3 style={{ margin: 0 }}>⚠️ LIFF Redirect Mode</h3>
-          <p>ระบบกำลังพยายามพาไปหน้า Wallet...</p>
+      {/* LIFF REDIRECT MODE */}
+      {showButton ? (
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <div style={{ fontSize: '24px', marginBottom: '20px' }}>⏳ Redirecting to Wallet...</div>
+          <div style={{ fontSize: '14px', color: '#666' }}>Please wait a moment.</div>
 
+          {/* Fallback Button (Unobtrusive) */}
           <button
             onClick={handleManualRedir}
-            style={{ width: '100%', padding: '15px', fontSize: '18px', backgroundColor: '#06C755', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}
+            style={{ marginTop: '30px', padding: '10px 20px', fontSize: '16px', backgroundColor: '#eee', color: '#333', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer' }}
           >
-            👉 คลิกที่นี่เพื่อไปหน้า Wallet
+            Click here if not redirected
           </button>
+        </div>
+      ) : (
+        /* NORMAL STATUS MODE */
+        <div style={{ padding: '2rem', border: '1px solid #ccc', borderRadius: '8px', marginTop: '2rem', textAlign: 'center', backgroundColor: 'white' }}>
+          <p><strong>Status:</strong> {status}</p>
+          <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
+            {connectionCheck}
+          </div>
+          <div style={{ marginTop: '2rem' }}>
+            <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
+          </div>
 
-          <div style={{ marginTop: '15px', background: '#333', color: '#0f0', padding: '10px', borderRadius: '5px', fontSize: '12px', textAlign: 'left', maxHeight: '150px', overflow: 'auto' }}>
-            <div style={{ borderBottom: '1px solid #555', paddingBottom: '5px', marginBottom: '5px' }}>Debug Log:</div>
-            {debugLog.map((log, i) => <div key={i}>{log}</div>)}
+          {/* Secret Trigger Area */}
+          <div style={{ marginTop: '3rem', opacity: 0.1, }}>
+            <input
+              value={secretInput}
+              onChange={(e) => handleSecretCheck(e.target.value)}
+              placeholder="..."
+              style={{ border: 'none', background: 'transparent', textAlign: 'center', outline: 'none' }}
+            />
           </div>
         </div>
       )}
-
-      <div style={{ padding: '2rem', border: '1px solid #ccc', borderRadius: '8px', marginTop: '2rem', textAlign: 'center' }}>
-        <p><strong>Status:</strong> {status}</p>
-        <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
-          {connectionCheck}
-        </div>
-        <div style={{ marginTop: '2rem' }}>
-          <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
-        </div>
-
-        {/* Secret Trigger Area */}
-        <div style={{ marginTop: '3rem', opacity: 0.1, }}>
-          <input
-            value={secretInput}
-            onChange={(e) => handleSecretCheck(e.target.value)}
-            placeholder="..."
-            style={{ border: 'none', background: 'transparent', textAlign: 'center', outline: 'none' }}
-          />
-        </div>
-
-      </div>
     </div>
   );
 }
