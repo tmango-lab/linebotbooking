@@ -615,20 +615,9 @@ export function buildSearchAllSlotsCarousel(
 }
 // 7. Coupon Flex Message (Pa-Kao)
 export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string, userId?: string) {
-    // Note: Use environment variable or helper for LIFF Base URL in real app
-    // Assuming VITE_LIFF_ID is not available in Deno directly without pulling from shared config or env
-    // We will construct the Deep Link: https://liff.line.me/<LIFF_ID>/user/wallet?action=collect&code=...
-    // For now, using a placeholder LIFF ID. User must replace this.
     const LIFF_ID = '2009013698-RcmHMN8h';
-    // Construct Deep Link to Wallet Page with Action
-    // For GitHub Pages + HashRouter, we send to ROOT with query params
-    // e.g. https://domain.com/?action=collect...
-    // App.tsx handles redirect to /#/wallet
-    // [NEW] Append userId if available
     const walletPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}&userId=${encodeURIComponent(userId || '')}`;
     const liffUrl = `https://liff.line.me/${LIFF_ID}${walletPath}`;
-
-    // Fallback Image
     const coverImage = imageUrl || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1000&auto=format&fit=crop";
 
     return {
@@ -674,25 +663,6 @@ export function buildCouponFlex(campaignId: string, secretCode: string, couponNa
                         wrap: true,
                         margin: "md",
                         align: "center"
-                    },
-                    {
-                        type: "separator",
-                        margin: "lg"
-                    },
-                    {
-                        type: "box",
-                        layout: "vertical",
-                        margin: "lg",
-                        spacing: "sm",
-                        contents: [
-                            {
-                                type: "button",
-                                style: "primary",
-                                action: { type: "uri", label: "👉 เก็บเข้า Wallet", uri: liffUrl },
-                                color: "#000000",
-                                height: "sm"
-                            }
-                        ]
                     }
                 ]
             },
@@ -702,11 +672,30 @@ export function buildCouponFlex(campaignId: string, secretCode: string, couponNa
                 spacing: "sm",
                 contents: [
                     {
+                        type: "button",
+                        style: "primary",
+                        action: {
+                            type: "postback",
+                            label: "🎁 รับเลย!",
+                            data: `action=collectCoupon&campaignId=${campaignId}&secretCode=${secretCode}`,
+                            displayText: "กำลังเก็บคูปอง..."
+                        },
+                        color: "#06C755",
+                        height: "sm"
+                    },
+                    {
+                        type: "button",
+                        style: "link",
+                        action: { type: "uri", label: "👛 ดูกระเป๋า", uri: liffUrl },
+                        height: "sm"
+                    },
+                    {
                         type: "text",
                         text: `Code: ${secretCode}`,
                         size: "xs",
                         color: "#aaaaaa",
-                        align: "center"
+                        align: "center",
+                        margin: "md"
                     }
                 ]
             }

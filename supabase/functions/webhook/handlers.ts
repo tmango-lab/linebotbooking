@@ -198,6 +198,9 @@ export async function handlePostback(event: LineEvent) {
     }).catch(err => console.error('Log error:', err));
 
     switch (action) {
+        case 'collectCoupon':
+            await handleCollectCoupon(event, userId, params);
+            break;
         case 'selectDate':
             await handleSelectDate(event, userId, params);
             break;
@@ -246,6 +249,68 @@ export async function handlePostback(event: LineEvent) {
         //     break;
         default:
             console.warn("Unknown Action:", action);
+    }
+}
+
+// --- Coupon Collection Handler ---
+
+async function handleCollectCoupon(event: LineEvent, userId: string, params: any) {
+    const campaignId = params.campaignId;
+    const secretCode = params.secretCode;
+
+    console.log(`[Collect Coupon] User: ${userId}, Campaign: ${campaignId}, Code: ${secretCode}`);
+
+    try {
+        // Call the collect-coupon Edge Function
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/collect-coupon`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+                userId: userId,
+                secretCode: secretCode
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            // Success - send confirmation message
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: `🎉 เก็บคูปองสำเร็จแล้ว!\n\n${result.campaign?.name || 'คูปองของคุณ'}\n\n✅ เก็บเข้ากระเป๋าเรียบร้อย\n💰 ใช้ได้ทันทีเมื่อจองสนาม!`
+            });
+
+            // Log success
+            logStat({
+                user_id: userId,
+                source_type: 'user',
+                event_type: 'coupon_collected',
+                action: 'postback_collect',
+                label: secretCode,
+                extra_json: { campaign_id: campaignId, method: 'postback' }
+            }).catch(err => console.error('Log error:', err));
+
+        } else {
+            // Error - send error message
+            const errorMsg = result.error || 'ไม่สามารถเก็บคูปองได้';
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: `❌ ${errorMsg}\n\nลองอีกครั้งหรือติดต่อแอดมินนะคะ 🙏`
+            });
+        }
+
+    } catch (error: any) {
+        console.error('[Collect Coupon Error]:', error);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: `⚠️ เกิดข้อผิดพลาด: ${error.message}\n\nกรุณาลองใหม่อีกครั้งค่ะ`
+        });
     }
 }
 
