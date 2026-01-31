@@ -66,14 +66,12 @@ serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        // Initialize Supabase Client with user's token from Authorization header
+        // Initialize Supabase Client
+        // Use SERVICE_ROLE_KEY for admin operations (updating bookings requires admin privileges)
         const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL') || '';
+        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('VITE_SUPABASE_SERVICE_ROLE_KEY') || '';
 
-        // Extract token from Authorization header (supports both ANON_KEY and SERVICE_ROLE_KEY)
-        const authHeader = req.headers.get('Authorization');
-        const token = authHeader?.replace('Bearer ', '') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-
-        const supabase = createClient(supabaseUrl, token);
+        const supabase = createClient(supabaseUrl, serviceRoleKey);
 
         const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source, courtId } = await req.json();
 
