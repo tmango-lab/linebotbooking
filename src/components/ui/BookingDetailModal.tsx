@@ -17,6 +17,8 @@ interface BookingDetailModalProps {
         paid_at?: string | null;
         source?: string;
         is_promo?: boolean;
+        is_refunded?: boolean;
+        discount?: number;
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void; // New callback for updates
@@ -27,6 +29,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const [error, setError] = useState<string | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
+    const [isRefunded, setIsRefunded] = useState(false); // Refund Checkbox State
 
     // State for editable fields
     const [isEditingDetails, setIsEditingDetails] = useState(false); // Controls visibility of Name, Tel, Price inputs
@@ -63,6 +66,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const date = new Date(dateStr.replace(' ', 'T'));
         return date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     };
+
+    // State for cancellation
+    // Moved up to avoid hook error
+    // const [isRefunded, setIsRefunded] = useState(false); 
+
 
     const handleSave = async () => {
         setLoading(true);
@@ -133,7 +141,8 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                 },
                 body: JSON.stringify({
                     matchId: booking.id,
-                    reason: cancelReason || 'Admin cancelled via Dashboard'
+                    reason: cancelReason || 'Admin cancelled via Dashboard',
+                    isRefunded: isRefunded // Checkbox value
                 })
             });
 
@@ -157,9 +166,32 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         setIsConfirming(false);
         setIsEditingDetails(false);
         setCancelReason('');
+        setIsRefunded(false); // Reset
         setError(null);
         onClose();
     };
+
+    // Financial Breakdown Calculation
+    // Try to find discount from admin_note e.g. "(-100)"
+    // Or if booking.discount exists directly
+    const getFinancials = () => {
+        const netPrice = booking.price;
+        let discount = 0;
+
+        // 1. Check admin_note for "(-XXX)" pattern
+        const noteMatch = (booking.admin_note || '').match(/\(-(\d+)\)/);
+        if (noteMatch) {
+            discount = parseInt(noteMatch[1], 10);
+        } else if (booking.discount) {
+            discount = booking.discount;
+        }
+
+        const basePrice = netPrice + discount;
+        return { basePrice, discount, netPrice };
+    };
+
+    const { basePrice, discount, netPrice } = getFinancials();
+
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -350,6 +382,21 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                         value={cancelReason}
                                         onChange={(e) => setCancelReason(e.target.value)}
                                     />
+
+                                    {/* Refund Checkbox */}
+                                    <div className="mt-4 flex items-center">
+                                        <input
+                                            id="refunded"
+                                            type="checkbox"
+                                            className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
+                                            checked={isRefunded}
+                                            onChange={(e) => setIsRefunded(e.target.checked)}
+                                        />
+                                        <label htmlFor="refunded" className="ml-2 block text-sm text-gray-900 cursor-pointer">
+                                            คืนเงินลูกค้าแล้ว (Mark as Refunded)
+                                        </label>
+                                    </div>
+
                                     <div className="mt-4 flex flex-col sm:flex-row-reverse gap-2">
                                         <button
                                             type="button"
@@ -358,7 +405,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             disabled={loading}
                                         >
                                             {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : null}
-                                            ยืนยันดารยกเลิก
+                                            ยืนยันการยกเลิก
                                         </button>
                                         <button
                                             type="button"
@@ -371,34 +418,63 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                     </div>
                                 </div>
                             ) : (
-                                <div className="mt-6 flex justify-between items-center w-full">
-                                    {/* Left: Cancel Booking */}
-                                    <button
-                                        type="button"
-                                        className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                        onClick={() => setIsConfirming(true)}
-                                    >
-                                        ยกเลิกการจอง
-                                    </button>
+                                <div className="mt-6 flex flex-col gap-4">
+                                    {/* Financial Breakdown (View Only) */}
+                                    {!isEditingDetails && (discount > 0) && (
+                                        <div className="bg-green-50 rounded-md p-3 border border-green-100 mb-2">
+                                            <h4 className="text-xs font-semibold text-green-800 uppercase tracking-wide mb-2">Financial Breakdown</h4>
+                                            <div className="flex justify-between text-sm text-gray-600">
+                                                <span>ราคาเต็ม (Base Price):</span>
+                                                <span>{basePrice.toLocaleString()} บ.</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm text-red-600 font-medium">
+                                                <span>ส่วนลด (Discount):</span>
+                                                <span>-{discount.toLocaleString()} บ.</span>
+                                            </div>
+                                            <div className="border-t border-green-200 my-1 pt-1 flex justify-between text-sm font-bold text-gray-900">
+                                                <span>ยอดสุทธิ (Net Price):</span>
+                                                <span>{netPrice.toLocaleString()} บ.</span>
+                                            </div>
+                                        </div>
+                                    )}
 
-                                    {/* Right: Save & Close */}
-                                    <div className="flex gap-2">
+                                    {/* Refund Status */}
+                                    {booking.is_refunded && (
+                                        <div className="bg-red-50 text-red-700 px-3 py-2 rounded-md text-sm font-bold border border-red-200 text-center">
+                                            💰 ได้รับการคืนเงินแล้ว (Refunded)
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-between items-center w-full">
+                                        {/* Left: Cancel Booking using existing code */}
                                         <button
                                             type="button"
-                                            className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm"
-                                            onClick={handleClose}
+                                            className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                            onClick={() => setIsConfirming(true)}
                                         >
-                                            ปิด
+                                            ยกเลิกการจอง
                                         </button>
-                                        <button
-                                            type="button"
-                                            className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm disabled:opacity-50"
-                                            onClick={handleSave}
-                                            disabled={loading}
-                                        >
-                                            {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                                            บันทึก
-                                        </button>
+
+
+                                        {/* Right: Save & Close */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm"
+                                                onClick={handleClose}
+                                            >
+                                                ปิด
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm disabled:opacity-50"
+                                                onClick={handleSave}
+                                                disabled={loading}
+                                            >
+                                                {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                                                บันทึก
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

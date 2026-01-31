@@ -341,27 +341,9 @@ Two new tables support the advanced coupon system:
 - Links `user_id` (LINE UID) to `campaign_id`.
 - Tracks `status` ('active', 'used', 'expired').
 
-## 8. Anti-Gaming Policy & Fair Logic (2026-01)
-
-### Overview
-To prevent exploiting discounts (e.g., booking 2 hours with a coupon, then reducing to 30 mins), the system enforces an **Anti-Gaming Check** during every booking update.
-
-### Core Logic (Update Booking)
-**Location**: `supabase/functions/update-booking/index.ts`
-
-When a booking with a **USED** coupon is modified:
-1.  **Strict Rule (V2)**: If `New Price < Old Price` OR `New Duration < Old Duration`, the coupon is **released** (Status -> `ACTIVE`).
-2.  **Fair Policy (V1)**:
-    - **Logic**: Compares `New Duration` vs **Original Commitment** (from `promo_codes` table), NOT just the current booking state.
-    - **Revert Allowance**: If a user extends a booking (1h -> 1.5h) and then reverts (1.5h -> 1h), the discount is **RETAINED** because 1h >= Original Commitment (1h).
-    - **Burn Condition**: If `New Duration < Original Commitment` (e.g., 1h -> 30min), the coupon is **BURNED** (Status -> `burned`, Booking Link -> `NULL`). The user loses the discount permanently.
-
-### Frontend Preview
-- **Dashboard**: The UI assumes the "Fair Policy" is active and shows the discounted price by default. It trusts the Backend to strip the discount (Burn) if the policy is violated.
-
----
-
 ### 9. Promotion V2 Architecture (Collectible Wallet)
+
+> **Current Status**: Phase 1 (Core) Complete. Redemption & Micro-conditions Pending.
 
 **A. Collecting a Coupon (`collect-coupon`)**
 1.  **Validate**: Campaign Active? User Quota full?
@@ -372,10 +354,26 @@ When a booking with a **USED** coupon is modified:
     ```
 3.  **Grant**: Insert into `user_coupons`.
 
-**B. Using a Coupon (`book-with-coupon`)**
+**B. Using a Coupon (`book-with-coupon`) [PENDING]**
+*Logic currently not implemented in `create-booking`.*
 1.  **Validate**: Coupon Active? Conditions Met (Field/Time)?
 2.  **Lock Slot**: Check Booking Table for overlaps.
 3.  **Execute**:
     - Create Booking (`is_promo: true`).
     - Mark Coupon as `USED`.
+
+## 8. Anti-Gaming Policy & Fair Logic (2026-01)
+
+### Overview
+To prevent exploiting discounts (e.g., booking 2 hours with a coupon, then reducing to 30 mins), the system enforces an **Anti-Gaming Check** during every booking update.
+
+### Core Logic (Update Booking)
+**Location**: `supabase/functions/update-booking/index.ts`
+
+When a booking with a **USED** coupon is modified:
+1.  **Strict Rule (V2)**: If `New Duration < Old Duration` (Shrink), the coupon is **RELEASED** back to the wallet (`ACTIVE` status) and the booking is recalculated at full price. (Note: Originally planned as 'Burned/Destroyed', currently implemented as 'Return to Wallet' to allow re-booking correctly).
+2.  **Fair Policy (Flexibility)**:
+    - **Price Decrease Allowed**: If a user moves to a cheaper court (e.g., 1800 -> 1100) but keeps the **Same Duration**, the discount is **PRESERVED**. (Reason: Genuine court change, not gaming).
+    - **Duration Check**: Compares `New Duration` vs `Old Duration`.
+
 

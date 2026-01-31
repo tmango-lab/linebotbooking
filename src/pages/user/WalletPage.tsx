@@ -93,6 +93,8 @@ export default function WalletPage() {
         }
     };
 
+    const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
+
     const fetchWallet = async (uid: string) => {
         if (!uid) return;
         setLoading(true);
@@ -100,6 +102,7 @@ export default function WalletPage() {
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+            // 1. Fetch My Coupons
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons?userId=${uid}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -107,6 +110,25 @@ export default function WalletPage() {
             if (!res.ok) throw new Error('Failed to fetch wallet');
             const data = await res.json();
             setWallet(data);
+
+            // 2. Fetch Available Public Campaigns (Client-side for now)
+            // Note: This relies on 'campaigns' table being readable. If RLS blocks, we need a function.
+            // We assume public read is allowed or we use the anon key.
+            const { data: campaigns, error: campError } = await supabase
+                .from('campaigns')
+                .select('*')
+                .eq('is_public', true)
+                .eq('status', 'active')
+                .gt('end_date', new Date().toISOString())
+                .lte('start_date', new Date().toISOString());
+
+            if (!campError && campaigns) {
+                // Filter out ones I already have (optimistic check)
+                // Real check happens at 'collect-coupon'
+                const myCouponCampaignIds = [...data.main, ...data.on_top].map(c => c.campaign_id);
+                const notCollected = campaigns.filter(c => !myCouponCampaignIds.includes(c.id));
+                setAvailableCampaigns(notCollected);
+            }
         } catch (error) {
             console.error(error);
         } finally {
@@ -115,8 +137,8 @@ export default function WalletPage() {
     };
 
     const handleCollect = async () => {
-        if (!userId || !collectDetails.campaignId) {
-            alert('User ID and Campaign ID are required');
+        if (!userId || !collectDetails.secretCode) {
+            alert('กรุณากรอก User ID และ โค้ดลับ');
             return;
         }
 
@@ -133,8 +155,8 @@ export default function WalletPage() {
                 },
                 body: JSON.stringify({
                     userId,
-                    campaignId: collectDetails.campaignId,
-                    secretCode: collectDetails.secretCode || undefined
+                    campaignId: '', // Allow empty for secret code lookup
+                    secretCode: collectDetails.secretCode
                 })
             });
 
@@ -280,35 +302,73 @@ export default function WalletPage() {
                         <h2 className="font-bold text-gray-900">Add Coupon</h2>
                     </div>
                     <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-                        <input
-                            className="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Campaign ID (UUID)"
-                            value={collectDetails.campaignId}
-                            onChange={(e) => setCollectDetails({ ...collectDetails, campaignId: e.target.value })}
-                        />
+                        <div className="bg-yellow-50 p-3 rounded-lg text-yellow-800 text-sm mb-2 text-center">
+                            💡 กรอกโค้ดลับ (เช่น "ป้าขาว") เพื่อรับคูปอง
+                        </div>
                         <div className="relative">
                             <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                             <input
                                 className="w-full bg-gray-50 border-0 rounded-xl p-3 pl-10 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="Secret Code (Optional)"
+                                placeholder="พิมพ์โค้ดลับที่นี่..."
                                 value={collectDetails.secretCode}
                                 onChange={(e) => setCollectDetails({ ...collectDetails, secretCode: e.target.value })}
                             />
                         </div>
                         <button
                             onClick={handleCollect}
-                            disabled={collecting}
+                            disabled={collecting || !collectDetails.secretCode}
                             className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50"
                         >
-                            {collecting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Collect Coupon'}
+                            {collecting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'เก็บคูปอง'}
                         </button>
                     </div>
+                </section>
+
+                {/* Available Coupons (Public Marketplace) */}
+                <section>
+                    <div className="flex justify-between items-center mb-3 px-1">
+                        <h2 className="font-bold text-gray-900">🎁 คูปองแนะนำ (เก็บเลย!)</h2>
+                    </div>
+
+                    {loading ? (
+                        <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-300" /></div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4">
+                            {availableCampaigns.length === 0 ? (
+                                <div className="text-center py-6 bg-white rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
+                                    ไม่มีคูปองให้เก็บในขณะนี้
+                                </div>
+                            ) : (
+                                availableCampaigns.map(camp => (
+                                    <div key={camp.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {camp.is_stackable ? 'On-Top' : 'Main'}
+                                                </span>
+                                                <span className="text-xs text-gray-500 font-medium">เหลือ {camp.remaining_quantity ?? 'ไม่อั้น'} สิทธิ์</span>
+                                            </div>
+                                            <h3 className="font-bold text-gray-900">{camp.name}</h3>
+                                            <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => doAutoCollect(userId, camp.id, '')}
+                                            disabled={collecting}
+                                            className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
+                                        >
+                                            เก็บ
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
                 </section>
 
                 {/* Coupons List */}
                 <section>
                     <div className="flex justify-between items-center mb-3 px-1">
-                        <h2 className="font-bold text-gray-900">Your Coupons</h2>
+                        <h2 className="font-bold text-gray-900">กระเป๋าของฉัน</h2>
                         {wallet.main.length + wallet.on_top.length > 0 && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{wallet.main.length + wallet.on_top.length}</span>}
                     </div>
 
@@ -324,8 +384,8 @@ export default function WalletPage() {
                                     <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
                                         <Ticket className="w-8 h-8 text-gray-300" />
                                     </div>
-                                    <h3 className="text-gray-900 font-medium">No coupons yet</h3>
-                                    <p className="text-gray-400 text-sm mt-1">Enter a campaign ID above to start.</p>
+                                    <h3 className="text-gray-900 font-medium">ยังไม่มีคูปอง</h3>
+                                    <p className="text-gray-400 text-sm mt-1">เก็บคูปองด้านบน หรือกรอกโค้ดลับเพื่อรับสิทธิ์</p>
                                 </div>
                             )}
                         </div>

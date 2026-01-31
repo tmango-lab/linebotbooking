@@ -162,13 +162,16 @@ serve(async (req) => {
             if (isDurationDecreased) {
                 console.log(`[Anti-Gaming] Triggered! Releasing coupons for booking ${matchId}`);
 
-                // Release User Coupons (V2)
+                // Release User Coupons (V2) - STRICT BURN POLICY
+                // If duration shrinks, the coupon is considered 'burned' (gaming attempt or loss of benefit).
                 const { error: releaseError } = await supabase
                     .from('user_coupons')
                     .update({
-                        status: 'ACTIVE',
-                        booking_id: null,
-                        used_at: null
+                        status: 'burned', // Changed from 'ACTIVE' to 'burned'
+                        // booking_id: null, // Keep booking_id to track which booking burned it? 
+                        // Let's keep it linked so we know history. 
+                        // But if we want to "remove" it from the booking visually, maybe the frontend filters by status=used?
+                        // If status is burned, it shouldn't count as a discount anymore.
                     })
                     .eq('booking_id', String(matchId))
                     .eq('status', 'used');

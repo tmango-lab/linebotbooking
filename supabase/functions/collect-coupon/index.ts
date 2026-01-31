@@ -22,17 +22,40 @@ serve(async (req) => {
         // 3. Parse Input
         const { userId, campaignId, secretCode } = await req.json();
 
-        if (!userId || !campaignId) {
-            throw new Error('Missing required fields: userId, campaignId');
+        if (!userId) {
+            throw new Error('User ID is required');
         }
 
-        console.log(`[Collect Checking] User: ${userId}, Campaign: ${campaignId}`);
+        let targetCampaignId = campaignId;
+
+        // 3.1 Lookup Campaign by Secret Code if ID is missing
+        if (!targetCampaignId && secretCode) {
+            const { data: foundCampaigns, error: findError } = await supabase
+                .from('campaigns')
+                .select('id')
+                .contains('secret_codes', [secretCode])
+                .eq('status', 'active')
+                .limit(1);
+
+            if (findError || !foundCampaigns || foundCampaigns.length === 0) {
+                // Try case-insensitive search or just fail
+                throw new Error('Invalid Secret Code (No campaign found)');
+            }
+            targetCampaignId = foundCampaigns[0].id;
+            console.log(`[Secret Code Match] Code "${secretCode}" maps to Campaign ${targetCampaignId}`);
+        }
+
+        if (!targetCampaignId) {
+            throw new Error('Missing Campaign ID or Invalid Secret Code');
+        }
+
+        console.log(`[Collect Checking] User: ${userId}, Campaign: ${targetCampaignId}`);
 
         // 4. Fetch Campaign Details (Availability Check)
         const { data: campaign, error: campaignError } = await supabase
             .from('campaigns')
             .select('*')
-            .eq('id', campaignId)
+            .eq('id', targetCampaignId)
             .single();
 
         if (campaignError || !campaign) {
@@ -68,7 +91,7 @@ serve(async (req) => {
             .from('user_coupons')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId)
-            .eq('campaign_id', campaignId);
+            .eq('campaign_id', targetCampaignId);
 
         if (countError) throw countError;
 
@@ -88,7 +111,7 @@ serve(async (req) => {
             const { data: updated, error: updateError } = await supabase
                 .from('campaigns')
                 .update({ remaining_quantity: campaign.remaining_quantity - 1 })
-                .eq('id', campaignId)
+                .eq('id', targetCampaignId)
                 .eq('remaining_quantity', campaign.remaining_quantity) // Optimistic Lock: Value must match what we read
                 .gt('remaining_quantity', 0) // Extra Safety
                 .select();
@@ -117,7 +140,7 @@ serve(async (req) => {
             .from('user_coupons')
             .insert({
                 user_id: userId,
-                campaign_id: campaignId,
+                campaign_id: targetCampaignId,
                 status: 'ACTIVE',
                 expires_at: expiresAt
             })
@@ -135,7 +158,18 @@ serve(async (req) => {
 
         return new Response(JSON.stringify({
             success: true,
-            data: newCoupon,
+            data: {
+                ...newCoupon,
+                campaign: {
+                    name: campaign.name,
+                    description: campaign.description,
+                    eligible_fields: campaign.eligible_fields,
+                    payment_methods: campaign.payment_methods,
+                    valid_time_start: campaign.valid_time_start,
+                    valid_time_end: campaign.valid_time_end,
+                    image_url: campaign.image_url
+                }
+            },
             message: 'Coupon collected successfully'
         }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },

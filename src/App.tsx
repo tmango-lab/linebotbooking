@@ -7,7 +7,10 @@ import './App.css';
 import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/admin/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
+import CustomerPage from './pages/admin/CustomerPage';
+import ReportPage from './pages/admin/ReportPage';
 import PromoCodePage from './pages/admin/PromoCodePage';
+import CampaignPage from './pages/admin/CampaignPage'; // New V2
 import WalletPage from './pages/user/WalletPage';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
@@ -174,6 +177,9 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="customers" element={<CustomerPage />} />
+          <Route path="campaigns" element={<CampaignPage />} /> {/* New V2 */}
+          <Route path="reports" element={<ReportPage />} />
           <Route path="promo-codes" element={<PromoCodePage />} />
         </Route>
 

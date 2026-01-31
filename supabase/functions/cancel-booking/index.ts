@@ -16,7 +16,7 @@ serve(async (req) => {
     }
 
     try {
-        const { matchId, reason } = await req.json();
+        const { matchId, reason, isRefunded } = await req.json();
 
         if (!matchId) {
             return new Response(JSON.stringify({ error: 'Missing matchId' }), {
@@ -25,14 +25,15 @@ serve(async (req) => {
             });
         }
 
-        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}`);
+        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}, Refunded: ${isRefunded}`);
 
         // Update booking status to cancelled in Local DB
         const { data, error } = await supabase
             .from('bookings')
             .update({
                 status: 'cancelled',
-                admin_note: reason || 'Cancelled via System',
+                admin_note: (reason || 'Cancelled via System') + (isRefunded ? ' [REFUNDED]' : ''),
+                is_refunded: !!isRefunded,
                 updated_at: new Date().toISOString()
             })
             .eq('booking_id', String(matchId))

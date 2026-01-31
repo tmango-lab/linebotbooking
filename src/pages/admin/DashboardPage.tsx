@@ -20,6 +20,7 @@ interface MatchdayMatch {
     source?: string;
     is_promo?: boolean;
     discount?: number;
+    is_refunded?: boolean;
     [key: string]: any;
 }
 
@@ -578,7 +579,7 @@ export default function DashboardPage() {
     }
 
     // --- Create Action ---
-    const handleConfirmCreate = async (data: { name: string; phone: string; note: string }) => {
+    const handleConfirmCreate = async (data: { name: string; phone: string; note: string; paymentMethod: string; campaignId?: string }) => {
         if (!pendingCreate) return;
         try {
             // Use Service Role Key for admin access (same as get-bookings)
@@ -593,7 +594,9 @@ export default function DashboardPage() {
                     endTime: pendingCreate.endTime,
                     customerName: data.name,
                     phoneNumber: data.phone,
-                    note: data.note
+                    note: data.note,
+                    paymentMethod: data.paymentMethod,
+                    campaignId: data.campaignId
                 })
             });
             if (!res.ok) throw new Error(await res.text());

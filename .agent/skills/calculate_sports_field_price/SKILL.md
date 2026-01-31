@@ -55,6 +55,13 @@ To ensure prices sum up intuitively for 30-minute slots, **each segment is calcu
 *   **Step 2 (Post):** 0.5 * 700 = 350 -> **Round UP to 400**
 *   **Step 3 (Total):** 500 + 400 = **900 THB**
 
+## 3. Anti-Gaming Policy (Discounts)
+
+To prevent users from gaming the system (e.g., booking expensive slots with coupons and then switching to cheap slots or shorter times):
+
+*   **Rule 1: Duration Shrink = Burn**: If a booking's duration is reduced (e.g. 1.5h -> 1h), any existing discount is **REMOVED**.
+*   **Rule 2: Court Move = Safe**: If a booking is moved to a different court or time, checking only the duration. If the duration is the same (or longer), the discount is **PRESERVED**, even if the new court is cheaper.
+
 ## Implementation Snippet
 
 ```typescript
