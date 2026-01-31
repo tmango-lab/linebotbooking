@@ -196,17 +196,22 @@ export default function DashboardPage() {
             const booking = bookings.find(b => b.id === existingBookingId);
             // Verify if this is the same booking we are modifying (it usually is)
             if (booking?.discount && booking.discount > 0) {
-                // Anti-Gaming: Check if duration decreased
+                // Anti-Gaming: Check if duration decreased OR price decreased
                 const originalStart = new Date(booking.time_start.replace(' ', 'T'));
                 const originalEnd = new Date(booking.time_end.replace(' ', 'T'));
                 const originalDurationMin = (originalEnd.getTime() - originalStart.getTime()) / (1000 * 60);
                 const newDurationMin = endMin - startMin;
 
-                // Only apply discount if duration didn't decrease
-                if (newDurationMin >= originalDurationMin) {
+                // Calculate original full price (before discount)
+                const originalPrice = booking.price_total_thb;
+                const isPriceDecreased = basePrice < originalPrice;
+                const isDurationDecreased = newDurationMin < originalDurationMin;
+
+                // Only apply discount if NEITHER price nor duration decreased
+                if (!isPriceDecreased && !isDurationDecreased) {
                     basePrice = Math.max(0, basePrice - booking.discount);
                 }
-                // else: Duration decreased - charge full price (Anti-Gaming)
+                // else: Anti-Gaming triggered - charge full price
             }
         }
         return basePrice;
