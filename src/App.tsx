@@ -110,7 +110,7 @@ function StatusPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa', color: '#333' }}>
       <h1>Supabase Status (Debug v3)</h1>
 
       {/* ALWAYS SHOW LOGS IF LIFF.STATE EXISTS */}
@@ -175,6 +175,9 @@ function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="promo-codes" element={<PromoCodePage />} />
         </Route>
+
+        {/* Catch All - Redirect to Status Page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
   );
