@@ -165,7 +165,7 @@ export default function DashboardPage() {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
 
-    function calculateEstimatedPrice(courtId: number, startMin: number, endMin: number, existingBookingId?: string | number): number {
+    function calculateBasePrice(courtId: number, startMin: number, endMin: number): number {
         const court = COURTS.find(c => c.id === courtId);
         if (!court) return 0;
         const durationH = (endMin - startMin) / 60;
@@ -186,10 +186,15 @@ export default function DashboardPage() {
         let prePrice = preHours * court.price_pre;
         let postPrice = postHours * court.price_post;
 
+        // Round up logic
         if (prePrice > 0 && prePrice % 100 !== 0) prePrice = Math.ceil(prePrice / 100) * 100;
         if (postPrice > 0 && postPrice % 100 !== 0) postPrice = Math.ceil(postPrice / 100) * 100;
 
-        let basePrice = Math.round(prePrice + postPrice);
+        return Math.round(prePrice + postPrice);
+    }
+
+    function calculateEstimatedPrice(courtId: number, startMin: number, endMin: number, existingBookingId?: string | number): number {
+        let basePrice = calculateBasePrice(courtId, startMin, endMin);
 
         // Check for existing discount
         if (existingBookingId) {
@@ -199,18 +204,26 @@ export default function DashboardPage() {
                 // Anti-Gaming: Check if duration decreased OR price decreased
                 const originalStart = new Date(booking.time_start.replace(' ', 'T'));
                 const originalEnd = new Date(booking.time_end.replace(' ', 'T'));
-                const originalDurationMin = (originalEnd.getTime() - originalStart.getTime()) / (1000 * 60);
-                const newDurationMin = endMin - startMin;
+
+                // Calculate original minutes
+                const originalStartMin = originalStart.getHours() * 60 + originalStart.getMinutes();
+                const originalEndMin = originalEnd.getHours() * 60 + originalEnd.getMinutes();
+                const originalDurationMin = originalEndMin - originalStartMin;
+
+                const newDurationMin = Math.round(endMin - startMin);
 
                 // Calculate original full price (before discount)
-                const originalPrice = booking.price_total_thb;
-                const isPriceDecreased = basePrice < originalPrice;
-                const isDurationDecreased = newDurationMin < originalDurationMin;
+                // Fix: Don't rely on price_total_thb which might be missing. Re-calculate it.
+                const originalPrice = calculateBasePrice(booking.court_id, originalStartMin, originalEndMin);
+
+                // Use epsilon/rounding to prevent floating point noise triggering "Decrease"
+                const isPriceDecreased = basePrice < originalPrice - 1;
+                const isDurationDecreased = newDurationMin < originalDurationMin - 1;
 
                 console.log(`[Anti-Gaming] Original: ${originalPrice}, New: ${basePrice}, Discount: ${booking.discount}, isPriceDecreased: ${isPriceDecreased}, isDurationDecreased: ${isDurationDecreased}`);
 
-                // Only apply discount if NEITHER price nor duration decreased
-                if (!isPriceDecreased && !isDurationDecreased) {
+                // Only apply discount if duration is NOT decreased. (We allow price decrease if duration constant)
+                if (!isDurationDecreased) {
                     basePrice = Math.max(0, basePrice - booking.discount);
                     console.log(`[Anti-Gaming] Applying discount. Final: ${basePrice}`);
                 } else {

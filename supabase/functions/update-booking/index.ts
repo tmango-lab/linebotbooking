@@ -159,7 +159,7 @@ serve(async (req) => {
 
             let couponBurned = false;
 
-            if (isPriceDecreased || isDurationDecreased) {
+            if (isDurationDecreased) {
                 console.log(`[Anti-Gaming] Triggered! Releasing coupons for booking ${matchId}`);
 
                 // Release User Coupons (V2)
@@ -224,9 +224,9 @@ serve(async (req) => {
 
                 console.log(`[DEBUG] Calculated Price: ${calculatedPrice}, Provided Price: ${price}`);
 
-                if (couponBurned || isPriceDecreased || isDurationDecreased) {
-                    // Coupon was burned OR price/duration decreased - charge FULL PRICE (no discount)
-                    const reason = couponBurned ? 'Coupon Burned' : (isPriceDecreased ? 'Price Drop' : 'Duration Shrink');
+                if (couponBurned || isDurationDecreased) {
+                    // Coupon was burned OR duration decreased - charge FULL PRICE (no discount)
+                    const reason = couponBurned ? 'Coupon Burned' : 'Duration Shrink';
                     console.log(`[Anti-Gaming] Charging full price: ${calculatedPrice} THB (Reason: ${reason})`);
                     updatePayload.price_total_thb = calculatedPrice;
                     updatePayload.is_promo = false;
