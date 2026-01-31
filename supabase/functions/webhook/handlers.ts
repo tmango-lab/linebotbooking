@@ -273,6 +273,7 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
             },
             body: JSON.stringify({
                 userId: userId,
+                campaignId: campaignId,
                 secretCode: secretCode
             })
         });
