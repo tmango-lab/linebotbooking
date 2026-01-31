@@ -22,6 +22,8 @@ serve(async (req) => {
         // 3. Parse Input
         const { userId, campaignId, secretCode } = await req.json();
 
+        console.log(`[Collect Start] userId: ${userId}, campaignId: ${campaignId}, secretCode: ${secretCode}`);
+
         if (!userId) {
             throw new Error('User ID is required');
         }
@@ -30,12 +32,16 @@ serve(async (req) => {
 
         // 3.1 Lookup Campaign by Secret Code if ID is missing
         if (!targetCampaignId && secretCode) {
+            console.log(`[Secret Code Lookup] Searching for code: "${secretCode}"`);
+
             const { data: foundCampaigns, error: findError } = await supabase
                 .from('campaigns')
                 .select('id')
                 .contains('secret_codes', [secretCode])
                 .eq('status', 'ACTIVE')
                 .limit(1);
+
+            console.log(`[Secret Code Result] found: ${foundCampaigns?.length || 0}, error: ${findError?.message || 'none'}`);
 
             if (findError || !foundCampaigns || foundCampaigns.length === 0) {
                 // Try case-insensitive search or just fail
