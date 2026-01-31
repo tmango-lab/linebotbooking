@@ -34,7 +34,7 @@ serve(async (req) => {
                 .from('campaigns')
                 .select('id')
                 .contains('secret_codes', [secretCode])
-                .eq('status', 'active')
+                .eq('status', 'ACTIVE')
                 .limit(1);
 
             if (findError || !foundCampaigns || foundCampaigns.length === 0) {
