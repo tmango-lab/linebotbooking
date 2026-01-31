@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye } from 'lucide-react';
+import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code } from 'lucide-react';
 import CampaignModal from '../../components/admin/CampaignModal';
 
 export default function CampaignPage() {
@@ -58,6 +58,76 @@ export default function CampaignPage() {
             console.error('Error deleting campaign:', error);
             alert('Failed to delete campaign');
         }
+    };
+
+    const handleCopyFlexJson = (campaign: any) => {
+        const walletUrl = `${window.location.origin}/#/wallet`;
+
+        const flexMessage = {
+            type: "bubble",
+            hero: {
+                type: "image",
+                url: campaign.image_url || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1000&auto=format&fit=crop",
+                size: "full",
+                aspectRatio: "20:13",
+                aspectMode: "cover",
+                action: {
+                    type: "uri",
+                    uri: walletUrl
+                }
+            },
+            body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                    {
+                        type: "text",
+                        text: "SPECIAL REWARD",
+                        weight: "bold",
+                        color: "#D4AF37",
+                        size: "xs"
+                    },
+                    {
+                        type: "text",
+                        text: campaign.name,
+                        weight: "bold",
+                        size: "xl",
+                        margin: "md",
+                        wrap: true
+                    },
+                    {
+                        type: "text",
+                        text: campaign.description || "Limited time offer!",
+                        size: "sm",
+                        color: "#999999",
+                        margin: "sm",
+                        wrap: true
+                    }
+                ]
+            },
+            footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                    {
+                        type: "button",
+                        style: "primary",
+                        height: "sm",
+                        action: {
+                            type: "uri",
+                            label: "Collect Coupon",
+                            uri: walletUrl
+                        },
+                        color: "#1F2937"
+                    }
+                ]
+            }
+        };
+
+        const jsonString = JSON.stringify(flexMessage, null, 2);
+        navigator.clipboard.writeText(jsonString);
+        alert("Copied Flex JSON! Paste into LINE OA Manager.");
     };
 
     const handleCopyLink = (campaign: any) => {
@@ -199,6 +269,14 @@ export default function CampaignPage() {
 
                                 {/* Action Buttons */}
                                 <div className="mt-5 pt-4 border-t border-gray-100 flex justify-between items-center bg-gray-50/50 -mx-5 px-5 py-3">
+                                    <button
+                                        onClick={() => handleCopyFlexJson(campaign)}
+                                        className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all mr-2"
+                                        title="Copy Flex Message JSON"
+                                    >
+                                        <Code className="w-3 h-3 mr-1.5" />
+                                        JSON
+                                    </button>
                                     <button
                                         onClick={() => handleCopyLink(campaign)}
                                         className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all"
