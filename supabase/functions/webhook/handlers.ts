@@ -9,6 +9,7 @@ import { calculatePrice } from '../_shared/pricingService.ts';
 import { getOrCreatePromoCode } from '../_shared/promoService.ts';
 import { getProfile, upsertProfile, parseProfileInput } from '../_shared/profileService.ts';
 import { supabase } from '../_shared/supabaseClient.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import {
     buildSelectDateFlex,
