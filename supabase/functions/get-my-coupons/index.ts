@@ -55,8 +55,7 @@ serve(async (req) => {
                     image_url,
                     eligible_fields,
                     payment_methods,
-                    allowed_time_range,
-                    days_of_week
+                    allowed_time_range
                 )
             `)
             .eq('user_id', userId)

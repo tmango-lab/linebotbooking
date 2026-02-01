@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debug Wallet API</title>
+    <title>Debug Wallet API v2</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -62,26 +62,36 @@
         .info {
             color: #569cd6;
         }
+
+        input {
+            width: 400px;
+            padding: 8px;
+            margin: 10px 0;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
 <body>
-    <h1>🔍 Debug: get-my-coupons API</h1>
+    <h1>🔍 Debug: get-my-coupons API (v2 - Fixed)</h1>
 
     <div>
         <label>User ID:</label><br>
-        <input type="text" id="userId" value="Ua636ab14081b483636896549d2026398"
-            style="width: 400px; padding: 8px; margin: 10px 0;">
+        <input type="text" id="userId" value="Ua636ab14081b483636896549d2026398">
     </div>
 
     <button onclick="testAPI()">🧪 Test API</button>
     <button onclick="clearOutput()">🗑️ Clear</button>
 
     <h2>Output:</h2>
-    <div id="output"></div>
+    <div id="output">Ready! API Key updated. Click "Test API" to start.</div>
 
     <script>
         const SUPABASE_URL = 'https://kyprnvazjyilthdzhqxh.supabase.co';
+        // Updated API key - this is the correct JWT token
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5cHJudmF6anlpbHRoZHpocXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcwOTk4MzksImV4cCI6MjA1MjY3NTgzOX0.uqTZJWTcxWnZQqJUZqDMCLwHqGdMWPJCILSQKDJOKhY';
 
         const output = document.getElementById('output');
@@ -103,7 +113,9 @@
             const userId = document.getElementById('userId').value;
 
             log('🔍 Testing get-my-coupons API...', 'info');
-            log(`User ID: ${userId}\n`, 'info');
+            log(`User ID: ${userId}`, 'info');
+            log(`API Key: ${SUPABASE_ANON_KEY.substring(0, 50)}...`, 'info');
+            log('', 'info');
 
             try {
                 // Create Supabase client
@@ -119,6 +131,8 @@
 
                     if (authError) {
                         log(`❌ Auth failed: ${authError.message}`, 'error');
+                        log(`   Error code: ${authError.code}`, 'error');
+                        log(`   Error status: ${authError.status}`, 'error');
                         return;
                     }
 
@@ -130,9 +144,10 @@
 
                 const token = session.access_token;
                 log(`   Token: ${token.substring(0, 30)}...`, 'info');
+                log('', 'info');
 
                 // Call API
-                log('\n📡 Calling get-my-coupons API...', 'info');
+                log('📡 Calling get-my-coupons API...', 'info');
                 const response = await fetch(`${SUPABASE_URL}/functions/v1/get-my-coupons`, {
                     method: 'POST',
                     headers: {
@@ -147,48 +162,57 @@
 
                 const data = await response.json();
 
-                log('\n📦 Response Body:', 'info');
+                log('', 'info');
+                log('📦 Response Body:', 'info');
                 log(JSON.stringify(data, null, 2), 'info');
+                log('', 'info');
 
                 if (data.success) {
-                    log('\n✅ API Success!', 'success');
+                    log('✅ API Success!', 'success');
                     log(`   Main Coupons: ${data.main?.length || 0}`, 'success');
                     log(`   On-Top Coupons: ${data.on_top?.length || 0}`, 'success');
                     log(`   Total: ${data.total || 0}`, 'success');
+                    log('', 'info');
 
                     if (data.total === 0) {
-                        log('\n⚠️ No coupons returned!', 'warning');
+                        log('⚠️ No coupons returned!', 'warning');
                         log('   Possible reasons:', 'warning');
-                        log('   1. expires_at is NULL', 'warning');
-                        log('   2. expires_at is in the past', 'warning');
+                        log('   1. expires_at is NULL (old coupons before fix)', 'warning');
+                        log('   2. expires_at is in the past (expired)', 'warning');
                         log('   3. status is not ACTIVE', 'warning');
                         log('   4. No coupons exist for this user', 'warning');
-                        log('\n💡 Run debug_wallet_issue.sql to investigate', 'info');
+                        log('', 'info');
+                        log('💡 Solution: Try collecting a NEW coupon in LINE Bot', 'info');
+                        log('   1. Type "ป้าขาว" in LINE', 'info');
+                        log('   2. Click "🎁 รับเลย!"', 'info');
+                        log('   3. Run this test again', 'info');
                     } else {
-                        log('\n📝 Coupons found:', 'success');
+                        log('📝 Coupons found:', 'success');
                         [...(data.main || []), ...(data.on_top || [])].forEach((c, i) => {
                             log(`   ${i + 1}. ${c.name || 'Unnamed'}`, 'success');
                             log(`      Coupon ID: ${c.coupon_id}`, 'info');
                             log(`      Campaign ID: ${c.campaign_id}`, 'info');
                             log(`      Expires: ${c.expiry}`, 'info');
                             log(`      Benefit: ${JSON.stringify(c.benefit)}`, 'info');
+                            log('', 'info');
                         });
                     }
                 } else if (data.error) {
-                    log(`\n❌ API Error: ${data.error}`, 'error');
+                    log(`❌ API Error: ${data.error}`, 'error');
                 } else {
-                    log('\n⚠️ Unexpected response format', 'warning');
+                    log('⚠️ Unexpected response format', 'warning');
                 }
 
             } catch (error) {
-                log(`\n🔥 Request Failed: ${error.message}`, 'error');
+                log(`🔥 Request Failed: ${error.message}`, 'error');
                 console.error(error);
             }
         }
 
-        // Auto-run on load
+        // Show ready message
         window.addEventListener('load', () => {
-            log('Ready! Click "Test API" to start.', 'info');
+            log('✅ Page loaded with updated API key', 'success');
+            log('Click "Test API" button to start testing', 'info');
         });
     </script>
 </body>
