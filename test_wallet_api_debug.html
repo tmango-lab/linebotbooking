@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Wallet API</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        h1 {
+            color: #4ec9b0;
+        }
+
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 10px 5px;
+        }
+
+        button:hover {
+            background: #1177bb;
+        }
+
+        #output {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .success {
+            color: #4ec9b0;
+        }
+
+        .error {
+            color: #f48771;
+        }
+
+        .warning {
+            color: #ce9178;
+        }
+
+        .info {
+            color: #569cd6;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Debug: get-my-coupons API</h1>
+
+    <div>
+        <label>User ID:</label><br>
+        <input type="text" id="userId" value="Ua636ab14081b483636896549d2026398"
+            style="width: 400px; padding: 8px; margin: 10px 0;">
+    </div>
+
+    <button onclick="testAPI()">🧪 Test API</button>
+    <button onclick="clearOutput()">🗑️ Clear</button>
+
+    <h2>Output:</h2>
+    <div id="output"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://kyprnvazjyilthdzhqxh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5cHJudmF6anlpbHRoZHpocXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY3NTU3MzAsImV4cCI6MjA1MjMzMTczMH0.cYqGLqEGnPxQJCmEZfgUNnCkQVDjJXuNNXXjMKzBgdI';
+
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const span = document.createElement('span');
+            span.className = type;
+            span.textContent = message + '\n';
+            output.appendChild(span);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+
+        async function testAPI() {
+            clearOutput();
+            const userId = document.getElementById('userId').value;
+
+            log('🔍 Testing get-my-coupons API...', 'info');
+            log(`User ID: ${userId}\n`, 'info');
+
+            try {
+                // Create Supabase client
+                const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                // Get or create session
+                log('🔐 Getting session...', 'info');
+                let { data: { session } } = await supabase.auth.getSession();
+
+                if (!session) {
+                    log('   No session found, signing in anonymously...', 'warning');
+                    const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+
+                    if (authError) {
+                        log(`❌ Auth failed: ${authError.message}`, 'error');
+                        return;
+                    }
+
+                    session = authData.session;
+                    log('   ✅ Anonymous session created', 'success');
+                } else {
+                    log('   ✅ Existing session found', 'success');
+                }
+
+                const token = session.access_token;
+                log(`   Token: ${token.substring(0, 30)}...`, 'info');
+
+                // Call API
+                log('\n📡 Calling get-my-coupons API...', 'info');
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/get-my-coupons`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'apikey': SUPABASE_ANON_KEY
+                    },
+                    body: JSON.stringify({ userId })
+                });
+
+                log(`📊 Response Status: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+
+                const data = await response.json();
+
+                log('\n📦 Response Body:', 'info');
+                log(JSON.stringify(data, null, 2), 'info');
+
+                if (data.success) {
+                    log('\n✅ API Success!', 'success');
+                    log(`   Main Coupons: ${data.main?.length || 0}`, 'success');
+                    log(`   On-Top Coupons: ${data.on_top?.length || 0}`, 'success');
+                    log(`   Total: ${data.total || 0}`, 'success');
+
+                    if (data.total === 0) {
+                        log('\n⚠️ No coupons returned!', 'warning');
+                        log('   Possible reasons:', 'warning');
+                        log('   1. expires_at is NULL', 'warning');
+                        log('   2. expires_at is in the past', 'warning');
+                        log('   3. status is not ACTIVE', 'warning');
+                        log('   4. No coupons exist for this user', 'warning');
+                        log('\n💡 Run debug_wallet_issue.sql to investigate', 'info');
+                    } else {
+                        log('\n📝 Coupons found:', 'success');
+                        [...(data.main || []), ...(data.on_top || [])].forEach((c, i) => {
+                            log(`   ${i + 1}. ${c.name || 'Unnamed'}`, 'success');
+                            log(`      Coupon ID: ${c.coupon_id}`, 'info');
+                            log(`      Campaign ID: ${c.campaign_id}`, 'info');
+                            log(`      Expires: ${c.expiry}`, 'info');
+                            log(`      Benefit: ${JSON.stringify(c.benefit)}`, 'info');
+                        });
+                    }
+                } else if (data.error) {
+                    log(`\n❌ API Error: ${data.error}`, 'error');
+                } else {
+                    log('\n⚠️ Unexpected response format', 'warning');
+                }
+
+            } catch (error) {
+                log(`\n🔥 Request Failed: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            log('Ready! Click "Test API" to start.', 'info');
+        });
+    </script>
+</body>
+
+</html>
