@@ -111,16 +111,14 @@ export default function WalletPage() {
                 session = authData.session;
             }
 
-            const SUPABASE_URL = 'https://kyprnvazjyilthdzhqxh.supabase.co';
-            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5cHJudmF6anlpbHRoZHpocXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcwOTk4MzksImV4cCI6MjA1MjY3NTgzOX0.uqTZJWTcxWnZQqJUZqDMCLwHqGdMWPJCILSQKDJOKhY';
-            const token = session?.access_token ?? SUPABASE_ANON_KEY;
+            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             // 1. Fetch My Coupons
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-coupons`, {
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'apikey': SUPABASE_ANON_KEY,
+                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ userId: uid })
