@@ -4,15 +4,17 @@ import { Loader2, Ticket, Gift, Lock, Send } from 'lucide-react';
 import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
 
 interface Coupon {
-    id: string; // user_coupon_id
+    coupon_id: string; // user_coupon_id (from API)
     campaign_id: string;
     name: string;
-    description?: string;
-    benefit_type: 'DISCOUNT' | 'REWARD';
-    benefit_value: any;
+    description?: string | null;
+    expiry: string; // API returns 'expiry' not 'expires_at'
+    image?: string | null;
+    benefit: {
+        type: 'DISCOUNT' | 'REWARD';
+        value: any;
+    };
     conditions: any;
-    expires_at: string;
-    created_at: string;
 }
 
 interface Wallet {
@@ -245,7 +247,7 @@ export default function WalletPage() {
                             <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${badgeClass}`}>
                                 {type}
                             </span>
-                            {coupon.benefit_type === 'DISCOUNT' && (
+                            {coupon.benefit.type === 'DISCOUNT' && (
                                 <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
                                     Discount
                                 </span>
@@ -253,9 +255,9 @@ export default function WalletPage() {
                         </div>
                         <h3 className="font-bold text-lg leading-tight mb-1">{coupon.name}</h3>
                         <p className={`text-sm ${isMain ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {coupon.benefit_type === 'DISCOUNT'
-                                ? (coupon.benefit_value.amount ? `Save ฿${coupon.benefit_value.amount}` : `Save ${coupon.benefit_value.percent}%`)
-                                : `Free ${coupon.benefit_value.item}`
+                            {coupon.benefit.type === 'DISCOUNT'
+                                ? (coupon.benefit.value.amount ? `Save ฿${coupon.benefit.value.amount}` : `Save ${coupon.benefit.value.percent}%`)
+                                : `Free ${coupon.benefit.value.item}`
                             }
                         </p>
                     </div>
@@ -268,8 +270,8 @@ export default function WalletPage() {
 
                 <div className="flex justify-between items-end">
                     <div className="text-xs opacity-60">
-                        <p>Code: <span className="font-mono tracking-widest font-bold">{coupon.id.slice(0, 8)}...</span></p>
-                        <p>Exp: {coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : 'No Expiry'}</p>
+                        <p>Code: <span className="font-mono tracking-widest font-bold">{coupon.coupon_id.slice(0, 8)}...</span></p>
+                        <p>Exp: {coupon.expiry ? new Date(coupon.expiry).toLocaleDateString() : 'No Expiry'}</p>
                     </div>
                     <button className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
                         Use Now
@@ -393,8 +395,8 @@ export default function WalletPage() {
                         <div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-gray-300 mx-auto" /></div>
                     ) : (
                         <div className="space-y-4">
-                            {wallet.main.map(c => <CouponCard key={c.id} coupon={c} type="Main" />)}
-                            {wallet.on_top.map(c => <CouponCard key={c.id} coupon={c} type="On-top" />)}
+                            {wallet.main.map(c => <CouponCard key={c.coupon_id} coupon={c} type="Main" />)}
+                            {wallet.on_top.map(c => <CouponCard key={c.coupon_id} coupon={c} type="On-top" />)}
 
                             {wallet.main.length === 0 && wallet.on_top.length === 0 && (
                                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
