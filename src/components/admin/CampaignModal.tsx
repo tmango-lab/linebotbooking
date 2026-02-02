@@ -145,10 +145,10 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
 
         try {
             // Validation
-            if (!formData.name) throw new Error('Campaign Name is required');
-            if (formData.discount_type === 'amount' && formData.discount_amount <= 0) throw new Error('Invalid discount amount');
-            if (formData.discount_type === 'percent' && (formData.discount_percent <= 0 || formData.discount_percent > 100)) throw new Error('Invalid discount percent');
-            if (formData.discount_type === 'item' && !formData.reward_item) throw new Error('Reward Item Name is required');
+            if (!formData.name) throw new Error('กรุณาระบุชื่อแคมเปญ');
+            if (formData.discount_type === 'amount' && formData.discount_amount <= 0) throw new Error('จำนวนเงินส่วนลดไม่ถูกต้อง');
+            if (formData.discount_type === 'percent' && (formData.discount_percent <= 0 || formData.discount_percent > 100)) throw new Error('เปอร์เซ็นต์ส่วนลดไม่ถูกต้อง');
+            if (formData.discount_type === 'item' && !formData.reward_item) throw new Error('กรุณาระบุชื่อของรางวัล');
 
             const payload = {
                 name: formData.name,
@@ -193,15 +193,15 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || 'Failed to save campaign');
+            setError(err.message || 'บันทึกแคมเปญไม่สำเร็จ');
         } finally {
             setLoading(false);
         }
     };
 
     const daysOfWeek = [
-        { id: 'Mon', label: 'Mon' }, { id: 'Tue', label: 'Tue' }, { id: 'Wed', label: 'Wed' },
-        { id: 'Thu', label: 'Thu' }, { id: 'Fri', label: 'Fri' }, { id: 'Sat', label: 'Sat' }, { id: 'Sun', label: 'Sun' }
+        { id: 'Mon', label: 'จ.' }, { id: 'Tue', label: 'อ.' }, { id: 'Wed', label: 'พ.' },
+        { id: 'Thu', label: 'พฤ.' }, { id: 'Fri', label: 'ศ.' }, { id: 'Sat', label: 'ส.' }, { id: 'Sun', label: 'อา.' }
     ];
 
     return (
@@ -214,7 +214,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     {/* Header */}
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                         <h3 className="text-lg leading-6 font-bold text-gray-900" id="modal-title">
-                            {campaign ? 'Edit Campaign (V2)' : 'Create New Campaign (V2)'}
+                            {campaign ? 'แก้ไขแคมเปญ (V2)' : 'สร้างแคมเปญใหม่ (V2)'}
                         </h3>
                         <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                             <X className="w-6 h-6" />
@@ -234,32 +234,32 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                             <section className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                 <h4 className="flex items-center text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">A</span>
-                                    Basic Info
+                                    ข้อมูลพื้นฐาน
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="col-span-1 md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700">Campaign Name</label>
+                                        <label className="block text-sm font-medium text-gray-700">ชื่อแคมเปญ</label>
                                         <input
                                             type="text"
                                             required
                                             className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.name}
                                             onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                            placeholder="e.g. Flash Sale 2.2"
+                                            placeholder="เช่น Flash Sale 2.2"
                                         />
                                     </div>
                                     <div className="col-span-1 md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700">Description</label>
+                                        <label className="block text-sm font-medium text-gray-700">คำอธิบาย/เงื่อนไขเพิ่มเติม</label>
                                         <textarea
                                             rows={2}
                                             className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.description}
                                             onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                            placeholder="Terms & Conditions..."
+                                            placeholder="เงื่อนไขการใช้งาน..."
                                         />
                                     </div>
                                     <div className="col-span-1 md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700">Banner Image URL</label>
+                                        <label className="block text-sm font-medium text-gray-700">URL รูปภาพแบนเนอร์</label>
                                         <div className="mt-1 flex rounded-lg shadow-sm">
                                             <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
                                                 <ImageIcon className="w-4 h-4" />
@@ -280,39 +280,39 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                             <section className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                 <h4 className="flex items-center text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">B</span>
-                                    Benefit Logic
+                                    รูปแบบสิทธิประโยชน์
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Coupon Type */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Coupon Type</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">ประเภทคูปอง</label>
                                         <div className="flex gap-2">
                                             <button type="button"
                                                 onClick={() => setFormData({ ...formData, is_stackable: false })}
                                                 className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center ${!formData.is_stackable ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'}`}>
-                                                🔴 Main (Exclusive)
+                                                🔴 คูปองหลัก
                                             </button>
                                             <button type="button"
                                                 onClick={() => setFormData({ ...formData, is_stackable: true })}
                                                 className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center ${formData.is_stackable ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}>
-                                                🔵 On-Top (Stackable)
+                                                🔵 คูปองเสริม
                                             </button>
                                         </div>
                                     </div>
 
                                     {/* Acquisition Method */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Acquisition Method</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">วิธีการรับแคมเปญ</label>
                                         <div className="flex gap-2">
                                             <button type="button"
                                                 onClick={() => setFormData({ ...formData, is_public: true })}
                                                 className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center items-center justify-center flex gap-1 ${formData.is_public ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-300 text-gray-600'}`}>
-                                                <Eye className="w-4 h-4" /> Public List
+                                                <Eye className="w-4 h-4" /> แบบสาธารณะ
                                             </button>
                                             <button type="button"
                                                 onClick={() => setFormData({ ...formData, is_public: false })}
                                                 className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center items-center justify-center flex gap-1 ${!formData.is_public ? 'bg-gray-100 border-gray-300 text-gray-800' : 'bg-white border-gray-300 text-gray-600'}`}>
-                                                <EyeOff className="w-4 h-4" /> Hidden (Code)
+                                                <EyeOff className="w-4 h-4" /> แบบใช้รหัสลับ
                                             </button>
                                         </div>
                                     </div>
@@ -320,22 +320,22 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                     {/* Benefit Details */}
                                     <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Benefit Type</label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทส่วนลด</label>
                                             <select
                                                 className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
                                                 value={formData.discount_type}
                                                 onChange={e => setFormData({ ...formData, discount_type: e.target.value })}
                                             >
-                                                <option value="amount">💰 Money Discount (฿)</option>
-                                                <option value="percent">Percent Discount (%)</option>
-                                                <option value="item">🎁 Free Item</option>
+                                                <option value="amount">💰 ลดเป็นจำนวนเงิน (฿)</option>
+                                                <option value="percent">ลดเป็นเปอร์เซ็นต์ (%)</option>
+                                                <option value="item">🎁 รับของรางวัลฟรี</option>
                                             </select>
                                         </div>
 
                                         <div className="md:col-span-2">
                                             {formData.discount_type === 'amount' && (
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Amount (THB)</label>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนเงินที่ลด (บาท)</label>
                                                     <div className="relative rounded-md shadow-sm">
                                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                             <span className="text-gray-500 sm:text-sm">฿</span>
@@ -348,7 +348,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                             )}
                                             {formData.discount_type === 'percent' && (
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Percentage (%)</label>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">เปอร์เซ็นต์ที่ลด (%)</label>
                                                     <div className="relative rounded-md shadow-sm">
                                                         <input type="number" min="0" max="100" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-12 sm:text-sm border-gray-300 rounded-md border p-2"
                                                             value={formData.discount_percent}
@@ -361,9 +361,9 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                             )}
                                             {formData.discount_type === 'item' && (
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Reward Item Name</label>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อของรางวัลที่ได้รับ</label>
                                                     <input type="text" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
-                                                        placeholder="e.g. Namthip Water 1 Pack"
+                                                        placeholder="เช่น น้ำดื่มตราน้ำทิพย์ 1 แพ็ค"
                                                         value={formData.reward_item}
                                                         onChange={e => setFormData({ ...formData, reward_item: e.target.value })} />
                                                 </div>
@@ -377,12 +377,12 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                             <section className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                 <h4 className="flex items-center text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">C</span>
-                                    Conditions
+                                    เงื่อนไขการใช้งาน
                                 </h4>
                                 <div className="space-y-4">
                                     {/* Min Spend */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Spend (Optional)</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ยอดใช้จ่ายขั้นต่ำ (ไม่ระบุได้)</label>
                                         <div className="relative rounded-md shadow-sm max-w-xs">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <span className="text-gray-500 sm:text-sm">฿</span>
@@ -392,12 +392,12 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                 onChange={e => setFormData({ ...formData, min_spend: parseFloat(e.target.value) })}
                                                 placeholder="0" />
                                         </div>
-                                        <p className="mt-1 text-xs text-gray-500">Price must be greater than this to use coupon.</p>
+                                        <p className="mt-1 text-xs text-gray-500">ยอดจองต้องไม่ต่ำกว่าราคาที่กำหนดจึงจะใช้คูปองได้</p>
                                     </div>
 
                                     {/* Eligible Days */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Eligible Days</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">วันที่ใช้งานได้</label>
                                         <div className="flex flex-wrap gap-2">
                                             {daysOfWeek.map(day => (
                                                 <button key={day.id} type="button"
@@ -410,14 +410,14 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                     {day.label}
                                                 </button>
                                             ))}
-                                            {formData.eligible_days.length === 0 && <span className="text-xs text-gray-400 self-center ml-2">(All Days)</span>}
+                                            {formData.eligible_days.length === 0 && <span className="text-xs text-gray-400 self-center ml-2">(ใช้ได้ทุกวัน)</span>}
                                         </div>
                                     </div>
 
                                     {/* Fields & Payments */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Applicable Courts</label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">สนามที่ร่วมรายการ</label>
                                             <div className="flex flex-wrap gap-2">
                                                 {[1, 2, 3, 4, 5, 6].map(id => (
                                                     <button key={id} type="button"
@@ -427,13 +427,13 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                             : 'bg-white text-gray-600 border-gray-300'
                                                             }`}
                                                     >
-                                                        Field {id}
+                                                        สนาม {id}
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Methods</label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">ช่องทางชำระเงิน</label>
                                             <div className="flex flex-wrap gap-2">
                                                 {['CASH', 'QR', 'TRANSFER'].map(method => (
                                                     <button key={method} type="button"
@@ -443,7 +443,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                             : 'bg-white text-gray-600 border-gray-300'
                                                             }`}
                                                     >
-                                                        {method}
+                                                        {method === 'CASH' ? 'เงินสด' : method === 'QR' ? 'QR Code' : 'โอนเงิน'}
                                                     </button>
                                                 ))}
                                             </div>
@@ -472,29 +472,29 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                             <section className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                 <h4 className="flex items-center text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">D</span>
-                                    Inventory & Limits
+                                    จำนวนและข้อจำกัด
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700">Total Quantity</label>
+                                        <label className="block text-sm font-medium text-gray-700">จำนวนทั้งหมด (สิทธิ์)</label>
                                         <input type="number" min="1" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.total_quantity}
                                             onChange={e => setFormData({ ...formData, total_quantity: parseInt(e.target.value) })} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700">Limit Per User</label>
+                                        <label className="block text-sm font-medium text-gray-700">จำกัดสิทธิ์ต่อคน</label>
                                         <input type="number" min="1" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.limit_per_user}
                                             onChange={e => setFormData({ ...formData, limit_per_user: parseInt(e.target.value) })} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                        <label className="block text-sm font-medium text-gray-700">วันที่เริ่มแคมเปญ</label>
                                         <input type="date" required className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.start_date}
                                             onChange={e => setFormData({ ...formData, start_date: e.target.value })} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700">End Date</label>
+                                        <label className="block text-sm font-medium text-gray-700">วันที่สิ้นสุดแคมเปญ</label>
                                         <input type="date" required className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.end_date}
                                             onChange={e => setFormData({ ...formData, end_date: e.target.value })} />
@@ -505,7 +505,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                 {!formData.is_public && (
                                     <div className="mt-6 border-t border-gray-100 pt-4 bg-yellow-50 p-4 rounded-lg">
                                         <h4 className="text-xs font-semibold text-yellow-800 uppercase tracking-wider mb-2 flex items-center">
-                                            <Lock className="w-3 h-3 mr-1" /> Secret Codes (Required for Hidden Campaigns)
+                                            <Lock className="w-3 h-3 mr-1" /> รายการรหัสลับ (จำเป็นสำหรับแคมเปญแบบลับ)
                                         </h4>
                                         <div className="flex gap-2 mb-2">
                                             <input type="text" className="flex-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block sm:text-sm border-yellow-300 rounded-md border p-2"
@@ -529,7 +529,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                 </span>
                                             ))}
                                             {formData.secret_codes.length === 0 && (
-                                                <span className="text-xs text-red-500">* Please add at least one secret code</span>
+                                                <span className="text-xs text-red-500">* กรุณาเพิ่มรหัสลับอย่างน้อย 1 รหัส</span>
                                             )}
                                         </div>
                                     </div>
@@ -551,11 +551,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
 
                             <div className="flex gap-3">
                                 <button type="button" onClick={onClose} className="bg-white py-2 px-6 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">
-                                    Cancel
+                                    ยกเลิก
                                 </button>
                                 <button type="submit" disabled={loading || (!formData.is_public && formData.secret_codes.length === 0)} className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed">
                                     {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : <Save className="-ml-1 mr-2 h-4 w-4" />}
-                                    Save Campaign
+                                    บันทึกแคมเปญ
                                 </button>
                             </div>
                         </div>

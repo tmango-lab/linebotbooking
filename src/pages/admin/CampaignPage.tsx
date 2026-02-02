@@ -44,7 +44,7 @@ export default function CampaignPage() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return;
+        if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแคมเปญนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
 
         try {
             const { error } = await supabase
@@ -56,7 +56,7 @@ export default function CampaignPage() {
             fetchCampaigns();
         } catch (error) {
             console.error('Error deleting campaign:', error);
-            alert('Failed to delete campaign');
+            alert('ลบแคมเปญไม่สำเร็จ');
         }
     };
 
@@ -127,7 +127,7 @@ export default function CampaignPage() {
 
         const jsonString = JSON.stringify(flexMessage, null, 2);
         navigator.clipboard.writeText(jsonString);
-        alert("Copied Flex JSON! Paste into LINE OA Manager.");
+        alert("คัดลอก Flex JSON แล้ว! นำไปวางใน LINE OA Manager ได้เลย");
     };
 
     const handleCopyLink = (campaign: any) => {
@@ -150,7 +150,7 @@ export default function CampaignPage() {
         }
 
         navigator.clipboard.writeText(url);
-        alert(`Copied Link!\n${url}`);
+        alert(`คัดลอกลิงก์แล้ว!\n${url}`);
     };
 
     const filteredCampaigns = campaigns.filter(c =>
@@ -163,15 +163,15 @@ export default function CampaignPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Campaigns (V2)</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage marketing campaigns, coupons, and discounts.</p>
+                    <h1 className="text-2xl font-bold text-gray-900">จัดการแคมเปญ (V2)</h1>
+                    <p className="text-sm text-gray-500 mt-1">จัดการกิจกรรมทางการตลาด, คูปอง และส่วนลดต่างๆ</p>
                 </div>
                 <button
                     onClick={handleCreate}
                     className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
                 >
                     <Plus className="-ml-1 mr-2 h-5 w-5" />
-                    New Campaign
+                    สร้างแคมเปญใหม่
                 </button>
             </div>
 
@@ -184,7 +184,7 @@ export default function CampaignPage() {
                     <input
                         type="text"
                         className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-                        placeholder="Search campaigns..."
+                        placeholder="ค้นหาแคมเปญ..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -212,7 +212,7 @@ export default function CampaignPage() {
                                 <div className="absolute top-2 right-2">
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${campaign.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                                         }`}>
-                                        {campaign.status === 'active' ? 'Active' : 'Inactive'}
+                                        {campaign.status === 'active' ? 'พร้อมใช้งาน' : 'ระงับใช้งาน'}
                                     </span>
                                 </div>
                             </div>
@@ -225,7 +225,7 @@ export default function CampaignPage() {
                                     </h3>
                                 </div>
                                 <p className="text-sm text-gray-500 mb-4 line-clamp-2 min-h-[40px]">
-                                    {campaign.description || 'No description provided.'}
+                                    {campaign.description || 'ไม่มีคำอธิบาย'}
                                 </p>
 
                                 <div className="space-y-2 text-sm text-gray-600">
@@ -233,8 +233,8 @@ export default function CampaignPage() {
                                         <WalletIcon type={campaign.discount_amount > 0 ? 'amount' : 'percent'} />
                                         <span className="ml-2 font-medium text-indigo-700">
                                             {campaign.discount_amount > 0
-                                                ? `${campaign.discount_amount.toLocaleString()} THB Off`
-                                                : `${campaign.discount_percent}% Off`
+                                                ? `ส่วนลด ${campaign.discount_amount.toLocaleString()} บาท`
+                                                : `ส่วนลด ${campaign.discount_percent}%`
                                             }
                                         </span>
                                     </div>
@@ -242,13 +242,13 @@ export default function CampaignPage() {
                                         {campaign.is_public ? (
                                             <>
                                                 <Eye className="w-3.5 h-3.5 mr-2 text-green-500" />
-                                                <span className="text-green-600 text-xs font-semibold">Public List</span>
+                                                <span className="text-green-600 text-xs font-semibold">รายการสาธารณะ</span>
                                             </>
                                         ) : (
                                             <>
                                                 <Lock className="w-3.5 h-3.5 mr-2 text-yellow-500" />
                                                 <span className="text-yellow-700 text-xs font-semibold">
-                                                    Secret: {campaign.secret_codes?.[0] || '???'}
+                                                    รหัสลับ: {campaign.secret_codes?.[0] || '???'}
                                                 </span>
                                             </>
                                         )}
@@ -262,7 +262,7 @@ export default function CampaignPage() {
                                     <div className="flex items-center">
                                         <Layers className="w-4 h-4 mr-2 text-gray-400" />
                                         <span>
-                                            Quota: {campaign.total_quantity} | Limit: {campaign.limit_per_user}/user
+                                            จำนวน: {campaign.total_quantity} | สิทธิ์ต่อคน: {campaign.limit_per_user}
                                         </span>
                                     </div>
                                 </div>
@@ -272,7 +272,7 @@ export default function CampaignPage() {
                                     <button
                                         onClick={() => handleCopyFlexJson(campaign)}
                                         className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all mr-2"
-                                        title="Copy Flex Message JSON"
+                                        title="คัดลอก Flex Message JSON"
                                     >
                                         <Code className="w-3 h-3 mr-1.5" />
                                         JSON
@@ -282,21 +282,21 @@ export default function CampaignPage() {
                                         className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all"
                                     >
                                         <Share2 className="w-3 h-3 mr-1.5" />
-                                        Share Link
+                                        แชร์ลิงก์
                                     </button>
 
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleEdit(campaign)}
                                             className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-white"
-                                            title="Edit"
+                                            title="แก้ไข"
                                         >
                                             <Edit2 className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => handleDelete(campaign.id)}
                                             className="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-white"
-                                            title="Delete"
+                                            title="ลบ"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -308,7 +308,7 @@ export default function CampaignPage() {
 
                     {filteredCampaigns.length === 0 && (
                         <div className="col-span-full text-center py-12 text-gray-500">
-                            No campaigns found. Create one to get started!
+                            ไม่พบแคมเปญ เริ่มสร้างแคมเปญแรกได้เลย!
                         </div>
                     )}
                 </div>
