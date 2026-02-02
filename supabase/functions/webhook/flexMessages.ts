@@ -616,8 +616,11 @@ export function buildSearchAllSlotsCarousel(
 // 7. Coupon Flex Message (Pa-Kao)
 export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string, userId?: string) {
     const LIFF_ID = '2009013698-RcmHMN8h';
-    const walletPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}&userId=${encodeURIComponent(userId || '')}`;
-    const liffUrl = `https://liff.line.me/${LIFF_ID}${walletPath}`;
+    const cleanPath = `/?userId=${encodeURIComponent(userId || '')}`;
+    const collectPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}&userId=${encodeURIComponent(userId || '')}`;
+
+    const walletUrl = `https://liff.line.me/${LIFF_ID}${cleanPath}`;
+    const collectUrl = `https://liff.line.me/${LIFF_ID}${collectPath}`;
     const coverImage = imageUrl || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1000&auto=format&fit=crop";
 
     return {
@@ -631,7 +634,7 @@ export function buildCouponFlex(campaignId: string, secretCode: string, couponNa
                 size: "full",
                 aspectRatio: "20:13",
                 aspectMode: "cover",
-                action: { type: "uri", uri: liffUrl }
+                action: { type: "uri", uri: collectUrl }
             },
             body: {
                 type: "box",
@@ -686,7 +689,7 @@ export function buildCouponFlex(campaignId: string, secretCode: string, couponNa
                     {
                         type: "button",
                         style: "link",
-                        action: { type: "uri", label: "👛 ดูกระเป๋า", uri: liffUrl },
+                        action: { type: "uri", label: "👛 ดูกระเป๋า", uri: walletUrl },
                         height: "sm"
                     },
                     {

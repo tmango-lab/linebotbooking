@@ -87,13 +87,23 @@ export default function WalletPage() {
             });
 
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to collect');
 
-            // Success UI
-            alert(`🎉 ยินดีด้วย! คุณเจอโค้ดลับ "${code}"\nเก็บคูปองเรียบร้อยแล้วครับ!`);
+            if (!res.ok) {
+                // [FIX] Silent ignore if already collected to avoid annoying alerts when viewing wallet
+                if (data.error?.includes('already collected') || data.error?.includes('Limit reached')) {
+                    console.log('Coupon already collected, skipping alert.');
+                } else {
+                    throw new Error(data.error || 'Failed to collect');
+                }
+            } else {
+                // Success UI
+                alert(`🎉 ยินดีด้วย! คุณเจอโค้ดลับ "${code}"\nเก็บคูปองเรียบร้อยแล้วครับ!`);
+            }
 
-            // Clear URL params to prevent re-collect on refresh
-            const newUrl = window.location.pathname + `?userId=${uid}`;
+            // [FIX] Better URL cleanup (Handles HashRouter e.g. /#/wallet?...)
+            const hashValue = window.location.hash || '#/wallet';
+            const cleanHash = hashValue.split('?')[0];
+            const newUrl = `${window.location.pathname}${cleanHash}?userId=${uid}`;
             window.history.replaceState({}, '', newUrl);
 
             // Refresh Wallet
