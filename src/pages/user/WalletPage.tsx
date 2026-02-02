@@ -31,8 +31,19 @@ export default function WalletPage() {
     const [sendingFlex, setSendingFlex] = useState(false);
 
     // Check URL for userId and Auto-Collect Action
+    // Check URL for userId and Auto-Collect Action
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
+        // [FIX] Support HashRouter params (e.g. /#/wallet?userId=...)
+        let params = new URLSearchParams(window.location.search);
+
+        // If empty, check hash params
+        if (window.location.hash.includes('?')) {
+            const hashQuery = window.location.hash.split('?')[1];
+            const hashParams = new URLSearchParams(hashQuery);
+            // Merge params
+            hashParams.forEach((val, key) => params.append(key, val));
+        }
+
         const uid = params.get('userId');
         const action = params.get('action');
         const code = params.get('code');    // Secret Code
