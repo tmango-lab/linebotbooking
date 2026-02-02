@@ -484,6 +484,15 @@ export default function WalletPage() {
                     setShowSelectionModal(false);
                 }}
             />
+            {/* VISUAL DEBUGGER FOR MOBILE */}
+            <div className="mt-8 p-4 bg-gray-100 rounded text-[10px] text-gray-500 break-all font-mono">
+                <p className="font-bold text-gray-700">DEBUG INFO (Capture this if empty):</p>
+                <p>Path: {window.location.pathname}</p>
+                <p>Search: {window.location.search}</p>
+                <p>Hash: {window.location.hash}</p>
+                <p>Extracted UserID: {userId || 'NULL'}</p>
+                <p>Wallet Length: {wallet.main.length + wallet.on_top.length}</p>
+            </div>
         </div>
     );
 }
