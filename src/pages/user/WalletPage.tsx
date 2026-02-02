@@ -118,18 +118,16 @@ export default function WalletPage() {
 
     const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
 
-    const [errorMsg, setErrorMsg] = useState<string>('');
+
 
     const fetchWallet = async (uid: string) => {
         if (!uid) return;
         setLoading(true);
-        setErrorMsg('');
 
         try {
             // Simplified: Use Anon Key directly. Edge function handles privilege.
             const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-            console.log('Fetching coupons for:', uid);
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
                 method: 'POST',
                 headers: {
@@ -140,7 +138,6 @@ export default function WalletPage() {
                 body: JSON.stringify({ userId: uid })
             });
 
-            console.log('API Status:', res.status);
             if (!res.ok) {
                 const errText = await res.text();
                 console.error('API Error:', errText);
@@ -148,11 +145,7 @@ export default function WalletPage() {
             }
 
             const data = await res.json();
-            console.log('API Data:', JSON.stringify(data, null, 2));
-
-            console.log('Setting wallet state...');
             setWallet(data);
-            console.log('Wallet state set command sent.');
 
             // 2. Fetch Available Public Campaigns (Client-side for now)
             // Note: This relies on 'campaigns' table being readable. If RLS blocks, we need a function.
@@ -476,16 +469,6 @@ export default function WalletPage() {
                     setShowSelectionModal(false);
                 }}
             />
-            {/* VISUAL DEBUGGER FOR MOBILE */}
-            <div className="mt-8 p-4 bg-gray-100 rounded text-[10px] text-gray-500 break-all font-mono">
-                <p className="font-bold text-gray-700">DEBUG INFO (Capture this if empty):</p>
-                {errorMsg && <p className="text-red-500 font-bold">ERROR: {errorMsg}</p>}
-                <p>Path: {window.location.pathname}</p>
-                <p>Search: {window.location.search}</p>
-                <p>Hash: {window.location.hash}</p>
-                <p>Extracted UserID: {userId || 'NULL'}</p>
-                <p>Wallet Length: {wallet.main.length + wallet.on_top.length}</p>
-            </div>
         </div>
     );
 }
