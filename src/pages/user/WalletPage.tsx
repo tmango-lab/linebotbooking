@@ -279,9 +279,9 @@ export default function WalletPage() {
                         </div>
                         <h3 className="font-bold text-lg leading-tight mb-1">{coupon.name}</h3>
                         <p className={`text-sm ${isMain ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {coupon.benefit.type === 'DISCOUNT'
-                                ? (coupon.benefit.value.amount ? `Save ฿${coupon.benefit.value.amount}` : `Save ${coupon.benefit.value.percent}%`)
-                                : `Free ${coupon.benefit.value.item}`
+                            {coupon.benefit?.type === 'DISCOUNT'
+                                ? (coupon.benefit?.value?.amount ? `Save ฿${coupon.benefit.value.amount}` : `Save ${coupon.benefit?.value?.percent ?? 0}%`)
+                                : `Free ${coupon.benefit?.value?.item ?? 'Reward'}`
                             }
                         </p>
                     </div>
