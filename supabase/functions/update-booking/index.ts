@@ -147,7 +147,18 @@ serve(async (req) => {
         if (existing) {
             // --- Anti-Gaming Logic Start ---
             const oldPrice = Number(existing.price_total_thb || 0);
-            const oldDuration = Number(existing.duration_h || 0);
+
+            // Re-calculate old duration from time fields if available (to match input precision)
+            let oldDuration = Number(existing.duration_h || 0);
+            if (existing.time_from && existing.time_to) {
+                // Parse existing times (HH:MM:SS)
+                const [startH, startM] = existing.time_from.split(':').map(Number);
+                const [endH, endM] = existing.time_to.split(':').map(Number);
+                const startDec = startH + (startM / 60);
+                const endDec = endH + (endM / 60);
+                oldDuration = endDec - startDec;
+                console.log(`[Anti-Gaming] Recalculated Old Duration: ${oldDuration.toFixed(4)}h (Stored: ${existing.duration_h}h)`);
+            }
 
             const newPrice = price !== undefined ? Number(price) : oldPrice;
             const newDuration = (timeStart && timeEnd) ? (durationMinutes / 60) : oldDuration;
@@ -227,16 +238,22 @@ serve(async (req) => {
 
                 console.log(`[DEBUG] Calculated Price: ${calculatedPrice}, Provided Price: ${price}`);
 
-                if (couponBurned || isDurationDecreased) {
+                // ADMIN OVERRIDE CODE: If price is explicitly provided, TRUST IT.
+                // This function is for Admin use only. If Admin sets a price, they mean it.
+                // Anti-gaming logic is irrelevant here as Admin has authority.
+                if (price !== undefined) {
+                    console.log(`[Price Update] Using provided price (Admin Override): ${price} THB`);
+                    updatePayload.price_total_thb = price;
+
+                    // If price provided matches calculated (without discount), ensure is_promo is false?
+                    // Or just leave it?
+                    // Let's leave is_promo logic to be manually handled or implicitly off if price == calc.
+                } else if (couponBurned || isDurationDecreased) {
                     // Coupon was burned OR duration decreased - charge FULL PRICE (no discount)
                     const reason = couponBurned ? 'Coupon Burned' : 'Duration Shrink';
                     console.log(`[Anti-Gaming] Charging full price: ${calculatedPrice} THB (Reason: ${reason})`);
                     updatePayload.price_total_thb = calculatedPrice;
                     updatePayload.is_promo = false;
-                } else if (price !== undefined) {
-                    // No anti-gaming trigger - use provided price (may include discount)
-                    console.log(`[Price Update] Using provided price: ${price} THB (calculated would be: ${calculatedPrice})`);
-                    updatePayload.price_total_thb = price;
                 } else {
                     // No price provided - use calculated price
                     console.log(`[Price Update] Using calculated price: ${calculatedPrice} THB`);
