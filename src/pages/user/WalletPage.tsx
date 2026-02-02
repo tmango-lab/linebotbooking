@@ -118,25 +118,17 @@ export default function WalletPage() {
 
     const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
 
+    const [errorMsg, setErrorMsg] = useState<string>('');
+
     const fetchWallet = async (uid: string) => {
         if (!uid) return;
         setLoading(true);
+        setErrorMsg('');
+
         try {
-            let { data: { session } } = await supabase.auth.getSession();
+            // Simplified: Use Anon Key directly. Edge function handles privilege.
+            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-            // If no session, create anonymous session to get valid JWT
-            if (!session) {
-                const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
-                if (authError) {
-                    console.error('Failed to create anonymous session:', authError);
-                    throw new Error('Authentication failed');
-                }
-                session = authData.session;
-            }
-
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-            // 1. Fetch My Coupons
             console.log('Fetching coupons for:', uid);
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
                 method: 'POST',
@@ -487,6 +479,7 @@ export default function WalletPage() {
             {/* VISUAL DEBUGGER FOR MOBILE */}
             <div className="mt-8 p-4 bg-gray-100 rounded text-[10px] text-gray-500 break-all font-mono">
                 <p className="font-bold text-gray-700">DEBUG INFO (Capture this if empty):</p>
+                {errorMsg && <p className="text-red-500 font-bold">ERROR: {errorMsg}</p>}
                 <p>Path: {window.location.pathname}</p>
                 <p>Search: {window.location.search}</p>
                 <p>Hash: {window.location.hash}</p>
