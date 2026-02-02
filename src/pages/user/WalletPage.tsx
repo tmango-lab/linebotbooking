@@ -300,6 +300,14 @@ export default function WalletPage() {
 
                 <div className={`my-4 border-t border-dashed ${isMain ? 'border-gray-700' : 'border-gray-200'}`}></div>
 
+                {/* DEBUG INFO FOR MOBILE */}
+                {import.meta.env.DEV && (
+                    <div className="text-[10px] text-gray-400 break-all bg-black/5 p-2 rounded mt-2">
+                        UID: {coupon.coupon_id}<br />
+                        Camp: {coupon.campaign_id}
+                    </div>
+                )}
+
                 <div className="flex justify-between items-end">
                     <div className="text-xs opacity-60">
                         <p>Code: <span className="font-mono tracking-widest font-bold">{coupon.coupon_id.slice(0, 8)}...</span></p>
