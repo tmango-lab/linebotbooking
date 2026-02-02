@@ -116,6 +116,7 @@ export default function WalletPage() {
             const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             // 1. Fetch My Coupons
+            console.log('Fetching coupons for:', uid);
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
                 method: 'POST',
                 headers: {
@@ -126,9 +127,19 @@ export default function WalletPage() {
                 body: JSON.stringify({ userId: uid })
             });
 
-            if (!res.ok) throw new Error('Failed to fetch wallet');
+            console.log('API Status:', res.status);
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error('API Error:', errText);
+                throw new Error('Failed to fetch wallet');
+            }
+
             const data = await res.json();
+            console.log('API Data:', JSON.stringify(data, null, 2));
+
+            console.log('Setting wallet state...');
             setWallet(data);
+            console.log('Wallet state set command sent.');
 
             // 2. Fetch Available Public Campaigns (Client-side for now)
             // Note: This relies on 'campaigns' table being readable. If RLS blocks, we need a function.
