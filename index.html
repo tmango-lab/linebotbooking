@@ -10,11 +10,25 @@
 
 <body>
   <div id="root">
-    <div
-      style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #666;">
-      Loading Application...
+    <div id="loading-screen"
+      style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #666; text-align: center; padding: 20px;">
+      <div style="font-size: 24px; margin-bottom: 20px;">Loading Application...</div>
+      <div id="timeout-msg" style="display: none; color: #f44336; font-size: 14px;">
+        <p>It's taking longer than usual. Please check your internet connection or try opening in an external browser.
+        </p>
+        <p id="debug-info" style="font-family: monospace; font-size: 10px; margin-top: 10px; opacity: 0.5;"></p>
+      </div>
     </div>
   </div>
+  <script>
+    setTimeout(() => {
+      const msg = document.getElementById('timeout-msg');
+      if (document.getElementById('root').innerHTML.includes('Loading Application...')) {
+        msg.style.display = 'block';
+        document.getElementById('debug-info').innerText = 'UA: ' + navigator.userAgent;
+      }
+    }, 8000);
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

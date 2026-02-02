@@ -91,9 +91,9 @@ export async function handleMessage(event: LineEvent) {
 
             const { data: campaign, error } = await supabase
                 .from('campaigns')
-                .select('id, name, image_url, secret_codes')
+                .select('id, name, image_url, secret_codes, status')
                 .contains('secret_codes', [text])
-                .eq('status', 'ACTIVE')
+                .or('status.eq.ACTIVE,status.eq.active')
                 .maybeSingle();
 
             if (error) {
