@@ -6,8 +6,8 @@ interface BookingDetailModalProps {
     onClose: () => void;
     booking: {
         id: string | number;
-        name: string;
-        tel: string;
+        name?: string;
+        tel?: string;
         time_start: string;
         time_end: string;
         price: number;
@@ -43,9 +43,9 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     useEffect(() => {
         if (isOpen && booking) {
             setIsEditingDetails(false);
-            setEditName(booking.name);
-            setEditTel(booking.tel);
-            setEditPrice(booking.price.toString());
+            setEditName(booking.name || '');
+            setEditTel(booking.tel || '');
+            setEditPrice(booking.price?.toString() || '0');
             setEditNote(booking.admin_note || '');
             setIsPaid(!!booking.paid_at);
 
@@ -53,7 +53,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setIsConfirming(false);
             setCancelReason('');
         }
-    }, [isOpen, booking]); // Ensure booking ID is key or deep compare if object ref changes
+    }, [isOpen, booking?.id]); // Depend on ID to prevent resets on parent re-render
 
     if (!isOpen || !booking) return null;
 

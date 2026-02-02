@@ -269,12 +269,6 @@ export default function DashboardPage() {
 
             // Minimal parser (reuse logic but simplified for brevity in rewrite)
             const parsed = (data.bookings || []).map((b: any) => {
-                let finalPrice = b.bill?.total || b.total_price || b.price;
-                const note = b.settings?.note || b.remark;
-                if (note && note.includes('Promo:') && note.includes('Price:')) {
-                    const m = note.match(/Price:\s*(\d+)/);
-                    if (m) finalPrice = parseInt(m[1], 10);
-                }
                 // Try extract name/tel if missing
                 let name = b.name;
                 let tel = b.tel;
@@ -290,6 +284,7 @@ export default function DashboardPage() {
                     }
                 }
 
+                const finalPrice = b.price_total_thb !== undefined ? b.price_total_thb : b.price;
                 return { ...b, name: name || desc, tel: tel, price: finalPrice };
             });
             setBookings(parsed);
@@ -765,11 +760,7 @@ export default function DashboardPage() {
 
             <BookingDetailModal
                 isOpen={!!viewingBooking}
-                booking={viewingBooking ? {
-                    ...viewingBooking,
-                    name: viewingBooking.name || '',
-                    tel: viewingBooking.tel || ''
-                } : null}
+                booking={viewingBooking}
                 onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => { setViewingBooking(null); fetchBookings(selectedDate); }}
                 onBookingUpdated={() => fetchBookings(selectedDate, true)}
