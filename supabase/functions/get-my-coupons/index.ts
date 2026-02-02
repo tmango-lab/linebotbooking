@@ -13,8 +13,18 @@ serve(async (req) => {
     }
 
     try {
+        // Check keys
         const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('VITE_SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+        console.log(`[API Init] URL: ${supabaseUrl ? 'Set' : 'Missing'}`);
+        console.log(`[API Init] Key Length: ${supabaseKey ? supabaseKey.length : 0}`);
+
+        if (!supabaseKey) {
+            console.error('[API Error] Service Role Key is MISSING');
+            throw new Error('Server configuration error');
+        }
+
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         // Get User ID from Body (POST) or Query (GET)
@@ -24,6 +34,7 @@ serve(async (req) => {
         if (req.method === 'POST') {
             const body = await req.json();
             userId = body.userId;
+            console.log('[API] POST Body:', JSON.stringify(body));
         } else {
             const url = new URL(req.url);
             userId = url.searchParams.get('userId') ?? '';
