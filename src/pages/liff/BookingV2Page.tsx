@@ -186,8 +186,13 @@ const BookingV2Page: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#F0F2F5] pb-32">
-            <header className="bg-white p-4 shadow-sm sticky top-0 z-50">
-                <h1 className="text-lg font-bold">New Booking</h1>
+            <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
+                <div>
+                    <h1 className="text-lg font-bold">New Booking</h1>
+                    <p className="text-xs text-gray-500">
+                        Date: {new Date().toLocaleDateString('th-TH')} ({existingBookings.length} bookings)
+                    </p>
+                </div>
             </header>
 
             <main className="p-4 space-y-4">
