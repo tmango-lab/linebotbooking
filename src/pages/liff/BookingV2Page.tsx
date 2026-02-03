@@ -139,7 +139,7 @@ const BookingV2Page: React.FC = () => {
                     }
 
                     // Fetch Profile
-                    const { data: profile, error: profileErr } = await supabase
+                    const { data: profile } = await supabase
                         .from('profiles')
                         .select('*')
                         .eq('user_id', userId)
@@ -232,7 +232,7 @@ const BookingV2Page: React.FC = () => {
     const discount = appliedCoupon ? (appliedCoupon.discount_type === 'FIXED' ? appliedCoupon.discount_value : (originalPrice * appliedCoupon.discount_value) / 100) : 0;
     const finalPrice = Math.max(0, originalPrice - discount);
 
-    const handleFinalConfirm = async (team: string, phone: string) => {
+    const handleFinalConfirm = async (team: string, phone: string, payment: string) => {
         const userId = searchParams.get('userId');
         const now = new Date();
         const offset = now.getTimezoneOffset() * 60000;
@@ -259,7 +259,8 @@ const BookingV2Page: React.FC = () => {
                     endTime: selection!.endTime,
                     customerName: team,
                     phoneNumber: phone,
-                    couponId: appliedCoupon?.id
+                    couponId: appliedCoupon?.id,
+                    paymentMethod: payment
                 })
             });
 

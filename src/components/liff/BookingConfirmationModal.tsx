@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface BookingConfirmationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (teamName: string, phoneNumber: string) => void;
+    onConfirm: (teamName: string, phoneNumber: string, paymentMethod: string) => void;
     bookingDetails: {
         fieldName: string;
         date: string;
@@ -29,6 +29,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
 }) => {
     const [teamName, setTeamName] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState<'transfer' | 'field' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -49,8 +50,12 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
             alert("Please provide a valid Thai phone number (e.g. 0812345678)");
             return;
         }
+        if (!paymentMethod) {
+            alert("Please select a payment method");
+            return;
+        }
         setIsSubmitting(true);
-        onConfirm(teamName.trim(), phoneNumber.trim());
+        onConfirm(teamName.trim(), phoneNumber.trim(), paymentMethod);
     };
 
     return (
@@ -128,6 +133,35 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    <hr className="border-gray-100" />
+
+                    {/* Payment Method */}
+                    <div className="space-y-3">
+                        <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Payment Method</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setPaymentMethod('transfer')}
+                                className={`py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center space-y-1 ${paymentMethod === 'transfer'
+                                    ? 'border-green-500 bg-green-50 text-green-600'
+                                    : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200'
+                                    }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                <span>Transfer</span>
+                            </button>
+                            <button
+                                onClick={() => setPaymentMethod('field')}
+                                className={`py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center space-y-1 ${paymentMethod === 'field'
+                                    ? 'border-green-500 bg-green-50 text-green-600'
+                                    : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200'
+                                    }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                <span>Pay at Field</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="p-6 bg-gray-50 flex space-x-3">
@@ -144,7 +178,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                             ${isSubmitting ? 'opacity-50 grayscale' : 'hover:bg-green-600'}
                         `}
                     >
-                        {isSubmitting ? 'Processing...' : 'Confirm & Pay'}
+                        {isSubmitting ? 'Processing...' : 'Confirm & Book'}
                     </button>
                 </div>
             </div>
