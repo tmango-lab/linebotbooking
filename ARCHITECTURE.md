@@ -375,5 +375,30 @@ When a booking with a **USED** coupon is modified:
 2.  **Fair Policy (Flexibility)**:
     - **Price Decrease Allowed**: If a user moves to a cheaper court (e.g., 1800 -> 1100) but keeps the **Same Duration**, the discount is **PRESERVED**. (Reason: Genuine court change, not gaming).
     - **Duration Check**: Compares `New Duration` vs `Old Duration`.
-
++
++---
++
++## 10. New Seamless Booking UI (Promotion V2 Interface)
++
++### Overview
++A modern, mobile-first booking interface designed for speed, clarity, and automatic value maximization. Available via `?mode=v2` or `?mode=v3` (Vertical).
++
++### Key Components
++1.  **Date Selection (Bottom Sheet)**:
++    - **Trigger**: A sleek "Date Pill" in the header.
++    - **Modal**: A native-feeling slide-up bottom sheet with a 7-column calendar grid.
++    - **Range**: Supports browsing any month via Prev/Next navigation.
++2.  **Booking Grid**:
++    - **V2**: Horizontal scrollable grid for a multi-court overview.
++    - **V3**: Vertical layout optimized for single-hand mobile use.
++3.  **Auto-Apply Coupon Logic**:
++    - Fetches the user's active coupons on mount.
++    - Automatically selects the coupon that provides the **highest THB discount** for the current selection.
++
++### Robust User Retrieval (LIFF)
++To solve the "Missing required fields" issue, the system now uses a two-tier strategy for getting the `userId`:
++1.  **LIFF SDK**: Direct call to `liff.getProfile()` (Most reliable).
++2.  **URL Fallback**: If LIFF is not initialized or in a browser, fallback to `?userId=` parameter.
++Implementation: `src/lib/liff.ts` -> `getLiffUser()`.
++
 
