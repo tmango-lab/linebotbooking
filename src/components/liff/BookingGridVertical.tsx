@@ -69,74 +69,78 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-            {/* Header Row (Fields) */}
-            <div className="flex border-b border-gray-200 sticky top-0 bg-white z-20 shadow-sm">
-                <div className="w-16 shrink-0 p-3 text-xs font-bold text-gray-400 border-r border-gray-100 flex items-center justify-center bg-gray-50">
-                    Time
+        <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-100 max-h-[80vh] overflow-y-auto relative">
+            <div className="min-w-fit">
+                {/* Sticky Header Row (Fields) */}
+                <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white shadow-sm">
+                    {/* Corner Cell (Sticky Top & Left) */}
+                    <div className="w-16 shrink-0 p-3 text-xs font-bold text-gray-400 border-r border-gray-100 flex items-center justify-center bg-gray-50 sticky left-0 z-30">
+                        Time
+                    </div>
+                    {/* Field Headers */}
+                    <div className="flex">
+                        {fields.map(field => (
+                            <div key={field.id} className="w-[80px] shrink-0 p-2 text-center border-r border-gray-100 last:border-r-0 bg-white">
+                                <div className="text-sm font-bold text-gray-800 truncate">{field.name}</div>
+                                <div className="text-[10px] text-green-600 font-normal truncate">{field.type}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex-1 flex overflow-x-auto">
-                    {fields.map(field => (
-                        <div key={field.id} className="flex-1 min-w-[80px] p-2 text-center border-r border-gray-100 last:border-r-0">
-                            <div className="text-sm font-bold text-gray-800">{field.name}</div>
-                            <div className="text-[10px] text-green-600 font-normal">{field.type}</div>
+
+                {/* Body Rows */}
+                {TIME_SLOTS.slice(0, -1).map((time, i) => (
+                    <div key={time} className="flex border-b border-gray-100 last:border-b-0">
+                        {/* Time Column (Sticky Left) */}
+                        <div className="w-16 shrink-0 p-2 text-xs text-gray-500 font-medium border-r border-gray-100 flex items-center justify-center bg-gray-50 sticky left-0 z-10">
+                            {time}
                         </div>
-                    ))}
-                </div>
-            </div>
 
-            {/* Time Rows */}
-            {TIME_SLOTS.slice(0, -1).map((time, i) => (
-                <div key={time} className="flex border-b border-gray-100 last:border-b-0">
-                    {/* Time Label Column */}
-                    <div className="w-16 shrink-0 p-2 text-xs text-gray-500 font-medium border-r border-gray-100 flex items-center justify-center bg-gray-50 sticky left-0 z-10">
-                        {time}
-                    </div>
+                        {/* Slots */}
+                        <div className="flex">
+                            {fields.map(field => {
+                                const occupied = isSlotOccupied(field.id, i);
+                                const isSelected =
+                                    !occupied &&
+                                    selection.fieldId === field.id &&
+                                    selection.startIdx !== null &&
+                                    (
+                                        (selection.endIdx === null && i === selection.startIdx) ||
+                                        (selection.endIdx !== null && i >= selection.startIdx && i <= selection.endIdx)
+                                    );
 
-                    {/* Field Slots for this Time */}
-                    <div className="flex-1 flex">
-                        {fields.map(field => {
-                            const occupied = isSlotOccupied(field.id, i);
-                            const isSelected =
-                                !occupied &&
-                                selection.fieldId === field.id &&
-                                selection.startIdx !== null &&
-                                (
-                                    (selection.endIdx === null && i === selection.startIdx) ||
-                                    (selection.endIdx !== null && i >= selection.startIdx && i <= selection.endIdx)
+                                return (
+                                    <div
+                                        key={`${field.id}-${i}`}
+                                        onClick={() => handleSlotClick(field.id, i)}
+                                        className={`w-[80px] shrink-0 h-12 border-r border-gray-100 last:border-r-0 relative transition-all duration-200
+                                            ${occupied ? 'bg-gray-100' : 'cursor-pointer active:scale-95'}
+                                            ${isSelected ? 'bg-green-500 text-white shadow-inner' : (occupied ? '' : 'bg-white hover:bg-gray-50')}
+                                        `}
+                                    >
+                                        {occupied && (
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                                                <div className="w-full h-[1px] bg-black rotate-45"></div>
+                                            </div>
+                                        )}
+                                        {!occupied && selection.fieldId === field.id && selection.startIdx === i && selection.endIdx === null && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                            </div>
+                                        )}
+                                        {isSelected && selection.startIdx === i && (
+                                            <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
+                                        )}
+                                        {isSelected && selection.endIdx === i && (
+                                            <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
+                                        )}
+                                    </div>
                                 );
-
-                            return (
-                                <div
-                                    key={`${field.id}-${i}`}
-                                    onClick={() => handleSlotClick(field.id, i)}
-                                    className={`flex-1 min-w-[80px] h-12 border-r border-gray-100 last:border-r-0 relative transition-all duration-200
-                                        ${occupied ? 'bg-gray-100' : 'cursor-pointer active:scale-95'}
-                                        ${isSelected ? 'bg-green-500 text-white shadow-inner' : (occupied ? '' : 'bg-white hover:bg-gray-50')}
-                                    `}
-                                >
-                                    {occupied && (
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                                            <div className="w-full h-[1px] bg-black rotate-45"></div>
-                                        </div>
-                                    )}
-                                    {!occupied && selection.fieldId === field.id && selection.startIdx === i && selection.endIdx === null && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                                        </div>
-                                    )}
-                                    {isSelected && selection.startIdx === i && (
-                                        <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
-                                    )}
-                                    {isSelected && selection.endIdx === i && (
-                                        <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                            })}
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     );
 };
