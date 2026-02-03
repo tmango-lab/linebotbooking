@@ -77,12 +77,18 @@ function StatusPage() {
     const searchParams = new URLSearchParams(window.location.search);
     const mode = searchParams.get('mode');
 
-    // [V2 Logic] If ?mode=v2, redirect to V2 Booking Page
+    // [V2/V3 Logic] If ?mode=v2/v3, redirect to respective Booking Pagge
     if (mode === 'v2') {
       addLog("Mode V2 Detected. Redirecting...");
-      // Use timeout to ensure router is ready (optional but safer)
       setTimeout(() => {
         navigate('/booking-v2' + window.location.search);
+      }, 100);
+      return;
+    }
+    if (mode === 'v3') {
+      addLog("Mode V3 Detected. Redirecting...");
+      setTimeout(() => {
+        navigate('/booking-v3' + window.location.search);
       }, 100);
       return;
     }

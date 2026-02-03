@@ -144,8 +144,8 @@ const BookingV2Page: React.FC = () => {
                             id: c.coupon_id,
                             campaign_id: c.campaign_id,
                             name: c.name,
-                            discount_type: c.benefit.type.toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FIXED',
-                            discount_value: Number(c.benefit.value) || 0,
+                            discount_type: c.benefit?.type?.toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FIXED',
+                            discount_value: Number(c.benefit?.value) || 0,
                             min_spend: Number(c.conditions?.min_spend) || 0,
                             eligible_fields: c.conditions?.fields || null
                         })));
