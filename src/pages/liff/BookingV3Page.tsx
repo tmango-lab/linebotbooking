@@ -6,6 +6,7 @@ import BookingSummary from '../../components/liff/BookingSummary';
 import CouponBottomSheet from '../../components/liff/CouponBottomSheet';
 import BookingConfirmationModal from '../../components/liff/BookingConfirmationModal';
 import DateSelector from '../../components/liff/DateSelector';
+import { getLiffUser } from '../../lib/liff';
 
 interface Field {
     id: number;
@@ -61,12 +62,24 @@ const BookingV3Page: React.FC = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
+    const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
+
     // --- 1. Init Data ---
     useEffect(() => {
         const init = async () => {
             console.log("Initializing Booking V3 (Vertical)...");
             setErrorMsg(null);
-            const userId = searchParams.get('userId');
+
+            // [Fix] Robust User ID Retrieval
+            const liffUser = await getLiffUser();
+            const currentUserId = liffUser.userId || userId; // Prefer LIFF, fallback to param
+
+            if (!currentUserId) {
+                setErrorMsg("ไม่พบข้อมูลผู้ใช้งาน (User ID Missing). กรุณาเปิดผ่าน LINE อีกครั้ง");
+                setIsReady(true);
+                return;
+            }
+            setUserId(currentUserId);
 
             try {
                 // 1. Fetch Fields
@@ -114,14 +127,14 @@ const BookingV3Page: React.FC = () => {
                 setExistingBookings(normalizedBookings);
 
                 // 3. Fetch Real Coupons & Profile
-                if (userId) {
+                if (currentUserId) {
                     const couponRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
                         },
-                        body: JSON.stringify({ userId })
+                        body: JSON.stringify({ userId: currentUserId })
                     });
                     const couponData = await couponRes.json();
 
@@ -142,7 +155,7 @@ const BookingV3Page: React.FC = () => {
                     const { data: profile } = await supabase
                         .from('profiles')
                         .select('*')
-                        .eq('user_id', userId)
+                        .eq('user_id', currentUserId)
                         .maybeSingle();
 
                     if (profile) setUserProfile(profile);
@@ -234,7 +247,7 @@ const BookingV3Page: React.FC = () => {
     const finalPrice = Math.max(0, originalPrice - discount);
 
     const handleFinalConfirm = async (team: string, phone: string, payment: string) => {
-        const userId = searchParams.get('userId');
+        // const userId = searchParams.get('userId'); // Old
 
         const forwardMap: Record<number, number> = {
             1: 2424, 2: 2425, 3: 2428, 4: 2426, 5: 2427, 6: 2429
