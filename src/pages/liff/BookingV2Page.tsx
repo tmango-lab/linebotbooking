@@ -318,16 +318,18 @@ const BookingV2Page: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#F0F2F5] pb-32 font-sans">
-            <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
+            <header className="bg-white px-4 py-3 shadow-sm sticky top-0 z-50 flex justify-between items-center border-b border-gray-100">
                 <div className="flex-1">
-                    <h1 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">จองสนามบอล</h1>
                     <button
                         onClick={() => setIsDateModalOpen(true)}
-                        className="flex items-center text-lg font-bold text-gray-800 -mt-1 active:opacity-60 transition-opacity"
+                        className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 px-4 py-2.5 rounded-2xl border border-gray-100 transition-all active:scale-95"
                     >
-                        {getThaiDateShort(selectedDate)}
-                        <svg className="w-5 h-5 ml-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        <div className="flex flex-col items-start leading-tight">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">วันจอง</span>
+                            <span className="text-sm font-extrabold text-gray-800">{getThaiDateShort(selectedDate)}</span>
+                        </div>
+                        <svg className="w-5 h-5 text-green-600 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                 </div>

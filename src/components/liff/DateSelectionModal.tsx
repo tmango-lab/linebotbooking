@@ -34,80 +34,73 @@ const DateSelectionModal: React.FC<DateSelectionModalProps> = ({ isOpen, onClose
         return `${year}-${mm}-${dd}`;
     };
 
-    const handlePrevMonth = () => {
-        setViewDate(new Date(currentYear, currentMonth - 1, 1));
-    };
-
-    const handleNextMonth = () => {
-        setViewDate(new Date(currentYear, currentMonth + 1, 1));
-    };
-
+    const handlePrevMonth = () => setViewDate(new Date(currentYear, currentMonth - 1, 1));
+    const handleNextMonth = () => setViewDate(new Date(currentYear, currentMonth + 1, 1));
     const todayStr = new Date().toISOString().split('T')[0];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4">
+        <div className="fixed inset-0 z-[100] flex items-end justify-center">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-md"
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
                 onClick={onClose}
             />
 
-            {/* Modal Content */}
-            <div className="relative bg-white w-full max-w-[340px] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            {/* Bottom Sheet Content */}
+            <div className="relative bg-white w-full max-w-lg rounded-t-[32px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 ease-out">
+                {/* Drag Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                    <div className="w-12 h-1.5 bg-gray-200 rounded-full" />
+                </div>
+
                 {/* Header with Month Navigation */}
-                <div className="p-4 flex justify-between items-center bg-green-600 text-white">
+                <div className="px-6 py-4 flex justify-between items-center bg-white border-b border-gray-50">
                     <button
                         onClick={handlePrevMonth}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                        className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all active:scale-90"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
 
                     <div className="text-center">
-                        <div className="text-xs uppercase font-bold tracking-widest opacity-80 mb-0.5">เลือกวันที่</div>
-                        <div className="text-lg font-bold">
+                        <h3 className="text-lg font-extrabold text-gray-800">
                             {monthsTh[currentMonth]} {currentYear + 543}
-                        </div>
+                        </h3>
                     </div>
 
                     <button
                         onClick={handleNextMonth}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                        className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all active:scale-90"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                         </svg>
                     </button>
                 </div>
 
-                {/* Calendar Body */}
-                <div className="p-4 bg-white">
-                    {/* Day Names Row */}
-                    <div className="grid grid-cols-7 mb-2">
+                {/* Calendar Grid */}
+                <div className="px-5 py-6">
+                    <div className="grid grid-cols-7 mb-4">
                         {daysTh.map(day => (
-                            <div key={day} className="text-center text-[10px] font-bold text-gray-400 uppercase">
+                            <div key={day} className="text-center text-[11px] font-bold text-gray-300 uppercase tracking-tighter">
                                 {day}
                             </div>
                         ))}
                     </div>
 
-                    {/* Days Grid */}
-                    <div className="grid grid-cols-7 gap-1">
-                        {/* Fill empty slots before the first day */}
+                    <div className="grid grid-cols-7 gap-1.5">
                         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
                             <div key={`empty-${i}`} className="p-2" />
                         ))}
 
-                        {/* Actual Days */}
                         {Array.from({ length: daysInMonth }).map((_, i) => {
                             const day = i + 1;
                             const dateStr = formatDate(currentYear, currentMonth, day);
                             const isSelected = dateStr === selectedDate;
                             const isToday = dateStr === todayStr;
-                            const dObj = new Date(dateStr);
-                            const isPast = dObj < new Date(todayStr);
+                            const isPast = new Date(dateStr) < new Date(todayStr);
 
                             return (
                                 <button
@@ -118,18 +111,18 @@ const DateSelectionModal: React.FC<DateSelectionModalProps> = ({ isOpen, onClose
                                         onClose();
                                     }}
                                     className={`
-                                        relative group flex flex-col items-center justify-center aspect-square rounded-full text-sm font-medium transition-all
+                                        relative group flex flex-col items-center justify-center aspect-square rounded-2xl text-sm font-bold transition-all
                                         ${isSelected
-                                            ? 'bg-green-600 text-white shadow-lg shadow-green-200 scale-110 z-10'
+                                            ? 'bg-green-600 text-white shadow-xl shadow-green-100 scale-105 z-10'
                                             : isPast
                                                 ? 'text-gray-200 cursor-not-allowed'
-                                                : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
+                                                : 'text-gray-700 hover:bg-green-50 hover:text-green-600'
                                         }
                                     `}
                                 >
                                     {day}
                                     {isToday && !isSelected && (
-                                        <div className="absolute bottom-1 w-1 h-1 bg-green-500 rounded-full" />
+                                        <div className="absolute bottom-2 w-1 h-1 bg-green-500 rounded-full" />
                                     )}
                                 </button>
                             );
@@ -137,20 +130,20 @@ const DateSelectionModal: React.FC<DateSelectionModalProps> = ({ isOpen, onClose
                     </div>
                 </div>
 
-                {/* Footer Tips */}
-                <div className="px-6 py-4 bg-gray-50 flex justify-between items-center">
+                {/* Action Row */}
+                <div className="px-6 py-6 pb-10 bg-gray-50/50 flex gap-3">
                     <button
                         onClick={() => {
                             onSelect(todayStr);
                             onClose();
                         }}
-                        className="text-xs font-bold text-green-600 hover:text-green-700 underline underline-offset-4"
+                        className="flex-1 py-4 text-sm font-bold text-green-700 bg-green-50 rounded-2xl hover:bg-green-100 transition-colors"
                     >
                         กลับไปวันนี้
                     </button>
                     <button
                         onClick={onClose}
-                        className="text-xs font-bold text-gray-400 hover:text-gray-600"
+                        className="flex-1 py-4 text-sm font-bold text-gray-500 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors"
                     >
                         ปิดหน้าต่าง
                     </button>
