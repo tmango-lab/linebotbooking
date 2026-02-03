@@ -88,7 +88,19 @@ const BookingV2Page: React.FC = () => {
                 });
                 const bookingData = await res.json();
                 console.log("Existing Bookings loaded:", bookingData.bookings?.length);
-                setExistingBookings(bookingData.bookings || []);
+
+                // ID MAPPING FIX: Map legacy court_ids (2424..) back to field.id (1..)
+                // 2424->1, 2425->2, 2428->3, 2426->4, 2427->5, 2429->6
+                const reverseMap: Record<number, number> = {
+                    2424: 1, 2425: 2, 2428: 3, 2426: 4, 2427: 5, 2429: 6
+                };
+
+                const normalizedBookings = (bookingData.bookings || []).map((b: any) => ({
+                    ...b,
+                    court_id: reverseMap[b.court_id] || b.court_id // Use mapped ID or fallback
+                }));
+
+                setExistingBookings(normalizedBookings);
 
             } catch (err: any) {
                 console.error("Unexpected error:", err);
