@@ -65,11 +65,11 @@ serve(async (req) => {
         const { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, paymentMethod, campaignId, userId } = await req.json();
 
         // 1. Basic Validation
-        if (!fieldId || !date || !startTime || !endTime || !customerName || !phoneNumber || !userId) {
-            throw new Error('Missing required fields (including userId)');
+        if (!fieldId || !date || !startTime || !endTime || !customerName || !phoneNumber) {
+            throw new Error('Missing required fields');
         }
 
-        console.log(`[Create Booking] User: ${userId} | F${fieldId} on ${date} ${startTime}-${endTime} | Coupon: ${couponId || 'None'} | Pay: ${paymentMethod || 'N/A'}`);
+        console.log(`[Create Booking] User: ${userId || 'CHECK-IN'} | F${fieldId} on ${date} ${startTime}-${endTime} | Coupon: ${couponId || 'None'} | Pay: ${paymentMethod || 'N/A'}`);
 
         // 2. Prepare Data
         const fieldNo = FIELD_MAP[fieldId] || fieldId;
@@ -243,8 +243,12 @@ serve(async (req) => {
                 price: finalPrice,
                 paymentMethod: paymentMethod || 'N/A'
             });
-            await pushMessage(userId, successFlex);
-            console.log(`[Notification Sent] User: ${userId}`);
+            if (userId) {
+                await pushMessage(userId, successFlex);
+                console.log(`[Notification Sent] User: ${userId}`);
+            } else {
+                console.log(`[Notification Skipped] No User ID provided (Admin Booking)`);
+            }
         } catch (notifierErr) {
             console.error('[Notification Error]:', notifierErr);
             // Non-blocking error
