@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
 import BookingGridVertical from '../../components/liff/BookingGridVertical';
 import BookingSummary from '../../components/liff/BookingSummary';
+import CouponBottomSheet from '../../components/liff/CouponBottomSheet';
+import BookingConfirmationModal from '../../components/liff/BookingConfirmationModal';
 
 interface Field {
     id: number;
@@ -22,21 +24,32 @@ interface Coupon {
     eligible_fields: number[] | null;
 }
 
+interface UserProfile {
+    user_id: string;
+    team_name: string;
+    phone_number: string;
+}
+
 const BookingV3Page: React.FC = () => {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [isReady, setIsReady] = useState(false);
 
     // Data State
     const [fields, setFields] = useState<Field[]>([]);
     const [coupons, setCoupons] = useState<Coupon[]>([]);
     const [existingBookings, setExistingBookings] = useState<any[]>([]);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
     // Selection State
     const [selection, setSelection] = useState<{
         fieldId: number;
-        startTime: string; // "18:00"
-        endTime: string;   // "19:30"
+        startTime: string;
+        endTime: string;
     } | null>(null);
+    const [isCouponSheetOpen, setIsCouponSheetOpen] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [manualCoupon, setManualCoupon] = useState<Coupon | null>(null);
 
     // Calculated State
     const [originalPrice, setOriginalPrice] = useState(0);
@@ -48,6 +61,7 @@ const BookingV3Page: React.FC = () => {
         const init = async () => {
             console.log("Initializing Booking V3 (Vertical)...");
             setErrorMsg(null);
+            const userId = searchParams.get('userId');
 
             try {
                 // 1. Fetch Fields
@@ -87,7 +101,7 @@ const BookingV3Page: React.FC = () => {
                 });
                 const bookingData = await res.json();
 
-                // ID MAPPING FIX: Map legacy court_ids (2424..) back to field.id (1..)
+                // ID MAPPING FIX
                 const reverseMap: Record<number, number> = {
                     2424: 1, 2425: 2, 2428: 3, 2426: 4, 2427: 5, 2429: 6
                 };
@@ -99,18 +113,44 @@ const BookingV3Page: React.FC = () => {
 
                 setExistingBookings(normalizedBookings);
 
+                // 3. Fetch Real Coupons & Profile
+                if (userId) {
+                    const couponRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                        },
+                        body: JSON.stringify({ userId })
+                    });
+                    const couponData = await couponRes.json();
+
+                    if (couponData.success) {
+                        const allUserCoupons = [...(couponData.main || []), ...(couponData.on_top || [])];
+                        setCoupons(allUserCoupons.map((c: any) => ({
+                            id: c.coupon_id,
+                            campaign_id: c.campaign_id,
+                            name: c.name,
+                            discount_type: c.benefit.type.toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FIXED',
+                            discount_value: Number(c.benefit.value) || 0,
+                            min_spend: Number(c.conditions?.min_spend) || 0,
+                            eligible_fields: c.conditions?.fields || null
+                        })));
+                    }
+
+                    // Fetch Profile
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+
+                    if (profile) setUserProfile(profile);
+                }
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setErrorMsg("Unexpected system error: " + err.message);
-            }
-
-            // Fetch Coupons
-            const userId = searchParams.get('userId');
-            if (userId) {
-                setCoupons([
-                    { id: 'c1', campaign_id: 1, name: 'Welcome Discount', discount_type: 'FIXED', discount_value: 100, min_spend: 500, eligible_fields: null },
-                    { id: 'c2', campaign_id: 2, name: 'Big Spender', discount_type: 'PERCENT', discount_value: 10, min_spend: 1000, eligible_fields: null }
-                ]);
             }
 
             setIsReady(true);
@@ -162,17 +202,18 @@ const BookingV3Page: React.FC = () => {
             return;
         }
 
-        const availableCoupons: Coupon[] = coupons;
         let best = null;
         let maxSavings = 0;
 
-        for (const c of availableCoupons) {
+        for (const c of coupons) {
             if (c.min_spend && originalPrice < c.min_spend) continue;
-            if (c.eligible_fields && !c.eligible_fields.includes(selection?.fieldId || 0)) continue;
+            if (c.eligible_fields && c.eligible_fields.length > 0) {
+                if (!c.eligible_fields.includes(selection?.fieldId || 0)) continue;
+            }
 
             let savings = 0;
             if (c.discount_type === 'FIXED') savings = c.discount_value;
-            if (c.discount_type === 'PERCENT') savings = (originalPrice * c.discount_value) / 100;
+            else if (c.discount_type === 'PERCENT') savings = (originalPrice * c.discount_value) / 100;
 
             if (savings > maxSavings) {
                 maxSavings = savings;
@@ -180,51 +221,137 @@ const BookingV3Page: React.FC = () => {
             }
         }
         setBestCoupon(best);
-    }, [originalPrice, coupons, selection]);
 
-    const handleConfirm = () => {
-        alert("Booking Confirmed! (Mock)");
+        // Validation: Reset manual coupon if ineligible
+        if (manualCoupon && (originalPrice < manualCoupon.min_spend || (manualCoupon.eligible_fields && !manualCoupon.eligible_fields.includes(selection?.fieldId || 0)))) {
+            setManualCoupon(null);
+        }
+
+    }, [originalPrice, coupons, selection, manualCoupon]);
+
+    const appliedCoupon = manualCoupon || bestCoupon;
+    const discount = appliedCoupon ? (appliedCoupon.discount_type === 'FIXED' ? appliedCoupon.discount_value : (originalPrice * appliedCoupon.discount_value) / 100) : 0;
+    const finalPrice = Math.max(0, originalPrice - discount);
+
+    const handleFinalConfirm = async (team: string, phone: string) => {
+        const userId = searchParams.get('userId');
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        const localDate = new Date(now.getTime() - offset);
+        const today = localDate.toISOString().split('T')[0];
+
+        const forwardMap: Record<number, number> = {
+            1: 2424, 2: 2425, 3: 2428, 4: 2426, 5: 2427, 6: 2429
+        };
+
+        try {
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-booking`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({
+                    userId,
+                    fieldId: forwardMap[selection!.fieldId] || selection!.fieldId,
+                    date: today,
+                    startTime: selection!.startTime,
+                    endTime: selection!.endTime,
+                    customerName: team,
+                    phoneNumber: phone,
+                    couponId: appliedCoupon?.id
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert("จองสนามสำเร็จแล้วครับ! ขอบคุณที่ใช้บริการครับ 🙏");
+                navigate(`/?userId=${userId}`);
+            } else {
+                throw new Error(data.error || "Booking failed");
+            }
+        } catch (err: any) {
+            alert("❌ จองไม่สำเร็จ: " + err.message);
+            setIsConfirmModalOpen(false);
+        }
     };
 
     if (!isReady) {
-        return <div className="p-4">Loading...</div>;
+        return <div className="p-4 flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+        </div>;
     }
 
-    const discount = bestCoupon ? (bestCoupon.discount_type === 'FIXED' ? bestCoupon.discount_value : (originalPrice * bestCoupon.discount_value) / 100) : 0;
-    const finalPrice = Math.max(0, originalPrice - discount);
+    const selectedField = fields.find(f => f.id === selection?.fieldId);
 
     return (
         <div className="min-h-screen bg-[#F0F2F5] pb-32">
             <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
                 <div>
                     <h1 className="text-lg font-bold">New Booking (V3 Vertical)</h1>
-                    <p className="text-xs text-gray-400">Vertical Time Layout</p>
+                    <p className="text-xs text-gray-400">Date: {new Date().toLocaleDateString('th-TH')}</p>
                 </div>
             </header>
 
-            <main className="p-4 space-y-4">
+            <main className="p-4 space-y-4 max-w-lg mx-auto">
                 {errorMsg && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
-                        ⚠️ {errorMsg}
+                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center">
+                        <span className="mr-3">⚠️</span> {errorMsg}
                     </div>
                 )}
 
-                <BookingGridVertical
-                    fields={fields}
-                    existingBookings={existingBookings}
-                    onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })}
-                />
+                <div className="bg-white rounded-2xl shadow-sm overflow-hidden p-3">
+                    <BookingGridVertical
+                        fields={fields}
+                        existingBookings={existingBookings}
+                        onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })}
+                    />
+                </div>
             </main>
 
             <BookingSummary
                 originalPrice={originalPrice}
                 discount={discount}
                 finalPrice={finalPrice}
-                couponName={bestCoupon?.name}
-                onConfirm={handleConfirm}
-                onOpenCoupons={() => { }}
+                couponName={appliedCoupon?.name}
+                onConfirm={() => setIsConfirmModalOpen(true)}
+                onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
             />
+
+            <CouponBottomSheet
+                isOpen={isCouponSheetOpen}
+                onClose={() => setIsCouponSheetOpen(false)}
+                coupons={coupons}
+                selectedCouponId={appliedCoupon?.id || null}
+                bestCouponId={bestCoupon?.id || null}
+                onSelect={(c) => {
+                    if (c?.id === bestCoupon?.id) setManualCoupon(null);
+                    else setManualCoupon(c);
+                }}
+                originalPrice={originalPrice}
+            />
+
+            <BookingConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setIsConfirmModalOpen(false)}
+                onConfirm={handleFinalConfirm}
+                bookingDetails={{
+                    fieldName: selectedField?.name || '',
+                    date: new Date().toLocaleDateString('th-TH'),
+                    startTime: selection?.startTime || '',
+                    endTime: selection?.endTime || '',
+                    originalPrice,
+                    discount,
+                    finalPrice,
+                    couponName: appliedCoupon?.name
+                }}
+                initialProfile={userProfile ? {
+                    team_name: userProfile.team_name,
+                    phone_number: userProfile.phone_number
+                } : null}
+            />
+
         </div>
     );
 };

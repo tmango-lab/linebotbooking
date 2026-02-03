@@ -60,14 +60,14 @@ serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        const { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, paymentMethod, campaignId } = await req.json();
+        const { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, paymentMethod, campaignId, userId } = await req.json();
 
         // 1. Basic Validation
-        if (!fieldId || !date || !startTime || !endTime || !customerName || !phoneNumber) {
-            throw new Error('Missing required fields');
+        if (!fieldId || !date || !startTime || !endTime || !customerName || !phoneNumber || !userId) {
+            throw new Error('Missing required fields (including userId)');
         }
 
-        console.log(`[Create Booking] F${fieldId} on ${date} ${startTime}-${endTime} | Coupon: ${couponId || 'None'} | Pay: ${paymentMethod || 'N/A'}`);
+        console.log(`[Create Booking] User: ${userId} | F${fieldId} on ${date} ${startTime}-${endTime} | Coupon: ${couponId || 'None'} | Pay: ${paymentMethod || 'N/A'}`);
 
         // 2. Prepare Data
         const fieldNo = FIELD_MAP[fieldId] || fieldId;
@@ -197,7 +197,7 @@ serve(async (req) => {
         const { data: booking, error: insertError } = await supabase
             .from('bookings')
             .insert({
-                user_id: 'admin',
+                user_id: userId,
                 booking_id: Date.now().toString(),
                 field_no: fieldNo,
                 status: 'confirmed',
@@ -209,7 +209,7 @@ serve(async (req) => {
                 display_name: customerName,
                 phone_number: phoneNumber,
                 admin_note: adminNote || null,
-                source: 'admin',
+                source: 'line',
                 is_promo: isPromo,
                 // If paymentMethod provided, we could store it? Schema has `payment_status` but not method column locally typically? 
                 // Checks schema: bookings table usually has `payment_slip` or similar. 
