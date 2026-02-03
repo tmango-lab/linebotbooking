@@ -9,10 +9,6 @@ const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onSelect }) =
     const dates: { date: string; day: string; dayName: string }[] = [];
     const today = new Date();
     const daysTh = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
-    const monthsTh = [
-        'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
-    ];
 
     // Generate next 14 days
     for (let i = 0; i < 14; i++) {
