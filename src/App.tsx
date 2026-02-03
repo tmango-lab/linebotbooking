@@ -13,6 +13,7 @@ import PromoCodePage from './pages/admin/PromoCodePage';
 import CampaignPage from './pages/admin/CampaignPage'; // New V2
 import WalletPage from './pages/user/WalletPage';
 import BookingV2Page from './pages/liff/BookingV2Page'; // Import V2 Page
+import BookingV3Page from './pages/liff/BookingV3Page'; // Import V3 Page
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 // Simple status page (Legacy/Root)
@@ -119,6 +120,8 @@ function StatusPage() {
         let targetPath = '/wallet'; // Default
         if (decodedState.includes('mode=v2')) {
           targetPath = '/booking-v2';
+        } else if (decodedState.includes('mode=v3')) {
+          targetPath = '/booking-v3';
         }
 
         // Construct Target
@@ -209,6 +212,7 @@ function App() {
         {/* User Routes (V2) */}
         <Route path="/wallet" element={<WalletPage />} />
         <Route path="/booking-v2" element={<BookingV2Page />} />
+        <Route path="/booking-v3" element={<BookingV3Page />} />
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<LoginPage />} />

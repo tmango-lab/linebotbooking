@@ -108,6 +108,37 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
+    // [NEW] Developer V3 Access (Vertical Grid)
+    if (text === '#dev_v3') {
+        const liffUrl = `https://liff.line.me/${Deno.env.get('LIFF_ID') || 'YOUR_LIFF_ID'}?mode=v3`;
+
+        await replyMessage(event.replyToken!, {
+            type: 'flex',
+            altText: 'Developer Mode V3',
+            contents: {
+                type: 'bubble',
+                size: 'kilo',
+                body: {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                        { type: 'text', text: '🛠️ Developer Mode V3', weight: 'bold', size: 'lg', color: '#007AFF' },
+                        { type: 'text', text: 'Vertical Grid Layout (Mobile Optimized)', size: 'sm', color: '#666666', margin: 'sm' },
+                        {
+                            type: 'button',
+                            style: 'primary',
+                            color: '#007AFF', // Blue for V3
+                            action: { type: 'uri', label: 'Open Booking V3 (Vertical)', uri: liffUrl },
+                            margin: 'md',
+                            height: 'sm'
+                        }
+                    ]
+                }
+            }
+        });
+        return;
+    }
+
     // [NEW] Secret Keyword Listener "The Pa-Kao Flow"
     try {
         // [DEBUG] Log entry
