@@ -73,7 +73,11 @@ const BookingV2Page: React.FC = () => {
                 }
 
                 // 2. Fetch Existing Bookings for today
-                const today = new Date().toISOString().split('T')[0];
+                // Use local date to match user's perspective (Thailand GMT+7)
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const localDate = new Date(now.getTime() - offset);
+                const today = localDate.toISOString().split('T')[0];
                 const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
                     method: 'POST',
                     headers: {
