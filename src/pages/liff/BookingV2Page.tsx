@@ -30,6 +30,7 @@ const BookingV2Page: React.FC = () => {
     // Data State
     const [fields, setFields] = useState<Field[]>([]);
     const [coupons, setCoupons] = useState<Coupon[]>([]);
+    const [existingBookings, setExistingBookings] = useState<any[]>([]);
 
     // Selection State
     const [selection, setSelection] = useState<{
@@ -41,7 +42,7 @@ const BookingV2Page: React.FC = () => {
     // Calculated State
     const [originalPrice, setOriginalPrice] = useState(0);
     const [bestCoupon, setBestCoupon] = useState<Coupon | null>(null);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null); // New Error State
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // --- 1. Init Data ---
     useEffect(() => {
@@ -50,45 +51,49 @@ const BookingV2Page: React.FC = () => {
             setErrorMsg(null);
 
             try {
-                // Fetch Fields
+                // 1. Fetch Fields
                 const { data: fieldsData, error: fieldsError } = await supabase
                     .from('fields')
                     .select('*')
                     .eq('active', true)
                     .order('id');
 
-                if (fieldsError) {
-                    console.error("Error fetching fields:", fieldsError);
-                    setErrorMsg(`Failed to load fields: ${fieldsError.message}`);
-                    return;
-                }
+                if (fieldsError) throw fieldsError;
 
                 if (!fieldsData || fieldsData.length === 0) {
-                    console.warn("No fields found!");
                     setErrorMsg("No active fields found in database.");
-                    return;
+                } else {
+                    setFields(fieldsData.map(f => ({
+                        id: f.id,
+                        name: f.label,
+                        type: f.type,
+                        price_pre: f.price_pre || 0,
+                        price_post: f.price_post || 0
+                    })));
                 }
 
-                console.log("Fields loaded:", fieldsData.length);
-                setFields(fieldsData.map(f => ({
-                    id: f.id,
-                    name: f.label,
-                    type: f.type,
-                    price_pre: f.price_pre || 0,
-                    price_post: f.price_post || 0
-                })));
+                // 2. Fetch Existing Bookings for today
+                const today = new Date().toISOString().split('T')[0];
+                const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                    },
+                    body: JSON.stringify({ date: today })
+                });
+                const bookingData = await res.json();
+                console.log("Existing Bookings loaded:", bookingData.bookings?.length);
+                setExistingBookings(bookingData.bookings || []);
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setErrorMsg("Unexpected system error: " + err.message);
             }
 
-            // Fetch Coupons (Mocking current user ID or skipping for now if auth not ready)
-            // Ideally we get userId from LIFF context or query param
+            // Fetch Coupons
             const userId = searchParams.get('userId');
             if (userId) {
-                // Simplified coupon fetch - assume standard schema or use edge function logic
-                // For now, let's mock response or implement basic fetch if `user_coupons` table is accessible
-                // MOCK DATA for now to satisfy usage
                 setCoupons([
                     { id: 'c1', campaign_id: 1, name: 'Welcome Discount', discount_type: 'FIXED', discount_value: 100, min_spend: 500, eligible_fields: null },
                     { id: 'c2', campaign_id: 2, name: 'Big Spender', discount_type: 'PERCENT', discount_value: 10, min_spend: 1000, eligible_fields: null }
@@ -98,7 +103,7 @@ const BookingV2Page: React.FC = () => {
             setIsReady(true);
         };
         init();
-    }, [searchParams]); // Added searchParams dependency
+    }, [searchParams]);
 
     // --- 2. Calculate Price ---
     useEffect(() => {
@@ -110,17 +115,12 @@ const BookingV2Page: React.FC = () => {
         const field = fields.find(f => f.id === selection.fieldId);
         if (!field) return;
 
-        // Price Calc Logic (Client Side)
         const startH = parseFloat(selection.startTime.split(':')[0]) + parseFloat(selection.startTime.split(':')[1]) / 60;
         const endH = parseFloat(selection.endTime.split(':')[0]) + parseFloat(selection.endTime.split(':')[1]) / 60;
         let duration = endH - startH;
-        if (duration < 0) duration += 24; // Handle midnight crossing
+        if (duration < 0) duration += 24;
 
         const cutOff = 18.0;
-
-        // Simple integration method: Step through every 30 mins
-        // Actually, let's use the segment logic
-        // Pre Segment
         const startDec = startH;
         const endDec = startH + duration;
 
@@ -138,7 +138,6 @@ const BookingV2Page: React.FC = () => {
 
         const costPre = Math.ceil((preHours * field.price_pre) / 100) * 100;
         const costPost = Math.ceil((postHours * field.price_post) / 100) * 100;
-
         setOriginalPrice(costPre + costPost);
 
     }, [selection, fields]);
@@ -150,10 +149,7 @@ const BookingV2Page: React.FC = () => {
             return;
         }
 
-        // Search for best coupon
-        // Use state coupons if available, else fallback logic removed
         const availableCoupons: Coupon[] = coupons;
-
         let best = null;
         let maxSavings = 0;
 
@@ -170,9 +166,7 @@ const BookingV2Page: React.FC = () => {
                 best = c;
             }
         }
-
         setBestCoupon(best);
-
     }, [originalPrice, coupons, selection]);
 
     const handleConfirm = () => {
@@ -193,17 +187,18 @@ const BookingV2Page: React.FC = () => {
             </header>
 
             <main className="p-4 space-y-4">
-                {/* Court Grid */}
                 <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
                     <h2 className="mb-4 font-semibold">Select Slot</h2>
-
                     {errorMsg && (
                         <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
                             ⚠️ {errorMsg}
                         </div>
                     )}
-
-                    <BookingGrid fields={fields} onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })} />
+                    <BookingGrid
+                        fields={fields}
+                        existingBookings={existingBookings}
+                        onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })}
+                    />
                 </div>
             </main>
 
@@ -213,11 +208,10 @@ const BookingV2Page: React.FC = () => {
                 finalPrice={finalPrice}
                 couponName={bestCoupon?.name}
                 onConfirm={handleConfirm}
-                onOpenCoupons={() => { }} // TODO
+                onOpenCoupons={() => { }}
                 isVisible={!!selection}
             />
 
-            {/* Debug */}
             <div className="text-center text-xs text-gray-400 mt-4">
                 Orig: {originalPrice} | Disc: {discount} | Best: {bestCoupon?.name}
             </div>

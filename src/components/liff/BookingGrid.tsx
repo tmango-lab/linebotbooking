@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 
-// Shared Interface (could be moved to types file)
 export interface Field {
     id: number;
     name: string;
@@ -10,7 +9,7 @@ export interface Field {
 }
 
 interface BookingGridProps {
-    fields: Field[]; // Receive real fields
+    fields: Field[];
     onSelect: (fieldId: number, startTime: string, endTime: string) => void;
     existingBookings?: any[];
 }
@@ -21,95 +20,73 @@ const TIME_SLOTS = [
     "22:00", "22:30", "23:00", "23:30", "00:00"
 ];
 
-const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect }) => {
+const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect, existingBookings = [] }) => {
     const [selection, setSelection] = useState<{
         fieldId: number | null;
         startIdx: number | null;
         endIdx: number | null;
     }>({ fieldId: null, startIdx: null, endIdx: null });
 
-    const [isDragging, setIsDragging] = useState(false);
+    // Helper: Check if slot is occupied
+    const isSlotOccupied = (fieldId: number, idx: number) => {
+        const slotTime = TIME_SLOTS[idx]; // e.g. "16:00"
+        const slotEnd = TIME_SLOTS[idx + 1];
 
-    const handleStart = (fieldId: number, timeIdx: number) => {
-        setIsDragging(true);
-        setSelection({
-            fieldId,
-            startIdx: timeIdx,
-            endIdx: timeIdx
+        return existingBookings.some(b => {
+            if (b.court_id !== fieldId) return false;
+
+            // Extract HH:mm from "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DD HH:mm"
+            const bStart = b.time_start.split(' ')[1].substring(0, 5);
+            const bEnd = b.time_end.split(' ')[1].substring(0, 5);
+
+            // Handle midnight for end time "00:00" -> "24:00" for comparison
+            const compareStart = slotTime;
+            const compareEnd = slotEnd === "00:00" ? "24:00" : slotEnd;
+            const bCompareEnd = bEnd === "00:00" ? "24:00" : bEnd;
+
+            // Overlap check: slotStart < bEnd AND slotEnd > bStart
+            return compareStart < bCompareEnd && compareEnd > bStart;
         });
     };
 
-    const handleMove = (fieldId: number, timeIdx: number) => {
-        if (!isDragging) return;
-        if (selection.fieldId !== null && selection.fieldId !== fieldId) return;
+    const handleSlotClick = (fieldId: number, idx: number) => {
+        if (isSlotOccupied(fieldId, idx)) return;
 
-        setSelection(prev => ({
-            ...prev,
-            endIdx: timeIdx
-        }));
-    };
+        // Case A: Fresh start
+        if (selection.fieldId !== fieldId || selection.startIdx === null || selection.endIdx !== null) {
+            setSelection({ fieldId, startIdx: idx, endIdx: null });
+            return;
+        }
 
-    const handleEnd = () => {
-        setIsDragging(false);
-        if (selection.fieldId !== null && selection.startIdx !== null && selection.endIdx !== null) {
-            const start = Math.min(selection.startIdx, selection.endIdx);
-            const end = Math.max(selection.startIdx, selection.endIdx);
+        // Case B: Selecting end
+        if (selection.fieldId === fieldId && selection.startIdx !== null) {
+            if (idx < selection.startIdx) {
+                setSelection({ fieldId, startIdx: idx, endIdx: null });
+                return;
+            }
+
+            // Check if ANY slot in between is occupied
+            for (let i = selection.startIdx; i <= idx; i++) {
+                if (isSlotOccupied(fieldId, i)) {
+                    // Reset to this new start if we hit a wall
+                    setSelection({ fieldId, startIdx: idx, endIdx: null });
+                    return;
+                }
+            }
+
+            const start = selection.startIdx;
+            const end = idx;
+            setSelection({ fieldId, startIdx: start, endIdx: end });
 
             const startTime = TIME_SLOTS[start];
             const endTime = TIME_SLOTS[end + 1];
-
-            console.log(`Selected: Court ${selection.fieldId}, ${startTime} - ${endTime}`);
-            onSelect(selection.fieldId, startTime, endTime);
+            onSelect(fieldId, startTime, endTime);
         }
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        // [Key Change] Only prevent default if we determine the user is "Selecting" (dragging horizontally on a row)
-        // For now, removing absolute preventDefault to allow scrolling if needed. 
-        // CAUTION: This makes "Diagonal" scrolling vs selecting tricky.
-        // Quick Fix: If isDragging is true, we assume selection intent.
-
-        if (!isDragging) return;
-        if (e.cancelable) e.preventDefault(); // Lock scroll ONLY when dragging/selecting
-
-        const touch = e.touches[0];
-        const element = document.elementFromPoint(touch.clientX, touch.clientY);
-
-        if (element) {
-            const slotData = element.getAttribute('data-slot');
-            if (slotData) {
-                const [fId, tIdx] = slotData.split('-').map(Number);
-                if (selection.fieldId === fId) {
-                    setSelection(prev => ({
-                        ...prev,
-                        endIdx: tIdx
-                    }));
-                }
-            }
-        }
-    };
-
-    const handleTouchStart = (fieldId: number, timeIdx: number) => {
-        setIsDragging(true);
-        setSelection({
-            fieldId,
-            startIdx: timeIdx,
-            endIdx: timeIdx
-        });
     };
 
     return (
-        // [Key Change] Removed 'touch-none' but kept 'overflow-x-auto'. 
-        // Added 'touch-action-pan-y' or similar? No, standard overflow is fine.
-        // We rely on handleTouchMove's preventDefault to stop scroll ONLY when selecting.
-        <div
-            className="overflow-x-auto pb-4 overscroll-x-contain select-none"
-            onMouseUp={handleEnd}
-            onMouseLeave={handleEnd}
-            onTouchEnd={handleEnd}
-            onTouchMove={handleTouchMove}
-        >
-            <div className="min-w-[800px]"> {/* Increased width to ensure scrollability is obvious */}
+        <div className="overflow-x-auto pb-4 overscroll-x-contain">
+            <div className="min-w-[800px] select-none">
                 {/* Header Row */}
                 <div className="flex">
                     <div className="w-24 shrink-0 p-2 font-bold text-gray-500 bg-white sticky left-0 z-10 border-b shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -125,7 +102,6 @@ const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect }) => {
                 {/* Rows */}
                 {fields.map(field => (
                     <div key={field.id} className="flex h-12 border-b border-gray-100">
-                        {/* Field Label */}
                         <div className="w-24 shrink-0 p-2 flex flex-col justify-center bg-white sticky left-0 z-10 text-xs font-semibold text-gray-700 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                             <div>{field.name}</div>
                             <div className="text-[10px] text-green-600 font-normal">{field.type}</div>
@@ -133,29 +109,39 @@ const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect }) => {
 
                         {/* Slots */}
                         {TIME_SLOTS.slice(0, -1).map((_, i) => {
+                            const occupied = isSlotOccupied(field.id, i);
                             const isSelected =
+                                !occupied &&
                                 selection.fieldId === field.id &&
                                 selection.startIdx !== null &&
-                                selection.endIdx !== null &&
-                                i >= Math.min(selection.startIdx, selection.endIdx) &&
-                                i <= Math.max(selection.startIdx, selection.endIdx);
+                                (
+                                    (selection.endIdx === null && i === selection.startIdx) ||
+                                    (selection.endIdx !== null && i >= selection.startIdx && i <= selection.endIdx)
+                                );
 
                             return (
                                 <div
                                     key={`${field.id}-${i}`}
-                                    data-slot={`${field.id}-${i}`}
-                                    className={`flex-1 min-w-[60px] cursor-pointer transition-colors duration-75
-                                        ${isSelected ? 'bg-green-500 text-white' : 'bg-white hover:bg-gray-50 active:bg-green-100'}
-                                        border-l border-gray-100 relative
+                                    onClick={() => handleSlotClick(field.id, i)}
+                                    className={`flex-1 min-w-[60px] transition-colors duration-200 relative border-l border-gray-100
+                                        ${occupied ? 'bg-gray-100 cursor-not-allowed' : 'cursor-pointer'}
+                                        ${isSelected ? 'bg-green-500 text-white' : (occupied ? '' : 'bg-white active:bg-green-50')}
                                     `}
-                                    onMouseDown={() => handleStart(field.id, i)}
-                                    onMouseEnter={() => handleMove(field.id, i)}
-                                    onTouchStart={() => handleTouchStart(field.id, i)}
                                 >
-                                    {isSelected && i === Math.min(selection.startIdx!, selection.endIdx!) && (
+                                    {occupied && (
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                                            <div className="w-full h-[1px] bg-gray-400 rotate-45"></div>
+                                        </div>
+                                    )}
+                                    {!occupied && selection.fieldId === field.id && selection.startIdx === i && selection.endIdx === null && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-2 h-2 bg-white rounded-full animate-pulse shadow-sm"></div>
+                                        </div>
+                                    )}
+                                    {isSelected && selection.startIdx === i && (
                                         <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
                                     )}
-                                    {isSelected && i === Math.max(selection.startIdx!, selection.endIdx!) && (
+                                    {isSelected && selection.endIdx === i && (
                                         <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
                                     )}
                                 </div>
