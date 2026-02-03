@@ -171,7 +171,7 @@ const BookingV2Page: React.FC = () => {
                 {/* Court Grid */}
                 <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
                     <h2 className="mb-4 font-semibold">Select Slot</h2>
-                    <BookingGrid onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })} />
+                    <BookingGrid fields={fields} onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })} />
                 </div>
             </main>
 

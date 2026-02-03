@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 
-interface Field {
+// Shared Interface (could be moved to types file)
+export interface Field {
     id: number;
     name: string;
     type: string;
+    price_pre?: number;
+    price_post?: number;
 }
 
 interface BookingGridProps {
+    fields: Field[]; // Receive real fields
     onSelect: (fieldId: number, startTime: string, endTime: string) => void;
-    existingBookings?: any[]; // Allow visual disabling
+    existingBookings?: any[];
 }
 
 const TIME_SLOTS = [
@@ -17,17 +21,7 @@ const TIME_SLOTS = [
     "22:00", "22:30", "23:00", "23:30", "00:00"
 ];
 
-// Mock Fields (will replace with props later or fetch)
-const MOCK_FIELDS: Field[] = [
-    { id: 1, name: "Court 1", type: "7-a-side" },
-    { id: 2, name: "Court 2", type: "7-a-side" },
-    { id: 3, name: "Court 3", type: "7-a-side" },
-    { id: 4, name: "Court 4", type: "5-a-side" },
-    { id: 5, name: "Court 5", type: "5-a-side" },
-    { id: 6, name: "Court 6", type: "5-a-side" },
-];
-
-const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
+const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect }) => {
     const [selection, setSelection] = useState<{
         fieldId: number | null;
         startIdx: number | null;
@@ -35,7 +29,6 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
     }>({ fieldId: null, startIdx: null, endIdx: null });
 
     const [isDragging, setIsDragging] = useState(false);
-    // const gridRef = useRef<HTMLDivElement>(null); // Unused
 
     const handleStart = (fieldId: number, timeIdx: number) => {
         setIsDragging(true);
@@ -48,7 +41,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
 
     const handleMove = (fieldId: number, timeIdx: number) => {
         if (!isDragging) return;
-        if (selection.fieldId !== null && selection.fieldId !== fieldId) return; // Lock to same field
+        if (selection.fieldId !== null && selection.fieldId !== fieldId) return;
 
         setSelection(prev => ({
             ...prev,
@@ -62,10 +55,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
             const start = Math.min(selection.startIdx, selection.endIdx);
             const end = Math.max(selection.startIdx, selection.endIdx);
 
-            // Calculate duration (each slot is 30 mins)
-
             const startTime = TIME_SLOTS[start];
-            // End Time is the slot *after* the last selected block
             const endTime = TIME_SLOTS[end + 1];
 
             console.log(`Selected: Court ${selection.fieldId}, ${startTime} - ${endTime}`);
@@ -73,22 +63,22 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
         }
     };
 
-    // Touch support helper 
-    // Touch move doesn't fire "enter" events, so we must calculate element under finger.
     const handleTouchMove = (e: React.TouchEvent) => {
-        e.preventDefault(); // Prevent scrolling while dragging
+        // [Key Change] Only prevent default if we determine the user is "Selecting" (dragging horizontally on a row)
+        // For now, removing absolute preventDefault to allow scrolling if needed. 
+        // CAUTION: This makes "Diagonal" scrolling vs selecting tricky.
+        // Quick Fix: If isDragging is true, we assume selection intent.
+
         if (!isDragging) return;
+        if (e.cancelable) e.preventDefault(); // Lock scroll ONLY when dragging/selecting
 
         const touch = e.touches[0];
         const element = document.elementFromPoint(touch.clientX, touch.clientY);
 
         if (element) {
-            // Check if we are over a slot
-            const slotData = element.getAttribute('data-slot'); // "fieldId-timeIdx"
+            const slotData = element.getAttribute('data-slot');
             if (slotData) {
                 const [fId, tIdx] = slotData.split('-').map(Number);
-
-                // Only allow drag if same field
                 if (selection.fieldId === fId) {
                     setSelection(prev => ({
                         ...prev,
@@ -109,20 +99,23 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
     };
 
     return (
+        // [Key Change] Removed 'touch-none' but kept 'overflow-x-auto'. 
+        // Added 'touch-action-pan-y' or similar? No, standard overflow is fine.
+        // We rely on handleTouchMove's preventDefault to stop scroll ONLY when selecting.
         <div
-            className="overflow-x-auto pb-4 overscroll-none touch-none"
+            className="overflow-x-auto pb-4 overscroll-x-contain select-none"
             onMouseUp={handleEnd}
             onMouseLeave={handleEnd}
             onTouchEnd={handleEnd}
             onTouchMove={handleTouchMove}
         >
-            <div className="min-w-[600px] select-none">
+            <div className="min-w-[800px]"> {/* Increased width to ensure scrollability is obvious */}
                 {/* Header Row */}
                 <div className="flex">
-                    <div className="w-24 shrink-0 p-2 font-bold text-gray-500 bg-white sticky left-0 z-10 border-b">
+                    <div className="w-24 shrink-0 p-2 font-bold text-gray-500 bg-white sticky left-0 z-10 border-b shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         Field
                     </div>
-                    {TIME_SLOTS.slice(0, -1).map((time, _) => ( // Use _ for unused param
+                    {TIME_SLOTS.slice(0, -1).map((time) => (
                         <div key={time} className="flex-1 min-w-[60px] text-center text-xs text-gray-400 p-2 border-b border-l border-gray-100">
                             {time}
                         </div>
@@ -130,7 +123,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
                 </div>
 
                 {/* Rows */}
-                {MOCK_FIELDS.map(field => (
+                {fields.map(field => (
                     <div key={field.id} className="flex h-12 border-b border-gray-100">
                         {/* Field Label */}
                         <div className="w-24 shrink-0 p-2 flex flex-col justify-center bg-white sticky left-0 z-10 text-xs font-semibold text-gray-700 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -139,7 +132,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
                         </div>
 
                         {/* Slots */}
-                        {TIME_SLOTS.slice(0, -1).map((_, i) => { // Use _ for unused param time
+                        {TIME_SLOTS.slice(0, -1).map((_, i) => {
                             const isSelected =
                                 selection.fieldId === field.id &&
                                 selection.startIdx !== null &&
@@ -150,7 +143,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
                             return (
                                 <div
                                     key={`${field.id}-${i}`}
-                                    data-slot={`${field.id}-${i}`} // Needed for touch detection
+                                    data-slot={`${field.id}-${i}`}
                                     className={`flex-1 min-w-[60px] cursor-pointer transition-colors duration-75
                                         ${isSelected ? 'bg-green-500 text-white' : 'bg-white hover:bg-gray-50 active:bg-green-100'}
                                         border-l border-gray-100 relative
@@ -159,7 +152,6 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
                                     onMouseEnter={() => handleMove(field.id, i)}
                                     onTouchStart={() => handleTouchStart(field.id, i)}
                                 >
-                                    {/* Helper text for start/end visual */}
                                     {isSelected && i === Math.min(selection.startIdx!, selection.endIdx!) && (
                                         <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
                                     )}
