@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 
 interface Field {
     id: number;
@@ -35,7 +35,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
     }>({ fieldId: null, startIdx: null, endIdx: null });
 
     const [isDragging, setIsDragging] = useState(false);
-    const gridRef = useRef<HTMLDivElement>(null);
+    // const gridRef = useRef<HTMLDivElement>(null); // Unused
 
     const handleStart = (fieldId: number, timeIdx: number) => {
         setIsDragging(true);
@@ -63,10 +63,6 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
             const end = Math.max(selection.startIdx, selection.endIdx);
 
             // Calculate duration (each slot is 30 mins)
-            // Times: index 0 = 16:00.
-            // visual logic: if I select 16:00 (0) to 17:00 (2), that's 2 slots? 
-            // Actually, we usually select "Blocks". 
-            // Let's assume the grid cells represent the *START* of the 30min block.
 
             const startTime = TIME_SLOTS[start];
             // End Time is the slot *after* the last selected block
@@ -77,18 +73,56 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
         }
     };
 
-    // Touch support helper (more complex, simplified here for now)
-    // We rely on simple mouse events first, touch events need elementFromPoint or reliable touch handlers.
+    // Touch support helper 
+    // Touch move doesn't fire "enter" events, so we must calculate element under finger.
+    const handleTouchMove = (e: React.TouchEvent) => {
+        e.preventDefault(); // Prevent scrolling while dragging
+        if (!isDragging) return;
+
+        const touch = e.touches[0];
+        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+
+        if (element) {
+            // Check if we are over a slot
+            const slotData = element.getAttribute('data-slot'); // "fieldId-timeIdx"
+            if (slotData) {
+                const [fId, tIdx] = slotData.split('-').map(Number);
+
+                // Only allow drag if same field
+                if (selection.fieldId === fId) {
+                    setSelection(prev => ({
+                        ...prev,
+                        endIdx: tIdx
+                    }));
+                }
+            }
+        }
+    };
+
+    const handleTouchStart = (fieldId: number, timeIdx: number) => {
+        setIsDragging(true);
+        setSelection({
+            fieldId,
+            startIdx: timeIdx,
+            endIdx: timeIdx
+        });
+    };
 
     return (
-        <div className="overflow-x-auto pb-4" onMouseUp={handleEnd} onMouseLeave={handleEnd} onTouchEnd={handleEnd}>
+        <div
+            className="overflow-x-auto pb-4 overscroll-none touch-none"
+            onMouseUp={handleEnd}
+            onMouseLeave={handleEnd}
+            onTouchEnd={handleEnd}
+            onTouchMove={handleTouchMove}
+        >
             <div className="min-w-[600px] select-none">
                 {/* Header Row */}
                 <div className="flex">
                     <div className="w-24 shrink-0 p-2 font-bold text-gray-500 bg-white sticky left-0 z-10 border-b">
                         Field
                     </div>
-                    {TIME_SLOTS.slice(0, -1).map((time, i) => (
+                    {TIME_SLOTS.slice(0, -1).map((time, _) => ( // Use _ for unused param
                         <div key={time} className="flex-1 min-w-[60px] text-center text-xs text-gray-400 p-2 border-b border-l border-gray-100">
                             {time}
                         </div>
@@ -105,7 +139,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
                         </div>
 
                         {/* Slots */}
-                        {TIME_SLOTS.slice(0, -1).map((time, i) => {
+                        {TIME_SLOTS.slice(0, -1).map((_, i) => { // Use _ for unused param time
                             const isSelected =
                                 selection.fieldId === field.id &&
                                 selection.startIdx !== null &&
@@ -116,15 +150,22 @@ const BookingGrid: React.FC<BookingGridProps> = ({ onSelect }) => {
                             return (
                                 <div
                                     key={`${field.id}-${i}`}
+                                    data-slot={`${field.id}-${i}`} // Needed for touch detection
                                     className={`flex-1 min-w-[60px] cursor-pointer transition-colors duration-75
                                         ${isSelected ? 'bg-green-500 text-white' : 'bg-white hover:bg-gray-50 active:bg-green-100'}
-                                        border-l border-gray-100
+                                        border-l border-gray-100 relative
                                     `}
                                     onMouseDown={() => handleStart(field.id, i)}
                                     onMouseEnter={() => handleMove(field.id, i)}
-                                // Touch events would go here (touchstart, touchmove - tricky with scroll)
+                                    onTouchStart={() => handleTouchStart(field.id, i)}
                                 >
-                                    {/* Content (e.g., price or blocked) */}
+                                    {/* Helper text for start/end visual */}
+                                    {isSelected && i === Math.min(selection.startIdx!, selection.endIdx!) && (
+                                        <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
+                                    )}
+                                    {isSelected && i === Math.max(selection.startIdx!, selection.endIdx!) && (
+                                        <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
+                                    )}
                                 </div>
                             );
                         })}

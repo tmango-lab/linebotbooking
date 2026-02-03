@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/api'; // Ensure this path is correct
 import BookingGrid from '../../components/liff/BookingGrid';
@@ -63,12 +63,17 @@ const BookingV2Page: React.FC = () => {
             if (userId) {
                 // Simplified coupon fetch - assume standard schema or use edge function logic
                 // For now, let's mock response or implement basic fetch if `user_coupons` table is accessible
+                // MOCK DATA for now to satisfy usage
+                setCoupons([
+                    { id: 'c1', campaign_id: 1, name: 'Welcome Discount', discount_type: 'FIXED', discount_value: 100, min_spend: 500, eligible_fields: null },
+                    { id: 'c2', campaign_id: 2, name: 'Big Spender', discount_type: 'PERCENT', discount_value: 10, min_spend: 1000, eligible_fields: null }
+                ]);
             }
 
             setIsReady(true);
         };
         init();
-    }, []);
+    }, [searchParams]); // Added searchParams dependency
 
     // --- 2. Calculate Price ---
     useEffect(() => {
@@ -87,7 +92,6 @@ const BookingV2Page: React.FC = () => {
         if (duration < 0) duration += 24; // Handle midnight crossing
 
         const cutOff = 18.0;
-        let cost = 0;
 
         // Simple integration method: Step through every 30 mins
         // Actually, let's use the segment logic
@@ -107,10 +111,6 @@ const BookingV2Page: React.FC = () => {
             postHours = endDec - cutOff;
         }
 
-        // Round Price logic (per hour chunk or total?)
-        // Architecture says: Round UP total price to nearest 100 THB is the Rule 1?
-        // Wait, pricingService.ts says: Apply rounding to Pre-18 (ceil/100)*100 AND Post-18 (ceil/100)*100
-
         const costPre = Math.ceil((preHours * field.price_pre) / 100) * 100;
         const costPost = Math.ceil((postHours * field.price_post) / 100) * 100;
 
@@ -126,12 +126,8 @@ const BookingV2Page: React.FC = () => {
         }
 
         // Search for best coupon
-        // Mocking coupons for demo if empty
-        const availableCoupons: Coupon[] = coupons.length > 0 ? coupons : [
-            // Mock Data for Demo
-            { id: 'c1', campaign_id: 1, name: 'Welcome Discount', discount_type: 'FIXED', discount_value: 100, min_spend: 500, eligible_fields: null },
-            { id: 'c2', campaign_id: 2, name: 'Big Spender', discount_type: 'PERCENT', discount_value: 10, min_spend: 1000, eligible_fields: null }
-        ];
+        // Use state coupons if available, else fallback logic removed
+        const availableCoupons: Coupon[] = coupons;
 
         let best = null;
         let maxSavings = 0;
