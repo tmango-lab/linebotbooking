@@ -81,7 +81,7 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
                     <div className="flex">
                         {fields.map(field => (
                             <div key={field.id} className="w-[80px] shrink-0 p-2 text-center border-r border-gray-100 last:border-r-0 bg-white">
-                                <div className="text-sm font-bold text-gray-800 truncate">{field.name}</div>
+                                <div className="text-sm font-bold text-gray-800 truncate">{field.name.replace('สนาม ', '')}</div>
                                 <div className="text-[10px] text-green-600 font-normal truncate">{field.type}</div>
                             </div>
                         ))}

@@ -286,25 +286,34 @@ const BookingV2Page: React.FC = () => {
 
     const selectedField = fields.find(f => f.id === selection?.fieldId);
 
+    const getThaiDateString = () => {
+        const now = new Date();
+        const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const d = now.getDate();
+        const m = now.getMonth() + 1;
+        const y = now.getFullYear();
+        const dayName = days[now.getDay()];
+        return `${dayName} ${d}/${m}/${y}`;
+    };
+
     return (
         <div className="min-h-screen bg-[#F0F2F5] pb-32 font-sans">
             <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
                 <div>
-                    <h1 className="text-lg font-bold">New Booking</h1>
-                    <p className="text-xs text-gray-500">
-                        Today: {new Date().toLocaleDateString('th-TH')}
-                    </p>
+                    <h1 className="text-lg font-bold">New Booking (V2)</h1>
+                    <p className="text-xs text-gray-400">วันที่: {getThaiDateString()}</p>
                 </div>
             </header>
 
             <main className="p-4 space-y-4 max-w-lg mx-auto">
-                <div className="bg-white rounded-2xl shadow-sm overflow-hidden p-5">
+                {errorMsg && (
+                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center">
+                        <span className="mr-3">⚠️</span> {errorMsg}
+                    </div>
+                )}
+
+                <div className="bg-white rounded-2xl shadow-sm overflow-hidden p-3 overflow-x-auto">
                     <h2 className="mb-4 font-bold text-gray-800 text-lg">Select Court & Time</h2>
-                    {errorMsg && (
-                        <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center">
-                            <span className="mr-3 text-lg">⚠️</span> {errorMsg}
-                        </div>
-                    )}
                     <BookingGrid
                         fields={fields}
                         existingBookings={existingBookings}
@@ -314,7 +323,7 @@ const BookingV2Page: React.FC = () => {
 
                 <div className="px-2 py-4 text-center">
                     <p className="text-xs text-gray-400">
-                        {selection ? `Selected: ${selectedField?.name} at ${selection.startTime} - ${selection.endTime}` : "Choose a slot to start booking"}
+                        {selection ? `Selected: ${selectedField?.name.replace('สนาม ', '')} at ${selection.startTime} - ${selection.endTime}` : "Choose a slot to start booking"}
                     </p>
                 </div>
             </main>
@@ -348,7 +357,7 @@ const BookingV2Page: React.FC = () => {
                 onConfirm={handleFinalConfirm}
                 bookingDetails={{
                     fieldName: selectedField?.name || '',
-                    date: new Date().toLocaleDateString('th-TH'),
+                    date: getThaiDateString(),
                     startTime: selection?.startTime || '',
                     endTime: selection?.endTime || '',
                     originalPrice,

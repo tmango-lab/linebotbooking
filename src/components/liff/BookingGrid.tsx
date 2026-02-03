@@ -103,7 +103,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect, existingBoo
                 {fields.map(field => (
                     <div key={field.id} className="flex h-12 border-b border-gray-100">
                         <div className="w-24 shrink-0 p-2 flex flex-col justify-center bg-white sticky left-0 z-10 text-xs font-semibold text-gray-700 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            <div>{field.name}</div>
+                            <div>{field.name.replace('สนาม ', '')}</div>
                             <div className="text-[10px] text-green-600 font-normal">{field.type}</div>
                         </div>
 

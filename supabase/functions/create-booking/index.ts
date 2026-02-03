@@ -1,6 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
+import { pushMessage } from "../_shared/lineClient.ts";
+import { buildBookingSuccessFlex } from "../webhook/flexMessages.ts";
 
 console.log("Create Booking Function Started (Local DB Only)");
 
@@ -227,6 +229,25 @@ serve(async (req) => {
         if (paymentMethod) {
             const updatedNote = (booking.admin_note ? booking.admin_note + ' ' : '') + `[Pay: ${paymentMethod}]`;
             await supabase.from('bookings').update({ admin_note: updatedNote }).eq('id', booking.id);
+        }
+
+        // 4.2 Send LINE Notification
+        try {
+            const fieldLabel = (await supabase.from('fields').select('label').eq('id', fieldNo).single()).data?.label || `Field ${fieldNo}`;
+            const successFlex = buildBookingSuccessFlex({
+                teamName: customerName,
+                fieldName: fieldLabel,
+                date: date,
+                timeFrom: startTime,
+                timeTo: endTime,
+                price: finalPrice,
+                paymentMethod: paymentMethod || 'N/A'
+            });
+            await pushMessage(userId, successFlex);
+            console.log(`[Notification Sent] User: ${userId}`);
+        } catch (notifierErr) {
+            console.error('[Notification Error]:', notifierErr);
+            // Non-blocking error
         }
 
         // 5. Mark Coupon as Used (Atomic-ish)

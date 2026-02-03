@@ -705,3 +705,111 @@ export function buildCouponFlex(campaignId: string, secretCode: string, couponNa
         }
     };
 }
+// 8. Booking Success Flex Message
+export function buildBookingSuccessFlex(params: {
+    teamName: string;
+    fieldName: string;
+    date: string;
+    timeFrom: string;
+    timeTo: string;
+    price: number;
+    paymentMethod: string;
+}) {
+    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod } = params;
+
+    return {
+        type: "flex",
+        altText: "จองสนามสำเร็จ! ✅",
+        contents: {
+            type: "bubble",
+            body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                    {
+                        type: "text",
+                        text: "✅ จองสนามสำเร็จแล้ว!",
+                        weight: "bold",
+                        size: "lg",
+                        color: "#06C755"
+                    },
+                    { type: "separator", margin: "md" },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "lg",
+                        spacing: "sm",
+                        contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ทีม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: teamName, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "สนาม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: fieldName, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "วันที่", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: formatThaiDate(date), wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "เวลา", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${timeFrom} - ${timeTo}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ยอดชำระ", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${price.toLocaleString()} บาท`, weight: "bold", color: "#333333", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "การชำระ", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: paymentMethod === 'transfer' ? 'โอนเงิน' : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            footer: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                    {
+                        type: "button",
+                        style: "secondary",
+                        height: "sm",
+                        action: { type: "message", label: "ดูรายการจองของฉัน", text: "รายการจอง" }
+                    }
+                ]
+            }
+        }
+    };
+}

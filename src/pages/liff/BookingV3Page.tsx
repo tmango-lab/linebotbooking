@@ -285,12 +285,22 @@ const BookingV3Page: React.FC = () => {
 
     const selectedField = fields.find(f => f.id === selection?.fieldId);
 
+    const getThaiDateString = () => {
+        const now = new Date();
+        const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const d = now.getDate();
+        const m = now.getMonth() + 1;
+        const y = now.getFullYear();
+        const dayName = days[now.getDay()];
+        return `${dayName} ${d}/${m}/${y}`;
+    };
+
     return (
         <div className="min-h-screen bg-[#F0F2F5] pb-32">
             <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
                 <div>
                     <h1 className="text-lg font-bold">New Booking (V3 Vertical)</h1>
-                    <p className="text-xs text-gray-400">Date: {new Date().toLocaleDateString('th-TH')}</p>
+                    <p className="text-xs text-gray-400">วันที่: {getThaiDateString()}</p>
                 </div>
             </header>
 
@@ -339,7 +349,7 @@ const BookingV3Page: React.FC = () => {
                 onConfirm={handleFinalConfirm}
                 bookingDetails={{
                     fieldName: selectedField?.name || '',
-                    date: new Date().toLocaleDateString('th-TH'),
+                    date: getThaiDateString(),
                     startTime: selection?.startTime || '',
                     endTime: selection?.endTime || '',
                     originalPrice,
