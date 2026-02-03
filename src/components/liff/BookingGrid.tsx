@@ -85,7 +85,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect, existingBoo
     };
 
     return (
-        <div className="overflow-x-auto pb-4 overscroll-x-contain">
+        <div className="overflow-x-auto overscroll-x-contain">
             <div className="min-w-[800px] select-none">
                 {/* Header Row */}
                 <div className="flex">

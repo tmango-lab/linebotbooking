@@ -69,7 +69,7 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
     };
 
     return (
-        <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-100 max-h-[80vh] overflow-y-auto relative">
+        <div className="overflow-x-auto bg-white max-h-[85vh] overflow-y-auto relative">
             <div className="min-w-fit">
                 {/* Sticky Header Row (Fields) */}
                 <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white shadow-sm">

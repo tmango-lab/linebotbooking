@@ -79,7 +79,7 @@ export async function handleMessage(event: LineEvent) {
 
     // [NEW] Developer V2 Access
     if (text === '#dev_v2') {
-        const liffUrl = `https://liff.line.me/${Deno.env.get('LIFF_ID') || 'YOUR_LIFF_ID'}?mode=v2`;
+        const liffUrl = `https://liff.line.me/${Deno.env.get('LIFF_ID') || 'YOUR_LIFF_ID'}?mode=v2&userId=${userId}`;
 
         await replyMessage(event.replyToken!, {
             type: 'flex',
@@ -110,7 +110,7 @@ export async function handleMessage(event: LineEvent) {
 
     // [NEW] Developer V3 Access (Vertical Grid)
     if (text === '#dev_v3') {
-        const liffUrl = `https://liff.line.me/${Deno.env.get('LIFF_ID') || 'YOUR_LIFF_ID'}?mode=v3`;
+        const liffUrl = `https://liff.line.me/${Deno.env.get('LIFF_ID') || 'YOUR_LIFF_ID'}?mode=v3&userId=${userId}`;
 
         await replyMessage(event.replyToken!, {
             type: 'flex',

@@ -304,14 +304,14 @@ const BookingV3Page: React.FC = () => {
                 </div>
             </header>
 
-            <main className="p-4 space-y-4 max-w-lg mx-auto">
+            <main className="max-w-lg mx-auto">
                 {errorMsg && (
-                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center">
+                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center mx-4 mt-4">
                         <span className="mr-3">⚠️</span> {errorMsg}
                     </div>
                 )}
 
-                <div className="bg-white rounded-2xl shadow-sm overflow-hidden p-3">
+                <div className="bg-white overflow-hidden border-b border-gray-200">
                     <BookingGridVertical
                         fields={fields}
                         existingBookings={existingBookings}
@@ -348,7 +348,7 @@ const BookingV3Page: React.FC = () => {
                 onClose={() => setIsConfirmModalOpen(false)}
                 onConfirm={handleFinalConfirm}
                 bookingDetails={{
-                    fieldName: selectedField?.name || '',
+                    fieldName: `สนาม ${(selectedField?.name || '').replace('สนาม ', '').replace('#', '').trim()}`,
                     date: getThaiDateString(),
                     startTime: selection?.startTime || '',
                     endTime: selection?.endTime || '',
