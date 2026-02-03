@@ -54,7 +54,7 @@ const BookingV2Page: React.FC = () => {
                 const { data: fieldsData, error: fieldsError } = await supabase
                     .from('fields')
                     .select('*')
-                    .eq('is_active', true)
+                    .eq('active', true)
                     .order('id');
 
                 if (fieldsError) {
