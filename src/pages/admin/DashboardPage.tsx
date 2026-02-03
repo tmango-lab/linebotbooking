@@ -591,7 +591,8 @@ export default function DashboardPage() {
                     phoneNumber: data.phone,
                     note: data.note,
                     paymentMethod: data.paymentMethod,
-                    campaignId: data.campaignId
+                    campaignId: data.campaignId,
+                    source: 'admin'
                 })
             });
             if (!res.ok) throw new Error(await res.text());
