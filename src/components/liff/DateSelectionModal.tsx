@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface DateSelectionModalProps {
     isOpen: boolean;
@@ -9,89 +9,150 @@ interface DateSelectionModalProps {
 }
 
 const DateSelectionModal: React.FC<DateSelectionModalProps> = ({ isOpen, onClose, selectedDate, onSelect }) => {
+    // Start with the month of the currently selected date
+    const [viewDate, setViewDate] = useState(new Date(selectedDate));
+
     if (!isOpen) return null;
 
-    const dates: { date: string; day: string; dayName: string; monthName: string; isToday: boolean }[] = [];
-    const today = new Date();
     const daysTh = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
     const monthsTh = [
-        'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
-    for (let i = 0; i < 14; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() + i);
+    const currentYear = viewDate.getFullYear();
+    const currentMonth = viewDate.getMonth();
 
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
+    // Get first day of the month and total days
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-        dates.push({
-            date: dateStr,
-            day: String(d.getDate()),
-            dayName: daysTh[d.getDay()],
-            monthName: monthsTh[d.getMonth()],
-            isToday: i === 0
-        });
-    }
+    // Helper to format date string yyyy-mm-dd
+    const formatDate = (year: number, month: number, day: number) => {
+        const mm = String(month + 1).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        return `${year}-${mm}-${dd}`;
+    };
+
+    const handlePrevMonth = () => {
+        setViewDate(new Date(currentYear, currentMonth - 1, 1));
+    };
+
+    const handleNextMonth = () => {
+        setViewDate(new Date(currentYear, currentMonth + 1, 1));
+    };
+
+    const todayStr = new Date().toISOString().split('T')[0];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-20 px-4">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/50 backdrop-blur-md"
                 onClick={onClose}
             />
 
             {/* Modal Content */}
-            <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <h3 className="font-bold text-gray-800">เลือกวันที่ต้องการจอง</h3>
-                    <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <div className="relative bg-white w-full max-w-[340px] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+                {/* Header with Month Navigation */}
+                <div className="p-4 flex justify-between items-center bg-green-600 text-white">
+                    <button
+                        onClick={handlePrevMonth}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    <div className="text-center">
+                        <div className="text-xs uppercase font-bold tracking-widest opacity-80 mb-0.5">เลือกวันที่</div>
+                        <div className="text-lg font-bold">
+                            {monthsTh[currentMonth]} {currentYear + 543}
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleNextMonth}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                         </svg>
                     </button>
                 </div>
 
-                <div className="p-4 grid grid-cols-4 gap-3">
-                    {dates.map((item) => {
-                        const isSelected = item.date === selectedDate;
-                        return (
-                            <button
-                                key={item.date}
-                                onClick={() => {
-                                    onSelect(item.date);
-                                    onClose();
-                                }}
-                                className={`
-                                    flex flex-col items-center justify-center p-2 rounded-xl border transition-all
-                                    ${isSelected
-                                        ? 'bg-green-600 border-green-600 text-white shadow-md'
-                                        : 'bg-white border-gray-100 text-gray-700 hover:border-green-200 hover:bg-green-50'
-                                    }
-                                `}
-                            >
-                                <span className={`text-[10px] uppercase font-medium ${isSelected ? 'text-green-100' : 'text-gray-400'}`}>
-                                    {item.isToday ? 'วันนี้' : item.dayName}
-                                </span>
-                                <span className="text-lg font-bold leading-none my-1">{item.day}</span>
-                                <span className={`text-[10px] ${isSelected ? 'text-green-100' : 'text-gray-500'}`}>
-                                    {item.monthName}
-                                </span>
-                            </button>
-                        );
-                    })}
+                {/* Calendar Body */}
+                <div className="p-4 bg-white">
+                    {/* Day Names Row */}
+                    <div className="grid grid-cols-7 mb-2">
+                        {daysTh.map(day => (
+                            <div key={day} className="text-center text-[10px] font-bold text-gray-400 uppercase">
+                                {day}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Days Grid */}
+                    <div className="grid grid-cols-7 gap-1">
+                        {/* Fill empty slots before the first day */}
+                        {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                            <div key={`empty-${i}`} className="p-2" />
+                        ))}
+
+                        {/* Actual Days */}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1;
+                            const dateStr = formatDate(currentYear, currentMonth, day);
+                            const isSelected = dateStr === selectedDate;
+                            const isToday = dateStr === todayStr;
+                            const dObj = new Date(dateStr);
+                            const isPast = dObj < new Date(todayStr);
+
+                            return (
+                                <button
+                                    key={dateStr}
+                                    disabled={isPast}
+                                    onClick={() => {
+                                        onSelect(dateStr);
+                                        onClose();
+                                    }}
+                                    className={`
+                                        relative group flex flex-col items-center justify-center aspect-square rounded-full text-sm font-medium transition-all
+                                        ${isSelected
+                                            ? 'bg-green-600 text-white shadow-lg shadow-green-200 scale-110 z-10'
+                                            : isPast
+                                                ? 'text-gray-200 cursor-not-allowed'
+                                                : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
+                                        }
+                                    `}
+                                >
+                                    {day}
+                                    {isToday && !isSelected && (
+                                        <div className="absolute bottom-1 w-1 h-1 bg-green-500 rounded-full" />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
-                <div className="p-3 bg-gray-50 text-center">
+                {/* Footer Tips */}
+                <div className="px-6 py-4 bg-gray-50 flex justify-between items-center">
+                    <button
+                        onClick={() => {
+                            onSelect(todayStr);
+                            onClose();
+                        }}
+                        className="text-xs font-bold text-green-600 hover:text-green-700 underline underline-offset-4"
+                    >
+                        กลับไปวันนี้
+                    </button>
                     <button
                         onClick={onClose}
-                        className="text-sm text-gray-500 font-medium hover:text-gray-700"
+                        className="text-xs font-bold text-gray-400 hover:text-gray-600"
                     >
-                        ยกเลิก
+                        ปิดหน้าต่าง
                     </button>
                 </div>
             </div>
