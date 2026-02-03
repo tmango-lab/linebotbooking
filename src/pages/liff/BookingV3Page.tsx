@@ -5,7 +5,7 @@ import BookingGridVertical from '../../components/liff/BookingGridVertical';
 import BookingSummary from '../../components/liff/BookingSummary';
 import CouponBottomSheet from '../../components/liff/CouponBottomSheet';
 import BookingConfirmationModal from '../../components/liff/BookingConfirmationModal';
-import DateSelector from '../../components/liff/DateSelector';
+import DateSelectionModal from '../../components/liff/DateSelectionModal';
 import { getLiffUser } from '../../lib/liff';
 
 interface Field {
@@ -61,6 +61,7 @@ const BookingV3Page: React.FC = () => {
     // Date State
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+    const [isDateModalOpen, setIsDateModalOpen] = useState(false);
 
     const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
 
@@ -304,19 +305,48 @@ const BookingV3Page: React.FC = () => {
         return `${dayName} ${d}/${m}/${y}`;
     };
 
+
+    const getThaiDateShort = (dateStr: string) => {
+        const dObj = new Date(dateStr);
+        const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        const isToday = dateStr === new Date().toISOString().split('T')[0];
+        if (isToday) return `วันนี้, ${dObj.getDate()} ${months[dObj.getMonth()]}`;
+        return `${days[dObj.getDay()]}, ${dObj.getDate()} ${months[dObj.getMonth()]}`;
+    };
+
     return (
         <div className="min-h-screen bg-[#F0F2F5] pb-32">
             <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
-                <div>
-                    <h1 className="text-lg font-bold">New Booking (V3 Vertical)</h1>
-                    <p className="text-xs text-gray-400">วันที่: {getThaiDateString(selectedDate)}</p>
+                <div className="flex-1">
+                    <h1 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">จองสนามบอล (Mobile)</h1>
+                    <button
+                        onClick={() => setIsDateModalOpen(true)}
+                        className="flex items-center text-lg font-bold text-gray-800 -mt-1 active:opacity-60 transition-opacity"
+                    >
+                        {getThaiDateShort(selectedDate)}
+                        <svg className="w-5 h-5 ml-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                 </div>
+                {userProfile && (
+                    <div className="text-right">
+                        <div className="text-xs text-gray-400">ทีม</div>
+                        <div className="text-sm font-bold text-green-600">{userProfile.team_name}</div>
+                    </div>
+                )}
             </header>
 
-            <DateSelector selectedDate={selectedDate} onSelect={(d) => {
-                setSelectedDate(d);
-                setSelection(null); // Reset selection
-            }} />
+            <DateSelectionModal
+                isOpen={isDateModalOpen}
+                onClose={() => setIsDateModalOpen(false)}
+                selectedDate={selectedDate}
+                onSelect={(d) => {
+                    setSelectedDate(d);
+                    setSelection(null);
+                }}
+            />
 
             <main className="max-w-lg mx-auto">
                 {errorMsg && (
@@ -325,7 +355,7 @@ const BookingV3Page: React.FC = () => {
                     </div>
                 )}
 
-                <div className="bg-white overflow-hidden border-b border-gray-200">
+                <div className="bg-white overflow-hidden border-b border-gray-200 shadow-sm">
                     <BookingGridVertical
                         key={selectedDate} // Force re-render on date change to clear internal state
                         fields={fields}
