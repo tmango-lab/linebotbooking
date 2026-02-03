@@ -115,8 +115,14 @@ function StatusPage() {
         const decodedState = decodeURIComponent(liffState);
         addLog(`Decoded: ${decodedState}`);
 
+        // [Fix] Determine Target based on state content
+        let targetPath = '/wallet'; // Default
+        if (decodedState.includes('mode=v2')) {
+          targetPath = '/booking-v2';
+        }
+
         // Construct Target
-        const target = `/wallet${decodedState.startsWith('?') ? decodedState : '?' + decodedState}`;
+        const target = `${targetPath}${decodedState.startsWith('?') ? decodedState : '?' + decodedState}`;
         addLog(`Target: ${target}`);
 
         // Auto Redirect with Delay
