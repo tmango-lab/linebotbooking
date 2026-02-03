@@ -41,21 +41,46 @@ const BookingV2Page: React.FC = () => {
     // Calculated State
     const [originalPrice, setOriginalPrice] = useState(0);
     const [bestCoupon, setBestCoupon] = useState<Coupon | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null); // New Error State
 
     // --- 1. Init Data ---
     useEffect(() => {
         const init = async () => {
             console.log("Initializing Booking V2...");
+            setErrorMsg(null);
 
-            // Fetch Fields
-            const { data: fieldsData } = await supabase.from('fields').select('*').eq('is_active', true).order('id');
-            if (fieldsData) setFields(fieldsData.map(f => ({
-                id: f.id,
-                name: f.label,
-                type: f.type,
-                price_pre: f.price_pre || 0,
-                price_post: f.price_post || 0
-            })));
+            try {
+                // Fetch Fields
+                const { data: fieldsData, error: fieldsError } = await supabase
+                    .from('fields')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('id');
+
+                if (fieldsError) {
+                    console.error("Error fetching fields:", fieldsError);
+                    setErrorMsg(`Failed to load fields: ${fieldsError.message}`);
+                    return;
+                }
+
+                if (!fieldsData || fieldsData.length === 0) {
+                    console.warn("No fields found!");
+                    setErrorMsg("No active fields found in database.");
+                    return;
+                }
+
+                console.log("Fields loaded:", fieldsData.length);
+                setFields(fieldsData.map(f => ({
+                    id: f.id,
+                    name: f.label,
+                    type: f.type,
+                    price_pre: f.price_pre || 0,
+                    price_post: f.price_post || 0
+                })));
+            } catch (err: any) {
+                console.error("Unexpected error:", err);
+                setErrorMsg("Unexpected system error: " + err.message);
+            }
 
             // Fetch Coupons (Mocking current user ID or skipping for now if auth not ready)
             // Ideally we get userId from LIFF context or query param
@@ -171,6 +196,13 @@ const BookingV2Page: React.FC = () => {
                 {/* Court Grid */}
                 <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
                     <h2 className="mb-4 font-semibold">Select Slot</h2>
+
+                    {errorMsg && (
+                        <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
+                            ⚠️ {errorMsg}
+                        </div>
+                    )}
+
                     <BookingGrid fields={fields} onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })} />
                 </div>
             </main>
