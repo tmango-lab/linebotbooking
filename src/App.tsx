@@ -12,6 +12,7 @@ import ReportPage from './pages/admin/ReportPage';
 import PromoCodePage from './pages/admin/PromoCodePage';
 import CampaignPage from './pages/admin/CampaignPage'; // New V2
 import WalletPage from './pages/user/WalletPage';
+import BookingV2Page from './pages/liff/BookingV2Page'; // Import V2 Page
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 // Simple status page (Legacy/Root)
@@ -71,11 +72,24 @@ function StatusPage() {
     };
     checkConnection();
 
+    // Check for V2 Mode
+    const searchParams = new URLSearchParams(window.location.search);
+    const mode = searchParams.get('mode');
+
+    // [V2 Logic] If ?mode=v2, redirect to V2 Booking Page
+    if (mode === 'v2') {
+      addLog("Mode V2 Detected. Redirecting...");
+      // Use timeout to ensure router is ready (optional but safer)
+      setTimeout(() => {
+        navigate('/booking-v2' + window.location.search);
+      }, 100);
+      return;
+    }
+
     // [NEW] LIFF/Deep Link Redirect for HashRouter
     // ... logic continues ...
 
     // Check both Search AND Hash for params
-    const searchParams = new URLSearchParams(window.location.search);
     let liffState = searchParams.get('liff.state');
 
     if (!liffState) {
@@ -188,6 +202,7 @@ function App() {
 
         {/* User Routes (V2) */}
         <Route path="/wallet" element={<WalletPage />} />
+        <Route path="/booking-v2" element={<BookingV2Page />} />
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<LoginPage />} />
