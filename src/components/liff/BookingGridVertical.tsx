@@ -45,25 +45,38 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
     const handleSlotClick = (fieldId: number, idx: number) => {
         if (isSlotOccupied(fieldId, idx)) return;
 
+        // Case 1: Start new selection if:
+        // - Different field
+        // - No start selected yet
+        // - Already have a complete range (reset to new start)
         if (selection.fieldId !== fieldId || selection.startIdx === null || selection.endIdx !== null) {
             setSelection({ fieldId, startIdx: idx, endIdx: null });
             return;
         }
 
+        // Case 2: Have a start, selecting end logic
         if (selection.fieldId === fieldId && selection.startIdx !== null) {
+            // If clicked before start, reset to new start
             if (idx < selection.startIdx) {
                 setSelection({ fieldId, startIdx: idx, endIdx: null });
                 return;
             }
+
+            // Check validity of range (no occupied slots in between)
             for (let i = selection.startIdx; i <= idx; i++) {
                 if (isSlotOccupied(fieldId, i)) {
+                    // Obstacle found, reset to be safe (or could set start to idx, but reset is clearer)
                     setSelection({ fieldId, startIdx: idx, endIdx: null });
                     return;
                 }
             }
+
+            // Valid range
             const start = selection.startIdx;
             const end = idx;
             setSelection({ fieldId, startIdx: start, endIdx: end });
+
+            // Notify parent
             onSelect(fieldId, TIME_SLOTS[start], TIME_SLOTS[end + 1]);
         }
     };

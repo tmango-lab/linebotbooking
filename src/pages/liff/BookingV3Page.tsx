@@ -5,6 +5,7 @@ import BookingGridVertical from '../../components/liff/BookingGridVertical';
 import BookingSummary from '../../components/liff/BookingSummary';
 import CouponBottomSheet from '../../components/liff/CouponBottomSheet';
 import BookingConfirmationModal from '../../components/liff/BookingConfirmationModal';
+import DateSelector from '../../components/liff/DateSelector';
 
 interface Field {
     id: number;
@@ -56,6 +57,10 @@ const BookingV3Page: React.FC = () => {
     const [bestCoupon, setBestCoupon] = useState<Coupon | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+    // Date State
+    const todayStr = new Date().toISOString().split('T')[0];
+    const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
     // --- 1. Init Data ---
     useEffect(() => {
         const init = async () => {
@@ -85,19 +90,14 @@ const BookingV3Page: React.FC = () => {
                     })));
                 }
 
-                // 2. Fetch Existing Bookings for today
-                const now = new Date();
-                const offset = now.getTimezoneOffset() * 60000;
-                const localDate = new Date(now.getTime() - offset);
-                const today = localDate.toISOString().split('T')[0];
-
+                // 2. Fetch Existing Bookings for selected date
                 const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
                     },
-                    body: JSON.stringify({ date: today })
+                    body: JSON.stringify({ date: selectedDate })
                 });
                 const bookingData = await res.json();
 
@@ -156,7 +156,7 @@ const BookingV3Page: React.FC = () => {
             setIsReady(true);
         };
         init();
-    }, [searchParams]);
+    }, [searchParams, selectedDate]);
 
     // --- 2. Calculate Price ---
     useEffect(() => {
@@ -235,10 +235,6 @@ const BookingV3Page: React.FC = () => {
 
     const handleFinalConfirm = async (team: string, phone: string, payment: string) => {
         const userId = searchParams.get('userId');
-        const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
-        const localDate = new Date(now.getTime() - offset);
-        const today = localDate.toISOString().split('T')[0];
 
         const forwardMap: Record<number, number> = {
             1: 2424, 2: 2425, 3: 2428, 4: 2426, 5: 2427, 6: 2429
@@ -254,7 +250,7 @@ const BookingV3Page: React.FC = () => {
                 body: JSON.stringify({
                     userId,
                     fieldId: forwardMap[selection!.fieldId] || selection!.fieldId,
-                    date: today,
+                    date: selectedDate,
                     startTime: selection!.startTime,
                     endTime: selection!.endTime,
                     customerName: team,
@@ -285,13 +281,13 @@ const BookingV3Page: React.FC = () => {
 
     const selectedField = fields.find(f => f.id === selection?.fieldId);
 
-    const getThaiDateString = () => {
-        const now = new Date();
+    const getThaiDateString = (dateStr?: string) => {
+        const dObj = dateStr ? new Date(dateStr) : new Date();
         const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-        const d = now.getDate();
-        const m = now.getMonth() + 1;
-        const y = now.getFullYear();
-        const dayName = days[now.getDay()];
+        const d = dObj.getDate();
+        const m = dObj.getMonth() + 1;
+        const y = dObj.getFullYear();
+        const dayName = days[dObj.getDay()];
         return `${dayName} ${d}/${m}/${y}`;
     };
 
@@ -300,9 +296,14 @@ const BookingV3Page: React.FC = () => {
             <header className="bg-white p-4 shadow-sm sticky top-0 z-50 flex justify-between items-center">
                 <div>
                     <h1 className="text-lg font-bold">New Booking (V3 Vertical)</h1>
-                    <p className="text-xs text-gray-400">วันที่: {getThaiDateString()}</p>
+                    <p className="text-xs text-gray-400">วันที่: {getThaiDateString(selectedDate)}</p>
                 </div>
             </header>
+
+            <DateSelector selectedDate={selectedDate} onSelect={(d) => {
+                setSelectedDate(d);
+                setSelection(null); // Reset selection
+            }} />
 
             <main className="max-w-lg mx-auto">
                 {errorMsg && (
@@ -313,6 +314,7 @@ const BookingV3Page: React.FC = () => {
 
                 <div className="bg-white overflow-hidden border-b border-gray-200">
                     <BookingGridVertical
+                        key={selectedDate} // Force re-render on date change to clear internal state
                         fields={fields}
                         existingBookings={existingBookings}
                         onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })}
@@ -349,7 +351,7 @@ const BookingV3Page: React.FC = () => {
                 onConfirm={handleFinalConfirm}
                 bookingDetails={{
                     fieldName: `สนาม ${(selectedField?.name || '').replace('สนาม ', '').replace('#', '').trim()}`,
-                    date: getThaiDateString(),
+                    date: getThaiDateString(selectedDate),
                     startTime: selection?.startTime || '',
                     endTime: selection?.endTime || '',
                     originalPrice,
