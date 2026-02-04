@@ -69,6 +69,26 @@ function formatDiscount(promo: PromoCode): string {
     }
 }
 
+// [NEW] Helper: Translate English Day to Thai
+function translateDayToThai(dayEn: string): string {
+    const map: Record<string, string> = {
+        'Sun': 'อาทิตย์', 'Mon': 'จันทร์', 'Tue': 'อังคาร', 'Wed': 'พุธ',
+        'Thu': 'พฤหัสบดี', 'Fri': 'ศุกร์', 'Sat': 'เสาร์'
+    };
+    // Handle specific day or full name if needed, but usually searchService uses 3 chars
+    const key = dayEn.substring(0, 3);
+    return map[key] || dayEn;
+}
+
+// [NEW] Helper: Calculate End Time
+function calculateEndTime(start: string, durationH: number): string {
+    const [h, m] = start.split(':').map(Number);
+    const totalMin = (h * 60) + m + (durationH * 60);
+    const endH = Math.floor(totalMin / 60) % 24;
+    const endM = totalMin % 60;
+    return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+}
+
 // 1. Select Date Flex
 export function buildSelectDateFlex() {
     return {
@@ -921,8 +941,8 @@ export function buildRegularBookingSummaryFlex(params: {
                         margin: "md",
                         spacing: "sm",
                         contents: [
-                            { type: "text", text: `วัน: ${targetDay}`, size: "sm", color: "#333333" },
-                            { type: "text", text: `เวลา: ${time} (${duration} ชม.)`, size: "sm", color: "#333333" },
+                            { type: "text", text: `วัน: ${translateDayToThai(targetDay)}`, size: "sm", color: "#333333" }, // [NEW] Translate Day
+                            { type: "text", text: `เวลา: ${time} - ${calculateEndTime(time, duration)} น.`, size: "sm", color: "#333333" }, // [NEW] Show Range
                             { type: "text", text: `จำนวน: ${availableCount}/${totalCount} ครั้งที่จองได้`, size: "sm", color: availableCount === totalCount ? "#06C755" : "#FF9800", weight: "bold" }
                         ]
                     },

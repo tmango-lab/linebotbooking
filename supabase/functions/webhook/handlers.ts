@@ -90,9 +90,24 @@ export async function handleMessage(event: LineEvent) {
     // [NEW] Regular Booking Flow (VIP Only)
     if (text === 'จองประจำล่วงหน้า') {
         const profile = await getProfile(userId);
-        if (profile?.role !== 'vip') {
-            console.log(`[Regular Booking] Blocked non-VIP user: ${userId}`);
-            return; // Silent ignore (or could reply "Unknown command")
+
+        // 1. If no profile -> Prompt Registration
+        if (!profile) {
+            await saveUserState(userId, { step: 'onboarding' });
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: 'ยินดีต้อนรับครับ! ⚽\nก่อนเริ่มใช้งานฟีเจอร์ "จองประจำ"\nรบกวนแจ้งข้อมูลลงทะเบียนหน่อยครับ\n\nพิมพ์: [ชื่อทีม] [เบอร์โทร]\nเช่น "หมูเด้ง เอฟซี 0812345678" ได้เลยครับ 👇'
+            });
+            return;
+        }
+
+        // 2. If not VIP -> Inform user
+        if (profile.role !== 'vip') {
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: '⚠️ ฟีเจอร์ "จองประจำล่วงหน้า" เปิดให้ใช้งานเฉพาะสมาชิก VIP เท่านั้นครับ\n\nหากสนใจสมัคร VIP กรุณาติดต่อแอดมิน 083-914-4000 หรือทักแชทแจ้งแอดมินได้เลยครับ 😊'
+            });
+            return;
         }
 
         // Start Flow
