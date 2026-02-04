@@ -44,49 +44,54 @@ export async function upsertProfile(userId: string, teamName: string, phoneNumbe
 }
 
 export function parseProfileInput(text: string): { teamName: string; phoneNumber: string } | null {
-    // Expected format: "TeamName PhoneNumber" or "TeamName Phone"
-    // Heuristic: Last part is phone number if it looks like digits
-    // OR First part is phone...
-    // Let's assume standard format: "[Team Name] [Phone]"
+    // 1. Clean input: remove quotes which might cause confusion
+    const cleanText = text.trim().replace(/["']/g, '');
 
-    // Normalize spaces
-    const parts = text.trim().split(/\s+/);
+    // 2. Split by whitespace
+    const parts = cleanText.split(/\s+/);
 
     if (parts.length < 2) {
         return null;
     }
 
-    // Try to identify phone number (usually 9-10 digits, starts with 0)
-    // Regex for Thai phone: ^0\d{8,9}$
-    const phoneRegex = /^0\d{8,9}$/;
-
     let phone = '';
-    let team = '';
+    let phonePartIndex = -1;
 
-    // Check last part
-    const lastPart = parts[parts.length - 1];
-    if (phoneRegex.test(lastPart) || (lastPart.length >= 9 && !isNaN(Number(lastPart)))) {
-        phone = lastPart;
-        team = parts.slice(0, parts.length - 1).join(' ');
-    } else {
-        // Maybe first part?
-        const firstPart = parts[0];
-        if (phoneRegex.test(firstPart)) {
-            phone = firstPart;
-            team = parts.slice(1).join(' ');
-        } else {
-            // Can't identify clearly, maybe provide best effort or fail?
-            // Let's assume the user typed "Name 0xxxx" pattern as requested.
-            // If we can't find a clear phone number, we will just take the last part as phone and hope.
-            return null;
+    // 3. Identify which part is the phone number
+    // Strategy: Look for a part that contains 9-10 digits
+    // valid chars in phone part: digits, dashes, parens, plus
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        // Strip non-digits to check length
+        const digits = part.replace(/\D/g, '');
+
+        // Thai mobile: starts with 0, 10 digits. Landline: 02..., 9 digits.
+        // We start with 0 check and length 9-10.
+        if (digits.length >= 9 && digits.length <= 10 && digits.startsWith('0')) {
+            phone = digits;
+            phonePartIndex = i;
+            break; // Found the phone number
         }
     }
 
-    // Clean up phone (remove dashes if any, though regex above assumes digits)
-    phone = phone.replace(/-/g, '');
+    if (phonePartIndex === -1) {
+        // Fallback: If no clear phone number found, maybe the user typed it without a leading 0?
+        // Or maybe it's just the last part?
+        // Let's be strict about the phone format to avoid capturing team names as phone numbers.
+        return null;
+    }
+
+    // 4. Construct Team Name from the remaining parts
+    const teamNameParts = parts.filter((_, index) => index !== phonePartIndex);
+    const teamName = teamNameParts.join(' ');
+
+    if (!teamName) {
+        // No team name found (e.g. user just typed two phone numbers?)
+        return null;
+    }
 
     return {
-        teamName: team,
+        teamName,
         phoneNumber: phone
     };
 }

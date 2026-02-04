@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw } from 'lucide-react';
+import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus } from 'lucide-react';
 
 interface Profile {
     user_id: string;
@@ -16,6 +16,8 @@ export default function CustomerPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<{ team_name: string; phone_number: string } | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
+    const [addForm, setAddForm] = useState({ team_name: '', phone_number: '' });
 
     useEffect(() => {
         fetchProfiles();
@@ -72,6 +74,44 @@ export default function CustomerPage() {
         }
     };
 
+    const handleAddClick = () => {
+        setAddForm({ team_name: '', phone_number: '' });
+        setIsAdding(true);
+    };
+
+    const handleCancelAdd = () => {
+        setIsAdding(false);
+    };
+
+    const handleSaveNew = async () => {
+        if (!addForm.team_name || !addForm.phone_number) {
+            alert('Please fill in all fields');
+            return;
+        }
+        try {
+            // Generate a manual ID
+            const newId = `manual_${Date.now()}`;
+            const newProfile: Profile = {
+                user_id: newId,
+                team_name: addForm.team_name,
+                phone_number: addForm.phone_number,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            const { error } = await supabase
+                .from('profiles')
+                .insert([newProfile]); // Insert as array
+
+            if (error) throw error;
+
+            setProfiles([newProfile, ...profiles]);
+            setIsAdding(false);
+        } catch (err: any) {
+            alert('Failed to add customer: ' + err.message);
+        }
+    };
+
     const filteredProfiles = profiles.filter(p =>
         (p.team_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (p.phone_number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
@@ -83,12 +123,20 @@ export default function CustomerPage() {
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <User className="h-6 w-6" /> Customer Management
                 </h1>
-                <button
-                    onClick={fetchProfiles}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium"
-                >
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleAddClick}
+                        className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white border border-transparent rounded hover:bg-indigo-700 text-sm font-medium shadow-sm"
+                    >
+                        <Plus className="h-4 w-4" /> Add Customer
+                    </button>
+                    <button
+                        onClick={fetchProfiles}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+                    </button>
+                </div>
             </div>
 
             {/* Search */}
@@ -189,6 +237,59 @@ export default function CustomerPage() {
                     )}
                 </ul>
             </div>
+
+            {/* Add Customer Modal */}
+            {isAdding && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-bold text-gray-900">Add New Customer</h2>
+                            <button onClick={handleCancelAdd} className="text-gray-400 hover:text-gray-500">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Team Name</label>
+                                <input
+                                    type="text"
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border px-3 py-2"
+                                    value={addForm.team_name}
+                                    onChange={e => setAddForm({ ...addForm, team_name: e.target.value })}
+                                    placeholder="e.g. Walk-in Team"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                                <input
+                                    type="text"
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border px-3 py-2"
+                                    value={addForm.phone_number}
+                                    onChange={e => setAddForm({ ...addForm, phone_number: e.target.value })}
+                                    placeholder="e.g. 0812345678"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                onClick={handleCancelAdd}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveNew}
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                Save Customer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

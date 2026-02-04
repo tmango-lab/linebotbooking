@@ -235,10 +235,18 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         }
 
         const basePrice = netPrice + discount;
-        return { basePrice, discount, netPrice };
+
+        // [NEW] Deposit and Balance logic
+        // If payment_method is qr and it's paid (either confirmed status or has paid_at), 
+        // we consider the 200 THB deposit as completed.
+        const isDepositPaid = (booking.payment_method === 'qr' && (!!booking.paid_at || booking.payment_status === 'paid'));
+        const depositAmount = isDepositPaid ? 200 : 0;
+        const balance = netPrice - depositAmount;
+
+        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid };
     };
 
-    const { basePrice, discount, netPrice } = getFinancials();
+    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid } = getFinancials();
 
     const isPendingPayment = booking.status === 'pending_payment';
 
@@ -541,21 +549,40 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                             ) : (
                                 <div className="mt-6 flex flex-col gap-4">
                                     {/* Financial Breakdown (View Only) */}
-                                    {!isEditingDetails && (discount > 0) && (
+                                    {!isEditingDetails && (discount > 0 || isDepositPaid) && (
                                         <div className="bg-green-50 rounded-md p-3 border border-green-100 mb-2">
-                                            <h4 className="text-xs font-semibold text-green-800 uppercase tracking-wide mb-2">Financial Breakdown</h4>
-                                            <div className="flex justify-between text-sm text-gray-600">
-                                                <span>ราคาเต็ม (Base Price):</span>
-                                                <span>{basePrice.toLocaleString()} บ.</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm text-red-600 font-medium">
-                                                <span>ส่วนลด (Discount):</span>
-                                                <span>-{discount.toLocaleString()} บ.</span>
-                                            </div>
-                                            <div className="border-t border-green-200 my-1 pt-1 flex justify-between text-sm font-bold text-gray-900">
-                                                <span>ยอดสุทธิ (Net Price):</span>
+                                            <h4 className="text-xs font-semibold text-green-800 uppercase tracking-wide mb-2">สรุปยอดชำระ (Financial Summary)</h4>
+
+                                            {discount > 0 && (
+                                                <>
+                                                    <div className="flex justify-between text-sm text-gray-600">
+                                                        <span>ราคาเต็ม (Base Price):</span>
+                                                        <span>{basePrice.toLocaleString()} บ.</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-sm text-red-600 font-medium">
+                                                        <span>ส่วนลด (Discount):</span>
+                                                        <span>-{discount.toLocaleString()} บ.</span>
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            <div className={`flex justify-between text-sm font-bold ${isDepositPaid ? 'text-gray-600' : 'text-gray-900'} ${discount > 0 ? 'border-t border-green-200 mt-1 pt-1' : ''}`}>
+                                                <span>ยอดสุทธิ (Total):</span>
                                                 <span>{netPrice.toLocaleString()} บ.</span>
                                             </div>
+
+                                            {isDepositPaid && (
+                                                <>
+                                                    <div className="flex justify-between text-sm text-green-700 font-medium mt-1">
+                                                        <span>จ่ายมัดจำแล้ว (Paid Deposit):</span>
+                                                        <span>-{depositAmount.toLocaleString()} บ.</span>
+                                                    </div>
+                                                    <div className="border-t border-green-300 mt-1 pt-1 flex justify-between text-base font-extrabold text-indigo-700">
+                                                        <span>คงค้างหน้าสนาม (Balance):</span>
+                                                        <span>{balance.toLocaleString()} บ.</span>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     )}
 
