@@ -284,7 +284,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                         <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
                             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4 flex items-center gap-2" id="modal-title">
                                 <span>รายละเอียดการจอง</span>
-                                {booking.source === 'line' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
+                                {(booking.source === 'line' || booking.source === 'line_bot_regular') && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
                                 {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><Monitor className="w-3 h-3 mr-1" />Admin</span>}
                                 {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" />Promo</span>}
                                 {isPendingPayment && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 animate-pulse"><Clock className="w-3 h-3 mr-1" />รอจ่ายมัดจำ</span>}
