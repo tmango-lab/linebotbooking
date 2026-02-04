@@ -1440,7 +1440,11 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
                 admin_note: Deno.env.get('VITE_ADMIN_NOTE_PREFIX') ? `${Deno.env.get('VITE_ADMIN_NOTE_PREFIX')} Regular Booking` : 'Regular Booking VIP'
             });
 
-        if (!error) successCount++;
+        if (error) {
+            console.error(`[RegularBooking] Failed to insert ${slot.date}:`, error);
+        } else {
+            successCount++;
+        }
     }
 
     await pushMessage(userId, {
