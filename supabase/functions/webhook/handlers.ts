@@ -1445,14 +1445,17 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
             .from('bookings')
             .insert({
                 user_id: userId,
+                booking_id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000), // Ensure unique
                 field_no: fieldId,
                 date: slot.date,
                 time_from: time_from,
                 time_to: timeTo,
-                price: price,
+                price_total_thb: price, // [FIX] price -> price_total_thb
                 status: 'pending_payment',
-                booking_source: 'line_bot_regular',
-                admin_note: Deno.env.get('VITE_ADMIN_NOTE_PREFIX') ? `${Deno.env.get('VITE_ADMIN_NOTE_PREFIX')} Regular Booking` : 'Regular Booking VIP'
+                source: 'line_bot_regular', // [FIX] booking_source -> source (to match existing schema)
+                admin_note: Deno.env.get('VITE_ADMIN_NOTE_PREFIX') ? `${Deno.env.get('VITE_ADMIN_NOTE_PREFIX')} Regular Booking` : 'Regular Booking VIP',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             });
 
         if (error) {
