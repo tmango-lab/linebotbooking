@@ -1450,6 +1450,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
                 date: slot.date,
                 time_from: time_from,
                 time_to: timeTo,
+                duration_h: duration_h, // [FIX] Add missing duration_h
                 price_total_thb: price, // [FIX] price -> price_total_thb
                 status: 'pending_payment',
                 source: 'line_bot_regular', // [FIX] booking_source -> source (to match existing schema)
