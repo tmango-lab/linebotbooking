@@ -61,6 +61,10 @@ CREATE TABLE bookings (
     source TEXT DEFAULT 'admin',    -- admin, line
     paid_at TIMESTAMPTZ,
     user_id TEXT,                   -- LINE User ID (Optional/Nullable for Admin bookings)
+    timeout_at TIMESTAMPTZ,         -- [NEW] Cancellation deadline for QR bookings
+    payment_method TEXT,            -- [NEW] qr, field
+    payment_status TEXT,            -- [NEW] pending, paid
+    payment_slip_url TEXT,          -- [NEW] URL to uploaded slip in Supabase Storage
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
@@ -405,6 +409,62 @@ When a booking with a **USED** coupon is modified:
 +To solve the "Missing required fields" issue, the system now uses a two-tier strategy for getting the `userId`:
 +1.  **LIFF SDK**: Direct call to `liff.getProfile()` (Most reliable).
 +2.  **URL Fallback**: If LIFF is not initialized or in a browser, fallback to `?userId=` parameter.
-+Implementation: `src/lib/liff.ts` -> `getLiffUser()`.
-+
++ Implementation: `src/lib/liff.ts` -> `getLiffUser()`.
+
+---
+
+## 11. QR Deposit & Payment Flow (2026-02)
+
+### Overview
+To secure bookings made via LINE, the system implements a **200 THB Deposit Flow** via PromptPay QR.
+
+### QR Deposit Workflow
+1.  **Booking Creation**: User selects 'QR' in LIFF. `create-booking` is called with `status: 'pending_payment'`.
+2.  **Payment Request**: LINE Bot sends a Flex Message with a **PromptPay QR Code (fixed 200 THB)**.
+3.  **Timeout**: The booking has a **10-minute timeout**. If not paid, `cron-cancel-unpaid` deletes/cancels it.
+4.  **Slip Verification**:
+    - User sends a slip image in the LINE chat.
+    - Webhook (`handleImage`) uploads it to Supabase Storage (`payment-slips` bucket).
+    - System verifies the slip (Mock) and updates booking to `status: 'confirmed'`, `payment_status: 'paid'`.
+5.  **Balance Collection**: The remaining balance is marked as **Outstanding** and must be collected at the field.
+
+### Admin Dashboard Status Colors (4-State Filter)
+The booking cards on the dashboard use a 4-color system to help staff manage payments:
+
+| Color | Status | Meaning |
+|-------|--------|---------|
+| **Pink (Rose)** | `pending_payment` | **Critical**: Waiting for 200 THB deposit (10m limit). |
+| **Amber (Orange)** | QR + Paid Deposit | **Collect Balance**: 200 THB paid, need to collect remaining. |
+| **Blue (Cyan)** | Cash/Field | **Collect Full**: No deposit, need to collect full amount. |
+| **Green (Emerald)** | Fully Paid | **Done**: Balance is zero. |
+
+### Financial Summary
+The `BookingDetailModal` provides a breakdown:
+- **Total Price**: Calculated based on duration/time.
+- **Paid Deposit**: Fixed at 200 THB (if applicable).
+- **Outstanding Balance**: The final amount to be collected at the field.
+
+---
+
+## Member Management & Profile Linking
+
+### 1. Manual Profile Creation (Admin)
+Admins can manually add customers via the **Customer Management** page (`CustomerPage.tsx`).
+- **ID Generation**: Codes start with `manual_` + timestamp (e.g., `manual_1738639200000`).
+- **Purpose**: Tracks walk-ins, phone bookings, or problematic users who can't register via the bot.
+
+### 2. Robust Input Parsing (LINE Bot)
+The LINE Bot onboarding flow (`profileService.ts`) uses a flexible algorithm to identify user input:
+- **Phone Number Detection**: Searches for 9-10 digits anywhere in the message. Handles dashes, spaces, and formatting characters automatically.
+- **Team Name Extraction**: Everything else in the message is treated as the Team Name.
+- **Format Examples**: 
+  - `หมูเด้ง เอฟซี 0812345678` (Success)
+  - `081-111-2222 ทีมปลาท่องโก๋` (Success)
+  - `"ABC Team" 0899998888` (Success)
+
+### 3. Automatic Profile Linking (Adoption)
+The `upsertProfile` function contains "Adoption Logic" to link manual entries to real LINE accounts:
+1. When a user registers via LINE, the system looks for an existing profile with the **same phone number** where `user_id` starts with `manual_`.
+2. If a match is found, the `manual_` ID is **updated/renamed** to the user's real LINE UID.
+3. This preserves history and configuration from the manual record without creating duplicates.
 
