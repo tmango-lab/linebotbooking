@@ -164,7 +164,8 @@ export async function searchRegularBookingSlots(
     endDate: string,
     targetDay: string, // e.g., "Tue", "Wed" - format depends on date.toDateString() or similar
     timeFrom: string,
-    durationMin: number
+    durationMin: number,
+    specificFieldId?: number // [NEW] Optional
 ): Promise<RegularSlotResult[]> {
     console.log(`[Regular Search] ${startDate} to ${endDate} on ${targetDay}, ${timeFrom} (${durationMin}m)`);
 
@@ -207,10 +208,16 @@ export async function searchRegularBookingSlots(
     if (dates.length === 0) return [];
 
     // 2. Fetch active fields
-    const { data: fields } = await supabase
+    let query = supabase
         .from('fields')
         .select('id')
         .eq('active', true);
+
+    if (specificFieldId) {
+        query = query.eq('id', specificFieldId);
+    }
+
+    const { data: fields } = await query;
 
     if (!fields || fields.length === 0) return [];
 

@@ -454,6 +454,9 @@ export async function handlePostback(event: LineEvent) {
         case 'regularSelectDuration':
             await handleRegularSelectDuration(event, userId, params);
             break;
+        case 'regularSelectField': // [NEW]
+            await handleRegularSelectField(event, userId, params);
+            break;
         case 'regularInputCode':
             await handleRegularInputCode(event, userId, params);
             break;
@@ -1173,9 +1176,54 @@ async function handleRegularSelectDuration(event: LineEvent, userId: string, par
     const dur = parseFloat(params.duration_h);
 
     // Save state
-    await saveUserState(userId, { duration_h: dur });
+    await saveUserState(userId, { duration_h: dur, step: 'regular_select_field' });
 
-    // Show Summary
+    // Fetch Active Fields
+    const fields = await getActiveFields();
+
+    // Create Field Buttons
+    const buttons = fields.map((f: any) => ({
+        type: "button",
+        style: "secondary",
+        action: postbackAction(`${f.label} (${f.type})`, `action=regularSelectField&field_id=${f.id}`)
+    }));
+
+    // Add "Any Field" option
+    buttons.push({
+        type: "button",
+        style: "primary",
+        action: postbackAction("⚡ สนามไหนก็ได้ (ว่าง)", `action=regularSelectField&field_id=0`)
+    });
+
+    // Show Field Selection
+    await replyMessage(event.replyToken!, {
+        type: "flex",
+        altText: "เลือกสนาม",
+        contents: {
+            type: "bubble",
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                contents: [
+                    { type: "text", text: "🏟️ เลือกสนามที่ต้องการ", weight: "bold", size: "lg" },
+                    { type: "text", text: "ระบุสนามที่ต้องการจองประจำ", size: "sm", color: "#666666" },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        spacing: "sm",
+                        margin: "md",
+                        contents: buttons
+                    }
+                ]
+            }
+        }
+    });
+}
+
+async function handleRegularSelectField(event: LineEvent, userId: string, params: any) {
+    const fieldId = parseInt(params.field_id);
+    await saveUserState(userId, { regular_field_id: fieldId }); // 0 = Any
     await showRegularBookingSummary(event, userId);
 }
 
@@ -1211,7 +1259,7 @@ async function handleRegularInputCode(event: LineEvent, userId: string, params: 
 
 async function showRegularBookingSummary(event: LineEvent, userId: string, promoCodeStr?: string) {
     const state = await getUserState(userId);
-    const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code } = state;
+    const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code, regular_field_id } = state;
 
     // If promoCodeStr passed, validate it
     let promoData = null;
@@ -1236,7 +1284,8 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
         regular_end_date!,
         regular_day!,
         time_from!,
-        duration_h!
+        duration_h!,
+        regular_field_id && regular_field_id > 0 ? regular_field_id : undefined // [NEW] Pass specific field
     );
 
     // Calculate Price
@@ -1300,12 +1349,12 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
 
 async function handleConfirmRegularBooking(event: LineEvent, userId: string, params: any) {
     const state = await getUserState(userId);
-    const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code } = state;
+    const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code, regular_field_id } = state;
 
     await replyMessage(event.replyToken!, { type: 'text', text: '⏳ กำลังบันทึกการจอง กรุณารอสักครู่...' });
 
     // Re-verify availability
-    const results = await searchRegularBookingSlots(regular_start_date!, regular_end_date!, regular_day!, time_from!, duration_h!);
+    const results = await searchRegularBookingSlots(regular_start_date!, regular_end_date!, regular_day!, time_from!, duration_h!, regular_field_id && regular_field_id > 0 ? regular_field_id : undefined);
 
     // Filter available
     const availableSlots = results.filter(s => s.available);
