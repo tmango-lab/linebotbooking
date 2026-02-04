@@ -722,16 +722,30 @@ export function buildBookingSuccessFlex(params: {
         altText: "จองสนามสำเร็จ! ✅",
         contents: {
             type: "bubble",
+            hero: (paymentMethod === 'qr') ? {
+                type: "image",
+                url: `https://promptpay.io/${Deno.env.get('PROMPTPAY_ID') || '0839144000'}/200.png`,
+                size: "full",
+                aspectRatio: "1:1",
+                aspectMode: "cover",
+            } : undefined,
             body: {
                 type: "box",
                 layout: "vertical",
                 contents: [
                     {
                         type: "text",
-                        text: "✅ จองสนามสำเร็จแล้ว!",
+                        text: paymentMethod === 'qr' ? "💳 ชำระเงินมัดจำ 200 บาท" : "✅ จองสนามสำเร็จแล้ว!",
                         weight: "bold",
                         size: "lg",
-                        color: "#06C755"
+                        color: paymentMethod === 'qr' ? "#FF9800" : "#06C755"
+                    },
+                    {
+                        type: "text",
+                        text: paymentMethod === 'qr' ? "กรุณาโอนเงินมัดจำภายใน 10 นาที" : "ขอบคุณที่ใช้บริการครับ",
+                        size: "sm",
+                        color: "#999999",
+                        margin: "xs"
                     },
                     { type: "separator", margin: "md" },
                     {
@@ -781,8 +795,17 @@ export function buildBookingSuccessFlex(params: {
                                 layout: "baseline",
                                 spacing: "sm",
                                 contents: [
-                                    { type: "text", text: "ยอดชำระ", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: `${price.toLocaleString()} บาท`, weight: "bold", color: "#333333", size: "sm", flex: 5 }
+                                    { type: "text", text: "ยอดรวม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${price.toLocaleString()} บาท`, color: "#333333", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ยอดโอน", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: paymentMethod === 'qr' ? "200.00 บาท" : "-", weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
                                 ]
                             },
                             {
@@ -791,16 +814,34 @@ export function buildBookingSuccessFlex(params: {
                                 spacing: "sm",
                                 contents: [
                                     { type: "text", text: "การชำระ", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: paymentMethod === 'transfer' ? 'โอนเงิน' : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: paymentMethod === 'qr' ? 'มัดจำ 200 (QR)' : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
                                 ]
                             }
                         ]
+                    },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "xl",
+                        contents: paymentMethod === 'qr' ? [
+                            { type: "separator" },
+                            {
+                                type: "text",
+                                text: "📢 เมื่อโอนเงินแล้ว กรุณาส่งรูปสลิปเข้ามาในช่องแชทนี้เพื่อยืนยันการจองทันที",
+                                color: "#FF5252",
+                                size: "xs",
+                                weight: "bold",
+                                wrap: true,
+                                margin: "md"
+                            }
+                        ] : []
                     }
                 ]
             },
             footer: {
                 type: "box",
                 layout: "vertical",
+                spacing: "sm",
                 contents: [
                     {
                         type: "button",
