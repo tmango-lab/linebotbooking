@@ -233,12 +233,13 @@ export async function searchRegularBookingSlots(
     // Fetch bookings for the whole range (filtered by dates roughly)
     // To avoid over-fetching, we can query `date` IN list, but list might be long.
     // Better: `date >= startDate` AND `date <= endDate`.
+    // [FIX] Use .in() to fetch specific dates only to avoid 1000 row limit on large ranges
     const { data: allBookings, error } = await supabase
         .from('bookings')
         .select('date, time_from, time_to, field_no')
-        .gte('date', dates[0])
-        .lte('date', dates[dates.length - 1])
-        .neq('status', 'cancelled');
+        .in('date', dates)
+        .neq('status', 'cancelled')
+        .limit(5000); // Verify higher limit just in case
 
     if (error) {
         console.error("Error fetching bookings:", error);
