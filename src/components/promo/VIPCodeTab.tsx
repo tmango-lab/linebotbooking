@@ -6,7 +6,7 @@ import {
     deleteManualPromoCode,
     type ManualPromoCode
 } from '../../lib/promoApi';
-import { Plus, Edit2, Trash2, X, Save, AlertCircle, Copy, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, AlertCircle, Copy } from 'lucide-react';
 
 export default function VIPCodeTab() {
     const [codes, setCodes] = useState<ManualPromoCode[]>([]);
