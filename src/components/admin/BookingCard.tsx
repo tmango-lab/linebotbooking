@@ -14,6 +14,7 @@ interface BookingCardProps {
         is_promo?: boolean;
         status?: string;
         payment_method?: string;
+        payment_status?: string;
     };
     top: number;
     height: number;
@@ -63,14 +64,73 @@ export default function BookingCard({
 
     const isPendingPayment = booking.status === 'pending_payment';
     const isQR = booking.payment_method === 'qr';
+    const isPaid = !!booking.paid_at;
 
-    // Theme logic
-    const theme = isPendingPayment
-        ? 'bg-amber-50 text-amber-700 border-amber-500 hover:bg-amber-100'
-        : 'bg-blue-50 text-blue-700 border-blue-600 hover:bg-blue-100';
+    // Determine Card Status for Coloring
+    let cardStatus: 'pending' | 'deposit_paid' | 'pay_at_field' | 'fully_paid' = 'pay_at_field';
 
-    const nameColor = isPendingPayment ? 'text-amber-900' : 'text-blue-900';
-    const textColor = isPendingPayment ? 'text-amber-800' : 'text-blue-800';
+    if (isPaid) {
+        cardStatus = 'fully_paid';
+    } else if (isPendingPayment) {
+        cardStatus = 'pending'; // Rose/Pink (Critical 10m)
+    } else if (isQR && booking.payment_status === 'paid' && !isPaid) {
+        // NOTE: Actually if payment_status is paid, usually paid_at should be set? 
+        // But for our flow: QR confirmed via Slip = status: confirmed, payment_status: paid. 
+        // We need to differentiate "Deposit Paid" vs "Full Paid".
+        // Let's assume:
+        // - "fully_paid" -> manual toggle in modal sets isPaid=true (paid_at != null)
+        // - "deposit_paid" -> QR flow complete (payment_status='paid') but admin hasn't clicked "Fully Paid" yet.
+        // HOWEVER, our current webhook sets payment_status='paid'.
+        // Let's rely on `paid_at`. If `paid_at` exists -> Green.
+        // If not, check other flags.
+        cardStatus = 'deposit_paid'; // Amber (Balance remaining)
+    } else {
+        cardStatus = 'pay_at_field'; // Blue (Cash/Field)
+    }
+
+    // [New Color Scheme]
+    // 1. Pink (Rose): Pending Payment (10 mins)
+    // 2. Amber: Deposit Paid (Need to collect balance)
+    // 3. Blue: Pay at Field (Need to collect full)
+    // 4. Emerald: Fully Paid (Done)
+
+    let theme = '';
+    let nameColor = '';
+    let textColor = '';
+    let iconColor = '';
+    let hoverColor = '';
+
+    switch (cardStatus) {
+        case 'pending': // Pink
+            theme = 'bg-rose-50 border-rose-400 hover:bg-rose-100';
+            nameColor = 'text-rose-900';
+            textColor = 'text-rose-800';
+            iconColor = 'text-rose-500';
+            hoverColor = 'hover:bg-rose-300';
+            break;
+        case 'deposit_paid': // Amber
+            theme = 'bg-amber-50 border-amber-500 hover:bg-amber-100';
+            nameColor = 'text-amber-900';
+            textColor = 'text-amber-800';
+            iconColor = 'text-amber-600';
+            hoverColor = 'hover:bg-amber-300';
+            break;
+        case 'fully_paid': // Green (Emerald)
+            theme = 'bg-emerald-50 border-emerald-500 hover:bg-emerald-100';
+            nameColor = 'text-emerald-900';
+            textColor = 'text-emerald-800';
+            iconColor = 'text-emerald-600';
+            hoverColor = 'hover:bg-emerald-300';
+            break;
+        case 'pay_at_field': // Blue (Default)
+        default:
+            theme = 'bg-blue-50 border-blue-600 hover:bg-blue-100';
+            nameColor = 'text-blue-900';
+            textColor = 'text-blue-800';
+            iconColor = 'text-blue-500';
+            hoverColor = 'hover:bg-blue-300';
+            break;
+    }
 
     return (
         <div
@@ -88,7 +148,7 @@ export default function BookingCard({
         >
             {/* Top Resize Handle */}
             <div
-                className={`absolute top-0 left-0 right-0 h-2 cursor-n-resize z-20 hover:bg-opacity-50 transition-colors ${isPendingPayment ? 'hover:bg-amber-300' : 'hover:bg-blue-300'}`}
+                className={`absolute top-0 left-0 right-0 h-2 cursor-n-resize z-20 hover:bg-opacity-50 transition-colors ${hoverColor}`}
                 onMouseDown={(e) => handleResizeStart(e, 'TOP')}
             />
 
@@ -101,7 +161,7 @@ export default function BookingCard({
                 {/* Time range */}
                 <div className={`text-[10px] font-medium opacity-90 flex items-center gap-1 ${textColor}`}>
                     {formatTime(booking.time_start)} - {formatTime(booking.time_end)}
-                    {isPendingPayment && <Clock className="w-2.5 h-2.5 animate-pulse" />}
+                    {isPendingPayment && <Clock className="w-2.5 h-2.5 animate-pulse text-rose-600" />}
                 </div>
 
                 {/* Phone */}
@@ -117,13 +177,13 @@ export default function BookingCard({
                         {/* Status Icons */}
                         <div className="flex items-center gap-0.5 mr-auto">
                             {booking.paid_at ? (
-                                <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                <CheckCircle2 className={`w-3 h-3 ${iconColor}`} />
                             ) : (
-                                <Clock className={`w-3 h-3 ${isPendingPayment ? 'text-amber-500' : 'text-gray-400'}`} />
+                                <Clock className={`w-3 h-3 ${isPendingPayment ? 'text-rose-500 animate-pulse' : 'text-gray-400'}`} />
                             )}
 
                             {isQR ? (
-                                <QrCode className={`w-3 h-3 ${isPendingPayment ? 'text-amber-600' : 'text-blue-500'}`} />
+                                <QrCode className={`w-3 h-3 ${iconColor}`} />
                             ) : (
                                 <Banknote className="w-3 h-3 text-gray-400" />
                             )}
@@ -133,7 +193,14 @@ export default function BookingCard({
                             )}
                         </div>
 
-                        <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold border ${booking.paid_at ? 'bg-green-100 text-green-700 border-green-200' : (isPendingPayment ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-gray-100 text-gray-600 border-gray-200')}`}>
+                        <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold border ${booking.paid_at
+                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            : (cardStatus === 'pending'
+                                ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                : (cardStatus === 'deposit_paid'
+                                    ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                    : 'bg-blue-100 text-blue-700 border-blue-200'))
+                            }`}>
                             ฿{booking.price.toLocaleString()}
                         </span>
                     </div>
@@ -142,7 +209,7 @@ export default function BookingCard({
 
             {/* Bottom Resize Handle */}
             <div
-                className={`absolute bottom-0 left-0 right-0 h-2 cursor-s-resize z-20 hover:bg-opacity-50 transition-colors ${isPendingPayment ? 'hover:bg-amber-300' : 'hover:bg-blue-300'}`}
+                className={`absolute bottom-0 left-0 right-0 h-2 cursor-s-resize z-20 hover:bg-opacity-50 transition-colors ${hoverColor}`}
                 onMouseDown={(e) => handleResizeStart(e, 'BOTTOM')}
             />
         </div>
