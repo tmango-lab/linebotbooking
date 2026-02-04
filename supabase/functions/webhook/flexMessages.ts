@@ -862,8 +862,8 @@ export function buildRegularBookingSummaryFlex(params: {
     targetDay: string;
     time: string;
     duration: number;
-    slots: { date: string, available: boolean, reason?: string }[];
-    price: number;
+    slots: { date: string, available: boolean, reason?: string, price?: number }[]; // [NEW] Added price
+    price: number; // Total Base Price
     promoCode?: { code: string; discount_amount: number; final_price: number } | null;
 }) {
     const { startDate, endDate, targetDay, time, duration, slots, price, promoCode } = params;
@@ -873,21 +873,29 @@ export function buildRegularBookingSummaryFlex(params: {
         layout: "baseline",
         spacing: "sm",
         contents: [
-            { type: "text", text: slot.date, color: "#666666", size: "sm", flex: 3 },
-            {
+            { type: "text", text: slot.date, color: "#666666", size: "sm", flex: 4 }, // Increased flex
+            ...(slot.price ? [{
                 type: "text",
-                text: slot.available ? "✅ ว่าง" : "❌ เต็ม",
-                color: slot.available ? "#06C755" : "#FF5252",
+                text: `${slot.price.toLocaleString()}฿`,
+                color: "#333333",
                 size: "sm",
                 flex: 2,
+                align: "end"
+            }] : []),
+            {
+                type: "text",
+                text: slot.available ? "✅" : "❌", // Shorten status to icon for space
+                color: slot.available ? "#06C755" : "#FF5252",
+                size: "sm",
+                flex: 1,
                 align: "end"
             }
         ]
     }));
 
-    // Only show first 10 slots to avoid Flex limits (or maybe more if possible, Flex bubbles can handle ~50 blocks but better be safe)
+    // Only show first 50 slots to avoid Flex limits (Box contents max 50)
     // If more, show "..."
-    const displayRows = slotRows.length > 15 ? [...slotRows.slice(0, 15), { type: "text", text: `...และอีก ${slotRows.length - 15} วัน`, size: "xs", color: "#999999", align: "center", margin: "xs" }] : slotRows;
+    const displayRows = slotRows.length > 50 ? [...slotRows.slice(0, 50), { type: "text", text: `...และอีก ${slotRows.length - 50} วัน`, size: "xs", color: "#999999", align: "center", margin: "xs" }] : slotRows;
 
     const availableCount = slots.filter(s => s.available).length;
     const totalCount = slots.length;
@@ -938,12 +946,13 @@ export function buildRegularBookingSummaryFlex(params: {
                         margin: "md",
                         spacing: "sm",
                         contents: [
+                            { type: "separator", margin: "sm" },
                             {
                                 type: "box",
                                 layout: "baseline",
                                 contents: [
-                                    { type: "text", text: "ราคารวม", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: `${price.toLocaleString()} ฿`, color: "#333333", size: "md", flex: 3, align: "end" }
+                                    { type: "text", text: "ราคาเต็ม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${price.toLocaleString()} ฿`, color: "#333333", size: "sm", flex: 3, align: "end" }
                                 ]
                             },
                             ...(promoCode ? [
@@ -962,7 +971,8 @@ export function buildRegularBookingSummaryFlex(params: {
                                         { type: "text", text: "สุทธิ", weight: "bold", color: "#333333", size: "md", flex: 2 },
                                         { type: "text", text: `${promoCode.final_price.toLocaleString()} ฿`, weight: "bold", color: "#06C755", size: "xl", flex: 3, align: "end" }
                                     ]
-                                }
+                                },
+                                { type: "text", text: `(เฉลี่ยวันละ ${(promoCode.final_price / availableCount).toLocaleString(undefined, { maximumFractionDigits: 0 })} บาท)`, size: "xs", color: "#999999", align: "end", margin: "xs" }
                             ] : [
                                 {
                                     type: "box",

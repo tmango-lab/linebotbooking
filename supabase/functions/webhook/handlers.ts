@@ -18,7 +18,9 @@ import {
     buildSelectDurationFlex,
     buildSelectFieldFlex,
     buildConfirmationFlex,
-    buildRegularBookingSummaryFlex // [NEW]
+    buildRegularBookingSummaryFlex,
+    buildSearchAllSlotsCarousel, // [NEW] Fixed missing import
+    buildCouponFlex // [NEW] Fixed missing import
 } from './flexMessages.ts';
 import { searchRegularBookingSlots } from '../_shared/searchService.ts'; // [NEW]
 import { validateManualPromoCode, applyManualDiscount } from '../_shared/promoService.ts'; // [NEW]
@@ -70,6 +72,12 @@ export async function handleMessage(event: LineEvent) {
                 text: 'ขอโทษครับ ระบบอ่านข้อมูลไม่ชัดเจน 😅\nรบกวนพิมพ์แบบนี้ครับ: [ชื่อทีม] [เบอร์โทร]\nเช่น "หมูเด้ง เอฟซี 0812345678"'
             });
         }
+        return;
+    }
+
+    // [NEW] Regular Booking - Manual Code Input
+    if (userState?.step === 'regular_input_code') {
+        await showRegularBookingSummary(event, userId, text);
         return;
     }
 
@@ -1182,7 +1190,7 @@ async function handleRegularSelectDuration(event: LineEvent, userId: string, par
     const fields = await getActiveFields();
 
     // Create Field Buttons
-    const buttons = fields.map((f: any) => ({
+    const buttons = (fields || []).map((f: any) => ({
         type: "button",
         style: "secondary",
         action: postbackAction(`${f.label} (${f.type})`, `action=regularSelectField&field_id=${f.id}`)
@@ -1316,16 +1324,37 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
 
     let finalPrice = 0;
 
-    for (const res of results) {
+    // Process results to include prices
+    const resultsWithPrice = results.map(res => {
+        let dailyPrice = basePrice;
         if (res.available) {
-            let dailyPrice = basePrice;
             if (promoData) {
                 const { discount, finalPrice: fp } = applyManualDiscount(dailyPrice, promoData as any);
-                totalDiscount += discount;
+                // We don't sum here yet to avoid double counting if map runs multiple times? No, map runs once.
+                // But wait, the loop below sums it up.
+                // Actually let's do calculation here.
                 dailyPrice = fp;
             }
-            finalPrice += dailyPrice;
-            totalPrice += basePrice;
+        }
+        return {
+            ...res,
+            price: res.available ? dailyPrice : 0
+        };
+    });
+
+    // Calculate Totals
+    let calculatedTotalPrice = 0;
+
+    for (const res of resultsWithPrice) {
+        if (res.available) {
+            calculatedTotalPrice += basePrice;
+            if (promoData) {
+                const { discount, finalPrice: fp } = applyManualDiscount(basePrice, promoData as any);
+                totalDiscount += discount;
+                finalPrice += fp;
+            } else {
+                finalPrice += basePrice;
+            }
         }
     }
 
@@ -1335,8 +1364,8 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
         targetDay: regular_day!,
         time: time_from!,
         duration: duration_h!,
-        slots: results,
-        price: totalPrice,
+        slots: resultsWithPrice, // Pass extended slots
+        price: calculatedTotalPrice,
         promoCode: promoData ? {
             code: promoData.code,
             discount_amount: totalDiscount,
