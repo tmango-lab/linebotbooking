@@ -402,7 +402,8 @@ const BookingV3Page: React.FC = () => {
                     originalPrice,
                     discount,
                     finalPrice,
-                    couponName: appliedCoupon?.name
+                    couponName: appliedCoupon?.name,
+                    appliedCoupon: appliedCoupon
                 }}
                 initialProfile={userProfile ? {
                     team_name: userProfile.team_name,

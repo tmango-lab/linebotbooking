@@ -109,3 +109,24 @@ export async function verifySignature(body: string, signature: string, secret: s
 
     return hashBase64 === signature;
 }
+
+/**
+ * Get binary content of a message (e.g. image)
+ */
+export async function getMessageContent(messageId: string): Promise<Uint8Array | null> {
+    const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+        },
+    });
+
+    if (!res.ok) {
+        const txt = await res.text();
+        console.error('LINE Get Content Error:', res.status, txt);
+        return null;
+    }
+
+    const buffer = await res.arrayBuffer();
+    return new Uint8Array(buffer);
+}

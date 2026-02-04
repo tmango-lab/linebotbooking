@@ -196,13 +196,24 @@ serve(async (req) => {
 
 
         // 4. Create Booking
+        const isQR = paymentMethod === 'qr';
+        const timeoutMinutes = 10;
+        const timeoutAt = isQR ? new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString() : null;
+
+        if (isQR) {
+            adminNote = (adminNote ? adminNote + ' | ' : '') + `[Deposit 200 THB Required]`;
+        }
+
         const { data: booking, error: insertError } = await supabase
             .from('bookings')
             .insert({
                 user_id: userId,
                 booking_id: Date.now().toString(),
                 field_no: fieldNo,
-                status: 'confirmed',
+                status: isQR ? 'pending_payment' : 'confirmed',
+                payment_status: isQR ? 'pending' : 'paid',
+                payment_method: paymentMethod || 'cash',
+                timeout_at: timeoutAt,
                 date: date,
                 time_from: startTime,
                 time_to: endTime,
@@ -213,10 +224,6 @@ serve(async (req) => {
                 admin_note: adminNote || null,
                 source: source || 'line',
                 is_promo: isPromo,
-                // If paymentMethod provided, we could store it? Schema has `payment_status` but not method column locally typically? 
-                // Checks schema: bookings table usually has `payment_slip` or similar. 
-                // If we want to store `paymentMethod`, we might need a column or put in admin_note.
-                // Let's put in admin_note for now if present.
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
@@ -226,10 +233,7 @@ serve(async (req) => {
         if (insertError) throw insertError;
 
         // 4.1 Append Payment Method to Note if provided (and update booking)
-        if (paymentMethod) {
-            const updatedNote = (booking.admin_note ? booking.admin_note + ' ' : '') + `[Pay: ${paymentMethod}]`;
-            await supabase.from('bookings').update({ admin_note: updatedNote }).eq('id', booking.id);
-        }
+        // [MODIFIED] Removed redundant update since we now store payment_method directly
 
         // 4.2 Send LINE Notification
         try {

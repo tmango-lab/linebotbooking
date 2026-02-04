@@ -58,8 +58,9 @@ CREATE TABLE bookings (
     status TEXT DEFAULT 'confirmed',-- confirmed, cancelled
     is_promo BOOLEAN DEFAULT FALSE,
     admin_note TEXT,
-    source TEXT DEFAULT 'admin',    -- matchday_import, admin, line
+    source TEXT DEFAULT 'admin',    -- admin, line
     paid_at TIMESTAMPTZ,
+    user_id TEXT,                   -- LINE User ID (Optional/Nullable for Admin bookings)
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
@@ -141,7 +142,10 @@ for (let t = Open; t + Duration <= Close; t += STEP) {
 **File**: `supabase/functions/create-booking/index.ts`
 
 **Steps**:
-1.  **Validate Input**: Check for required fields.
+1.  **Validate Input**:
+    - **Admin Mode**: `userId` is optional (Walk-in customers).
+    - **Line Mode**: `userId` is required for notifications.
+    - `source` defaults to `'line'` if unspecified, but Dashboard sends `'admin'`.
 2.  **Calculate Price**:
     - Uses local `PRICING` config.
     - Applies Pre/Post 18:00 logic.
@@ -150,7 +154,9 @@ for (let t = Open; t + Duration <= Close; t += STEP) {
     - Though `create-booking` currently trusts the admin, best practice is to check overlaps.
 4.  **Insert into Database**:
     - Direct `INSERT` into `bookings` table.
-    - Sets `status: 'confirmed'`, `source: 'admin'`.
+    - Sets `status: 'confirmed'`.
+    - `user_id`: Can be `NULL` for admin walk-ins.
+    - `source`: Recorded as `'admin'` (if from dashboard) or `'line'`.
     - Generates numeric `booking_id` (timestamp-based) for compatibility.
 
 ### 3. Return Response for UI Update

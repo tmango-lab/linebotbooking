@@ -13,6 +13,7 @@ interface BookingConfirmationModalProps {
         discount: number;
         finalPrice: number;
         couponName?: string;
+        appliedCoupon?: any; // Added appliedCoupon to access payment_methods
     };
     initialProfile: {
         team_name: string;
@@ -27,10 +28,15 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     bookingDetails,
     initialProfile
 }) => {
-    const [paymentMethod, setPaymentMethod] = useState<'transfer' | 'field' | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!isOpen) return null;
+
+    // Filter payment methods based on coupon
+    const allowedMethods = bookingDetails.appliedCoupon?.campaigns?.payment_methods || [];
+    const showQR = allowedMethods.length === 0 || allowedMethods.includes('qr');
+    const showField = allowedMethods.length === 0 || allowedMethods.includes('field');
 
     const handleConfirm = () => {
         if (!paymentMethod) {
@@ -92,26 +98,39 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                     <div className="space-y-3">
                         <h3 className="font-bold text-gray-800 text-xs uppercase tracking-wider text-center">เลือกวิธีชำระเงิน</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            <button
-                                onClick={() => setPaymentMethod('transfer')}
-                                className={`py-4 px-4 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center space-y-2 ${paymentMethod === 'transfer'
+                            {showQR && (
+                                <button
+                                    onClick={() => setPaymentMethod('qr')}
+                                    className={`py-4 px-2 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center space-y-2 ${paymentMethod === 'qr'
                                         ? 'border-green-500 bg-green-50 text-green-600'
                                         : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'
-                                    }`}
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                                <span>โอนเงิน</span>
-                            </button>
-                            <button
-                                onClick={() => setPaymentMethod('field')}
-                                className={`py-4 px-4 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center space-y-2 ${paymentMethod === 'field'
+                                        }`}
+                                >
+                                    {/* QR Icon */}
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 11v1m4-12h1m1 1v1m-5 9h1m1 1v1M7 4h1m-1 1v1m0 4v1m0 4v1m11-9h1m-1 1v1m0 4v1m0 4v1m-11 0h1m-1 1v1m5-9h1m-1 1v1m0 4v1m0 4v1m5-9h1m-1 1v1" />
+                                        <rect x="3" y="3" width="6" height="6" rx="1" strokeWidth={2} />
+                                        <rect x="15" y="3" width="6" height="6" rx="1" strokeWidth={2} />
+                                        <rect x="3" y="15" width="6" height="6" rx="1" strokeWidth={2} />
+                                    </svg>
+                                    <span className="text-[10px] sm:text-xs">มัดจำ 200 บาท (QR)</span>
+                                </button>
+                            )}
+                            {showField && (
+                                <button
+                                    onClick={() => setPaymentMethod('field')}
+                                    className={`py-4 px-2 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center space-y-2 ${paymentMethod === 'field'
                                         ? 'border-green-500 bg-green-50 text-green-600'
                                         : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'
-                                    }`}
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                                <span>จ่ายที่สนาม</span>
-                            </button>
+                                        }`}
+                                >
+                                    {/* Cash Icon */}
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                    <span className="text-[10px] sm:text-xs">จ่ายที่สนาม</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

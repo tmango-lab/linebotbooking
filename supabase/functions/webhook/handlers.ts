@@ -1,6 +1,6 @@
 // supabase/functions/webhook/handlers.ts
 
-import { replyMessage, pushMessage, LineEvent } from '../_shared/lineClient.ts';
+import { replyMessage, pushMessage, LineEvent, getMessageContent } from '../_shared/lineClient.ts';
 import { saveUserState, getUserState, clearUserState } from '../_shared/userService.ts';
 import { checkAvailability, getActiveFields } from '../_shared/bookingService.ts';
 import { searchAllFieldsForSlots } from '../_shared/searchService.ts';
@@ -9,6 +9,7 @@ import { calculatePrice } from '../_shared/pricingService.ts';
 import { getOrCreatePromoCode } from '../_shared/promoService.ts';
 import { getProfile, upsertProfile, parseProfileInput } from '../_shared/profileService.ts';
 import { supabase } from '../_shared/supabaseClient.ts';
+import { verifySlip } from './slipVerification.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import {
@@ -242,6 +243,89 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
+}
+
+// === Image Handler (Payment Slip) ===
+export async function handleImage(event: LineEvent) {
+    const userId = event.source.userId;
+    const messageId = event.message!.id;
+
+    console.log(`[Handle Image] User: ${userId}, MessageId: ${messageId}`);
+
+    try {
+        // 1. Check for the most recent pending_payment booking for this user
+        const { data: booking, error: bookingError } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'pending_payment')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (bookingError) throw bookingError;
+
+        if (!booking) {
+            console.log(`[Handle Image] No pending booking found for user ${userId}. Skipping slip verification.`);
+            // Optional: Notify user or just ignore if it's just a random photo
+            return;
+        }
+
+        // 2. Inform user we are processing
+        await replyMessage(event.replyToken!, { type: 'text', text: 'กำลังตรวจสอบสลิปมัดจำสักครู่นะคะ... ⏳' });
+
+        // 3. Fetch Image from LINE
+        const imageBytes = await getMessageContent(messageId);
+        if (!imageBytes) throw new Error("Failed to fetch image from LINE");
+
+        // 4. Verify Slip (Mock)
+        const verification = await verifySlip(imageBytes, 200);
+        if (!verification.success) {
+            await pushMessage(userId, { type: 'text', text: `❌ ตรวจสอบสลิปไม่สำเร็จ: ${verification.message}\nรบกวนตรวจสอบอีกครั้งหรือติดต่อแอดมินนะคะ` });
+            return;
+        }
+
+        // 5. Upload to Supabase Storage
+        const fileName = `${booking.booking_id}_${Date.now()}.jpg`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('payment-slips')
+            .upload(fileName, imageBytes, {
+                contentType: 'image/jpeg',
+                upsert: true
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('payment-slips')
+            .getPublicUrl(fileName);
+
+        // 6. Update Booking
+        const { error: updateError } = await supabase
+            .from('bookings')
+            .update({
+                status: 'confirmed',
+                payment_status: 'paid',
+                payment_slip_url: publicUrl,
+                admin_note: (booking.admin_note ? booking.admin_note + ' | ' : '') + `[Slip Verified: ${verification.message}]`,
+                updated_at: new Date().toISOString()
+            })
+            .eq('booking_id', booking.booking_id);
+
+        if (updateError) throw updateError;
+
+        // 7. Success Notification
+        await pushMessage(userId, {
+            type: 'text',
+            text: `✅ ตรวจสอบสลิปมัดจำ 200 บาท เรียบร้อยแล้วค่ะ!\n\nยืนยันการจองสนามเรียบร้อย พบกันที่สนามตามเวลานัดหมายนะคะ 🙏⚽`
+        });
+
+        console.log(`[Handle Image] Booking ${booking.booking_id} confirmed via slip.`);
+
+    } catch (err: any) {
+        console.error('[Handle Image Error]:', err.message);
+        await pushMessage(userId, { type: 'text', text: `⚠️ เกิดข้อผิดพลาดในการตรวจสอบสลิป: ${err.message}` });
+    }
 }
 
 // === Postback Handler ===
