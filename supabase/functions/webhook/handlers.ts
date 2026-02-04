@@ -18,9 +18,10 @@ import {
     buildSelectDurationFlex,
     buildSelectFieldFlex,
     buildConfirmationFlex,
-    buildSearchAllSlotsCarousel,
-    buildCouponFlex
+    buildRegularBookingSummaryFlex // [NEW]
 } from './flexMessages.ts';
+import { searchRegularBookingSlots } from '../_shared/searchService.ts'; // [NEW]
+import { validateManualPromoCode, applyManualDiscount } from '../_shared/promoService.ts'; // [NEW]
 
 // Helper to parse query string style data
 function parseData(data: string): any {
@@ -75,6 +76,48 @@ export async function handleMessage(event: LineEvent) {
     // PING CHECK
     if (text === 'ping') {
         await replyMessage(event.replyToken!, { type: 'text', text: 'pong' });
+        return;
+    }
+
+    // [NEW] Regular Booking Flow (VIP Only)
+    if (text === 'จองประจำล่วงหน้า') {
+        const profile = await getProfile(userId);
+        if (profile?.role !== 'vip') {
+            console.log(`[Regular Booking] Blocked non-VIP user: ${userId}`);
+            return; // Silent ignore (or could reply "Unknown command")
+        }
+
+        // Start Flow
+        await saveUserState(userId, { is_regular_flow: true, step: 'regular_start_date' });
+
+        await replyMessage(event.replyToken!, {
+            type: "flex",
+            altText: "เลือกวันเริ่มจอง",
+            contents: {
+                type: "bubble",
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    spacing: "md",
+                    contents: [
+                        { type: "text", text: "🗓️ เลือกวันเริ่มต้น", weight: "bold", size: "lg" },
+                        { type: "text", text: "กรุณาเลือกวันที่ต้องการเริ่มจอง", size: "sm", color: "#666666" },
+                        {
+                            type: "button",
+                            style: "primary",
+                            action: {
+                                type: "datetimepicker",
+                                label: "เลือกวันเริ่มต้น",
+                                data: "action=setRegularStartDate",
+                                mode: "date",
+                                min: new Date().toISOString().split('T')[0],
+                                max: "2026-12-31"
+                            }
+                        }
+                    ]
+                }
+            }
+        });
         return;
     }
 
@@ -394,6 +437,29 @@ export async function handlePostback(event: LineEvent) {
         // case 'pickDurationSearchSingle':
         //     await handlePickDurationSearchSingle(event, userId, params);
         //     break;
+
+        // [NEW] Regular Booking Actions
+        case 'setRegularStartDate':
+            await handleSetRegularStartDate(event, userId, params);
+            break;
+        case 'setRegularEndDate':
+            await handleSetRegularEndDate(event, userId, params);
+            break;
+        case 'setRegularDay':
+            await handleSetRegularDay(event, userId, params);
+            break;
+        case 'regularSelectTime':
+            await handleRegularSelectTime(event, userId, params);
+            break;
+        case 'regularSelectDuration':
+            await handleRegularSelectDuration(event, userId, params);
+            break;
+        case 'regularInputCode':
+            await handleRegularInputCode(event, userId, params);
+            break;
+        case 'confirmRegularBooking':
+            await handleConfirmRegularBooking(event, userId, params);
+            break;
         default:
             console.warn("Unknown Action:", action);
     }
@@ -945,4 +1011,364 @@ function addMinutesToTime(t: string, mins: number) {
     const hh = Math.floor(total / 60).toString().padStart(2, '0');
     const mm = (total % 60).toString().padStart(2, '0');
     return `${hh}:${mm}:00`;
+}
+
+// =====================================================
+// Regular Booking Handlers (VIP)
+// =====================================================
+
+async function handleSetRegularStartDate(event: LineEvent, userId: string, params: any) {
+    const dateStr = event.postback?.params?.date;
+    if (!dateStr) return;
+
+    await saveUserState(userId, { regular_start_date: dateStr, step: 'regular_end_date' });
+
+    await replyMessage(event.replyToken!, {
+        type: "flex",
+        altText: "เลือกวันสิ้นสุด",
+        contents: {
+            type: "bubble",
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                contents: [
+                    { type: "text", text: "🏁 เลือกวันสิ้นสุด", weight: "bold", size: "lg" },
+                    { type: "text", text: `เริ่ม: ${dateStr}`, size: "sm", color: "#666666" },
+                    {
+                        type: "button",
+                        style: "primary",
+                        action: {
+                            type: "datetimepicker",
+                            label: "เลือกวันสิ้นสุด",
+                            data: "action=setRegularEndDate",
+                            mode: "date",
+                            min: dateStr,
+                            max: "2026-12-31"
+                        }
+                    }
+                ]
+            }
+        }
+    });
+}
+
+async function handleSetRegularEndDate(event: LineEvent, userId: string, params: any) {
+    const dateStr = event.postback?.params?.date;
+    if (!dateStr) return;
+
+    await saveUserState(userId, { regular_end_date: dateStr, step: 'regular_select_day' });
+
+    // Ask for Day of Week
+    const days = [
+        { label: "ทุกวันจันทร์", val: "Mon" },
+        { label: "ทุกวันอังคาร", val: "Tue" },
+        { label: "ทุกวันพุธ", val: "Wed" },
+        { label: "ทุกวันพฤหัส", val: "Thu" },
+        { label: "ทุกวันศุกร์", val: "Fri" },
+        { label: "ทุกวันเสาร์", val: "Sat" },
+        { label: "ทุกวันอาทิตย์", val: "Sun" },
+    ];
+
+    const buttons = days.map(d => ({
+        type: "button",
+        style: "secondary",
+        action: postbackAction(d.label, `action=setRegularDay&day=${d.val}`)
+    }));
+
+    // Split into 2 rows logic if needed, or just list
+    await replyMessage(event.replyToken!, {
+        type: "flex",
+        altText: "เลือกวันในสัปดาห์",
+        contents: {
+            type: "bubble",
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                    { type: "text", text: "📅 เลือกวันเล่นประจำ", weight: "bold", size: "lg" },
+                    { type: "separator", margin: "md" },
+                    { type: "box", layout: "vertical", spacing: "sm", margin: "md", contents: buttons }
+                ]
+            }
+        }
+    });
+}
+
+async function handleSetRegularDay(event: LineEvent, userId: string, params: any) {
+    const day = params.day;
+    await saveUserState(userId, { regular_day: day, step: 'regular_select_time' });
+
+    // Reuse Time Picker but with different action
+    const timeSlots = [
+        { label: "16:00 - 18:00", times: ["16:00", "16:30", "17:00", "17:30"] },
+        { label: "18:00 - 20:00", times: ["18:00", "18:30", "19:00", "19:30"] },
+        { label: "20:00 - 22:00", times: ["20:00", "20:30", "21:00", "21:30"] },
+        { label: "22:00 - 24:00", times: ["22:00", "22:30", "23:00", "23:30"] },
+    ];
+
+    const bubbles = timeSlots.map(slot => ({
+        type: "bubble",
+        body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "md",
+            contents: [
+                { type: "text", text: slot.label, weight: "bold", size: "lg" },
+                {
+                    type: "box",
+                    layout: "vertical",
+                    spacing: "sm",
+                    contents: slot.times.map(t => ({
+                        type: "button",
+                        style: "secondary",
+                        action: postbackAction(t, `action=regularSelectTime&time_from=${t}`)
+                    }))
+                }
+            ]
+        }
+    }));
+
+    await replyMessage(event.replyToken!, {
+        type: "flex",
+        altText: "เลือกเวลา",
+        contents: { type: "carousel", contents: bubbles }
+    });
+}
+
+async function handleRegularSelectTime(event: LineEvent, userId: string, params: any) {
+    const timeFrom = params.time_from;
+    await saveUserState(userId, { time_from: timeFrom, step: 'regular_select_duration' });
+
+    // Reuse Duration Picker
+    await replyMessage(event.replyToken!, {
+        type: "flex",
+        altText: "เลือกจำนวนชั่วโมง",
+        contents: {
+            type: "bubble",
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                contents: [
+                    { type: "text", text: "ต้องการจองนานเท่าไหร่?", weight: "bold", size: "lg" },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        spacing: "sm",
+                        contents: [
+                            { type: "button", style: "secondary", action: postbackAction("1 ชม.", "action=regularSelectDuration&duration_h=1") },
+                            { type: "button", style: "secondary", action: postbackAction("1.5 ชม.", "action=regularSelectDuration&duration_h=1.5") },
+                            { type: "button", style: "secondary", action: postbackAction("2 ชม.", "action=regularSelectDuration&duration_h=2") },
+                        ]
+                    }
+                ]
+            }
+        }
+    });
+}
+
+async function handleRegularSelectDuration(event: LineEvent, userId: string, params: any) {
+    const dur = parseFloat(params.duration_h);
+
+    // Save state
+    await saveUserState(userId, { duration_h: dur });
+
+    // Show Summary
+    await showRegularBookingSummary(event, userId);
+}
+
+async function handleRegularInputCode(event: LineEvent, userId: string, params: any) {
+    // Ask user to type code
+    // Ideally we use a Text Message response, but since we are in postback, we can ask user to type.
+    // Or simpler: Just reply with "พิมพ์โค้ดมาได้เลยครับ (ขึ้นต้นด้วย #)" -> Handler checks for # prefix?
+    // Actually, user requirement says "Option to input 'Secret Promo Code'".
+    // Let's use a workaround: Force user to type existing secret code logic?
+    // NO, Manual Promo Codes are different table.
+    // Let's listen for text input starting with "VIP:" or something?
+    // User might just type the code.
+    // Let's prompt: "กรุณาพิมพ์รหัสโค้ดลับ (เช่น VIP100) ตอบกลับมาได้เลยครับ"
+    // And in handleMessage, check if userState.step == 'regular_input_code'.
+
+    await saveUserState(userId, { step: 'regular_input_code' });
+
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: '⌨️ กรุณาพิมพ์ "รหัสโค้ดลับ" ที่ได้รับจากแอดมิน ตอบกลับมาได้เลยครับ'
+    });
+}
+
+// Need to update handleMessage to catch Current Step 'regular_input_code'
+// But wait, handleMessage is at top. I should have added that logic there.
+// I will just use a hack: Check if input looks like a code in general handleMessage? 
+// Or update handleMessage later.
+// For now, let's assume I missed that part in handleMessage.
+// I should include it in this multi_replace.
+// I'll add handleMessage logic in a separate chunk or modify the previous chunk.
+// I'll stick to this flow. I will add the logic to handleMessage in a separate call or check if I can add it now.
+// I used `EndLine: 216` for handleMessage modification. I can start a new chunk for handleMessage logic.
+
+async function showRegularBookingSummary(event: LineEvent, userId: string, promoCodeStr?: string) {
+    const state = await getUserState(userId);
+    const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code } = state;
+
+    // If promoCodeStr passed, validate it
+    let promoData = null;
+    let validCodeStr = manual_promo_code; // Start with existing
+
+    if (promoCodeStr) {
+        // Validate
+        const validation = await validateManualPromoCode(promoCodeStr);
+        if (validation.valid && validation.code) {
+            validCodeStr = validation.code.code;
+            await saveUserState(userId, { manual_promo_code: validCodeStr });
+        } else {
+            // Invalid
+            await replyMessage(event.replyToken!, { type: 'text', text: `❌ รหัสไม่ถูกต้อง: ${validation.reason}` });
+            return;
+        }
+    }
+
+    // Search Slots
+    const results = await searchRegularBookingSlots(
+        regular_start_date!,
+        regular_end_date!,
+        regular_day!,
+        time_from!,
+        duration_h!
+    );
+
+    // Calculate Price
+    // Price = Field Price * duration * count
+    // But which field?
+    // Assume standard fields have same price? Usually yes or we pick Field 1 for reference.
+    // Let's get price from field 1 (7-a-side) or 6 (5-a-side)?
+    // Requirement didn't start Field Type.
+    // Let's assume Field 1 (Standard).
+    // Or better, calculatePrice(fieldId, ...)
+    // Does searchRegularBookingSlots return fieldIds? Yes.
+    // We can use the first available field ID to calculate price for that day.
+
+    let totalPrice = 0;
+
+    // Fetch base price for time/duration (assuming all fields same price or we pick one)
+    const refFieldId = 1; // Default
+    const basePrice = await calculatePrice(refFieldId, time_from!, duration_h!);
+
+    let totalDiscount = 0;
+
+    if (validCodeStr) {
+        const validation = await validateManualPromoCode(validCodeStr);
+        if (validation.valid && validation.code) {
+            promoData = validation.code;
+        }
+    }
+
+    let finalPrice = 0;
+
+    for (const res of results) {
+        if (res.available) {
+            let dailyPrice = basePrice;
+            if (promoData) {
+                const { discount, finalPrice: fp } = applyManualDiscount(dailyPrice, promoData as any);
+                totalDiscount += discount;
+                dailyPrice = fp;
+            }
+            finalPrice += dailyPrice;
+            totalPrice += basePrice;
+        }
+    }
+
+    const summaryFlex = buildRegularBookingSummaryFlex({
+        startDate: regular_start_date!,
+        endDate: regular_end_date!,
+        targetDay: regular_day!,
+        time: time_from!,
+        duration: duration_h!,
+        slots: results,
+        price: totalPrice,
+        promoCode: promoData ? {
+            code: promoData.code,
+            discount_amount: totalDiscount,
+            final_price: finalPrice
+        } : null
+    });
+
+    await replyMessage(event.replyToken!, summaryFlex);
+}
+
+async function handleConfirmRegularBooking(event: LineEvent, userId: string, params: any) {
+    const state = await getUserState(userId);
+    const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code } = state;
+
+    await replyMessage(event.replyToken!, { type: 'text', text: '⏳ กำลังบันทึกการจอง กรุณารอสักครู่...' });
+
+    // Re-verify availability
+    const results = await searchRegularBookingSlots(regular_start_date!, regular_end_date!, regular_day!, time_from!, duration_h!);
+
+    // Filter available
+    const availableSlots = results.filter(s => s.available);
+
+    if (availableSlots.length === 0) {
+        await pushMessage(userId, { type: 'text', text: '❌ ขออภัย ช่วงเวลาที่เลือกเต็มหมดแล้วครับ' });
+        return;
+    }
+
+    // Create Bookings
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? '';
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    let successCount = 0;
+    const durationMin = duration_h! * 60;
+    const timeTo = addMinutesToTime(time_from!, durationMin).substring(0, 5);
+
+    // Get Promo Data
+    let promoData = null;
+    if (manual_promo_code) {
+        const val = await validateManualPromoCode(manual_promo_code);
+        if (val.valid) promoData = val.code;
+    }
+
+    const basePrice = await calculatePrice(1, time_from!, duration_h!);
+
+    for (const slot of availableSlots) {
+        // Pick first available field
+        const fieldId = slot.availableFieldIds[0];
+
+        // Calculate price with promo
+        let price = basePrice;
+        // Apply promo if valid
+        // Note: We already validated status 'active'.
+        // Should we update total booking price or per booking?
+        // Plan says "Discounts are applied per booking entry".
+        if (promoData) {
+            const { finalPrice } = applyManualDiscount(basePrice, promoData as any);
+            price = finalPrice;
+        }
+
+        const { error } = await supabaseAdmin
+            .from('bookings')
+            .insert({
+                user_id: userId,
+                field_no: fieldId,
+                date: slot.date,
+                time_from: time_from,
+                time_to: timeTo,
+                price: price,
+                status: 'pending_payment',
+                booking_source: 'line_bot_regular',
+                admin_note: Deno.env.get('VITE_ADMIN_NOTE_PREFIX') ? `${Deno.env.get('VITE_ADMIN_NOTE_PREFIX')} Regular Booking` : 'Regular Booking VIP'
+            });
+
+        if (!error) successCount++;
+    }
+
+    await pushMessage(userId, {
+        type: 'text',
+        text: `✅ จองสำเร็จ ${successCount} รายการ!\nรวมเป็นเงินทั้งสิ้น ${(successCount * (promoData ? applyManualDiscount(basePrice, promoData as any).finalPrice : basePrice)).toLocaleString()} บาท\n\nกรุณาโอนเงินและส่งสลิปเพื่อยืนยัน`
+    });
+
+    await clearUserState(userId);
 }

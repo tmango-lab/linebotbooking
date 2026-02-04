@@ -9,6 +9,11 @@ export interface UserState {
     duration_h?: number;
     field_no?: number;
     step?: string;
+    // Regular Booking Flow
+    is_regular_flow?: boolean;
+    regular_start_date?: string;
+    regular_end_date?: string;
+    regular_days?: string[]; // e.g., ["Tue", "Fri"]
     [key: string]: any;
 }
 

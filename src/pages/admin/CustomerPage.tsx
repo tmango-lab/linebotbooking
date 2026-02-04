@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus } from 'lucide-react';
+import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus, Crown } from 'lucide-react';
 
 interface Profile {
     user_id: string;
@@ -8,6 +8,7 @@ interface Profile {
     phone_number: string;
     created_at: string;
     updated_at: string;
+    role?: string; // [NEW]
 }
 
 export default function CustomerPage() {
@@ -112,6 +113,27 @@ export default function CustomerPage() {
         }
     };
 
+    const toggleVip = async (p: Profile) => {
+        const currentRole = p.role || 'member';
+        const newRole = currentRole === 'vip' ? 'member' : 'vip';
+
+        if (!confirm(`เปลี่ยนสถานะลูกค้าคนนี้เป็น ${newRole.toUpperCase()} ?`)) return;
+
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ role: newRole })
+                .eq('user_id', p.user_id);
+
+            if (error) throw error;
+
+            // Optimistic update
+            setProfiles(prev => prev.map(pr => pr.user_id === p.user_id ? { ...pr, role: newRole } : pr));
+        } catch (err: any) {
+            alert('Error updating role: ' + err.message);
+        }
+    };
+
     const filteredProfiles = profiles.filter(p =>
         (p.team_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (p.phone_number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
@@ -199,6 +221,11 @@ export default function CustomerPage() {
                                                             <span className="text-sm font-medium text-gray-900 truncate" title={p.user_id}>
                                                                 {p.team_name || 'Unknown Team'}
                                                             </span>
+                                                            {p.role === 'vip' && (
+                                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center gap-1">
+                                                                    <Crown className="w-3 h-3" /> VIP
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-2 text-sm text-gray-500">
                                                             <Phone className="h-4 w-4 text-gray-400" />
@@ -228,6 +255,13 @@ export default function CustomerPage() {
                                                         <Edit2 className="h-4 w-4" />
                                                     </button>
                                                 )}
+                                                <button
+                                                    onClick={() => toggleVip(p)}
+                                                    className={`p-1 rounded-full text-gray-400 hover:bg-gray-50 transition-colors ${p.role === 'vip' ? 'text-yellow-500 hover:text-yellow-600' : 'hover:text-yellow-500'}`}
+                                                    title={p.role === 'vip' ? "Remove VIP" : "Set to VIP"}
+                                                >
+                                                    <Crown className={`h-4 w-4 ${p.role === 'vip' ? 'fill-current' : ''}`} />
+                                                </button>
                                             </div>
                                         </div>
                                     </li>

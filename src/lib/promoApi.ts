@@ -239,3 +239,71 @@ export async function getFieldInfo(fieldId: number): Promise<{ label: string; ty
 
     return data;
 }
+
+// =====================================================
+// Manual Promo Codes (VIP)
+// =====================================================
+
+export interface ManualPromoCode {
+    id: number;
+    code: string;
+    discount_type: 'percent' | 'fixed';
+    discount_value: number;
+    min_price: number;
+    max_discount?: number;
+    status: 'active' | 'inactive';
+    usage_limit?: number;
+    usage_count: number;
+    created_at: string;
+}
+
+export async function getManualPromoCodes(): Promise<ManualPromoCode[]> {
+    const { data, error } = await supabase
+        .from('manual_promo_codes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching manual promo codes:', error);
+        return [];
+    }
+    return data || [];
+}
+
+export async function createManualPromoCode(code: Partial<ManualPromoCode>): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase
+        .from('manual_promo_codes')
+        .insert(code);
+
+    if (error) {
+        console.error('Error creating manual promo code:', error);
+        return { success: false, error: error.message };
+    }
+    return { success: true };
+}
+
+export async function updateManualPromoCode(id: number, updates: Partial<ManualPromoCode>): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase
+        .from('manual_promo_codes')
+        .update(updates)
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error updating manual promo code:', error);
+        return { success: false, error: error.message };
+    }
+    return { success: true };
+}
+
+export async function deleteManualPromoCode(id: number): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase
+        .from('manual_promo_codes')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error deleting manual promo code:', error);
+        return { success: false, error: error.message };
+    }
+    return { success: true };
+}

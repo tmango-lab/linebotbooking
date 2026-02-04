@@ -3,15 +3,17 @@ import { useState } from 'react';
 import ValidateCodeTab from '../../components/promo/ValidateCodeTab';
 import SettingsTab from '../../components/promo/SettingsTab';
 import HistoryTab from '../../components/promo/HistoryTab';
-import { Search, Settings, History, Tag } from 'lucide-react';
+import VIPCodeTab from '../../components/promo/VIPCodeTab'; // [NEW]
+import { Search, Settings, History, Tag, Key } from 'lucide-react';
 
-type TabType = 'validate' | 'settings' | 'history';
+type TabType = 'validate' | 'settings' | 'history' | 'vip_codes';
 
 export default function PromoCodePage() {
     const [activeTab, setActiveTab] = useState<TabType>('validate');
 
     const tabs = [
         { id: 'validate' as TabType, label: 'ตรวจสอบโค้ด', icon: Search },
+        { id: 'vip_codes' as TabType, label: 'โค้ดลับ VIP', icon: Key }, // [NEW]
         { id: 'settings' as TabType, label: 'ตั้งค่าระบบ', icon: Settings },
         { id: 'history' as TabType, label: 'ประวัติการใช้งาน', icon: History }
     ];
@@ -67,6 +69,7 @@ export default function PromoCodePage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="transition-all duration-300 ease-in-out">
                     {activeTab === 'validate' && <ValidateCodeTab />}
+                    {activeTab === 'vip_codes' && <VIPCodeTab />} {/* [NEW] */}
                     {activeTab === 'settings' && <SettingsTab />}
                     {activeTab === 'history' && <HistoryTab />}
                 </div>

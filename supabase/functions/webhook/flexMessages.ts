@@ -854,3 +854,154 @@ export function buildBookingSuccessFlex(params: {
         }
     };
 }
+
+// 9. Regular Booking Summary Flex
+export function buildRegularBookingSummaryFlex(params: {
+    startDate: string;
+    endDate: string;
+    targetDay: string;
+    time: string;
+    duration: number;
+    slots: { date: string, available: boolean, reason?: string }[];
+    price: number;
+    promoCode?: { code: string; discount_amount: number; final_price: number } | null;
+}) {
+    const { startDate, endDate, targetDay, time, duration, slots, price, promoCode } = params;
+
+    const slotRows = slots.map(slot => ({
+        type: "box",
+        layout: "baseline",
+        spacing: "sm",
+        contents: [
+            { type: "text", text: slot.date, color: "#666666", size: "sm", flex: 3 },
+            {
+                type: "text",
+                text: slot.available ? "✅ ว่าง" : "❌ เต็ม",
+                color: slot.available ? "#06C755" : "#FF5252",
+                size: "sm",
+                flex: 2,
+                align: "end"
+            }
+        ]
+    }));
+
+    // Only show first 10 slots to avoid Flex limits (or maybe more if possible, Flex bubbles can handle ~50 blocks but better be safe)
+    // If more, show "..."
+    const displayRows = slotRows.length > 15 ? [...slotRows.slice(0, 15), { type: "text", text: `...และอีก ${slotRows.length - 15} วัน`, size: "xs", color: "#999999", align: "center", margin: "xs" }] : slotRows;
+
+    const availableCount = slots.filter(s => s.available).length;
+    const totalCount = slots.length;
+
+    return {
+        type: "flex",
+        altText: "สรุปการจองประจำ",
+        contents: {
+            type: "bubble",
+            size: "giga",
+            body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                    { type: "text", text: "📅 สรุปการจองประจำ", weight: "bold", size: "xl", color: "#333333" },
+                    { type: "text", text: `${startDate} - ${endDate}`, size: "xs", color: "#999999", margin: "xs" },
+                    { type: "separator", margin: "md" },
+
+                    // Info Section
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "md",
+                        spacing: "sm",
+                        contents: [
+                            { type: "text", text: `วัน: ${targetDay}`, size: "sm", color: "#333333" },
+                            { type: "text", text: `เวลา: ${time} (${duration} ชม.)`, size: "sm", color: "#333333" },
+                            { type: "text", text: `จำนวน: ${availableCount}/${totalCount} ครั้งที่จองได้`, size: "sm", color: availableCount === totalCount ? "#06C755" : "#FF9800", weight: "bold" }
+                        ]
+                    },
+
+                    // Slots List (Scrollable if needed, but Flex body scrolls naturally if long?)
+                    // Flex message Bubble body doesn't scroll separately. The whole message scrolls.
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "lg",
+                        spacing: "xs",
+                        contents: displayRows
+                    },
+
+                    { type: "separator", margin: "lg" },
+
+                    // Price Section
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "md",
+                        spacing: "sm",
+                        contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                contents: [
+                                    { type: "text", text: "ราคารวม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${price.toLocaleString()} ฿`, color: "#333333", size: "md", flex: 3, align: "end" }
+                                ]
+                            },
+                            ...(promoCode ? [
+                                {
+                                    type: "box",
+                                    layout: "baseline",
+                                    contents: [
+                                        { type: "text", text: `ส่วนลด (${promoCode.code})`, color: "#FF5252", size: "sm", flex: 3 },
+                                        { type: "text", text: `-${promoCode.discount_amount.toLocaleString()} ฿`, color: "#FF5252", size: "sm", flex: 2, align: "end" }
+                                    ]
+                                },
+                                {
+                                    type: "box",
+                                    layout: "baseline",
+                                    contents: [
+                                        { type: "text", text: "สุทธิ", weight: "bold", color: "#333333", size: "md", flex: 2 },
+                                        { type: "text", text: `${promoCode.final_price.toLocaleString()} ฿`, weight: "bold", color: "#06C755", size: "xl", flex: 3, align: "end" }
+                                    ]
+                                }
+                            ] : [
+                                {
+                                    type: "box",
+                                    layout: "baseline",
+                                    contents: [
+                                        { type: "text", text: "สุทธิ", weight: "bold", color: "#333333", size: "md", flex: 2 },
+                                        { type: "text", text: `${price.toLocaleString()} ฿`, weight: "bold", color: "#333333", size: "xl", flex: 3, align: "end" }
+                                    ]
+                                }
+                            ])
+                        ]
+                    }
+                ]
+            },
+            footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                    ...(availableCount > 0 ? [{
+                        type: "button",
+                        style: "primary",
+                        color: "#06C755",
+                        action: postbackAction(`✅ ยืนยันการจอง (${availableCount} วัน)`, "action=confirmRegularBooking")
+                    }] : []),
+                    {
+                        type: "button",
+                        style: "secondary",
+                        height: "sm",
+                        action: postbackAction("🎁 ใส่โค้ดลับ", "action=regularInputCode")
+                    },
+                    {
+                        type: "button",
+                        style: "link",
+                        height: "sm",
+                        action: { type: "message", label: "ยกเลิก / เริ่มใหม่", text: "จองประจำล่วงหน้า" }
+                    }
+                ]
+            }
+        }
+    };
+}

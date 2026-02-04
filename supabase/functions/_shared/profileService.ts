@@ -9,6 +9,7 @@ export interface UserProfile {
     user_id: string;
     team_name: string;
     phone_number: string;
+    role?: string; // [NEW] 'vip' or 'member'
     created_at?: string;
     updated_at?: string;
 }

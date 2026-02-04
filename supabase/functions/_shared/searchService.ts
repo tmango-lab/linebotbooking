@@ -144,3 +144,130 @@ export function minuteToTime(min: number): string {
     const m = min % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
+
+// =====================================================
+// Regular Booking Search (VIP)
+// =====================================================
+
+export interface RegularSlotResult {
+    date: string;
+    available: boolean;
+    availableFieldIds: number[];
+    reason?: string;
+}
+
+/**
+ * Search availability for regular booking over a range of dates
+ */
+export async function searchRegularBookingSlots(
+    startDate: string,
+    endDate: string,
+    targetDay: string, // e.g., "Tue", "Wed" - format depends on date.toDateString() or similar
+    timeFrom: string,
+    durationMin: number
+): Promise<RegularSlotResult[]> {
+    console.log(`[Regular Search] ${startDate} to ${endDate} on ${targetDay}, ${timeFrom} (${durationMin}m)`);
+
+    // 1. Generate eligible dates
+    const dates: string[] = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dayMap: Record<string, number> = {
+        'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6,
+        'อาทิตย์': 0, 'จันทร์': 1, 'อังคาร': 2, 'พุธ': 3, 'พฤหัส': 4, 'ศุกร์': 5, 'เสาร์': 6
+    };
+
+    // Support Thai day names or English
+    let targetDayIndex = -1;
+    // Simple check
+    for (const [key, val] of Object.entries(dayMap)) {
+        if (targetDay.includes(key)) {
+            targetDayIndex = val;
+            break;
+        }
+    }
+
+    // If user selected "ทุกวัน..." (Every...)
+    // Let's assume input is like "Tue" or "Tuesday" from picker, or we handle it in handler.
+    // For now, assume targetDay is matched against EN day names for simplicity, or handle both.
+    // Let's rely on standard Date.getDay() (0-6)
+
+    if (targetDayIndex === -1) {
+        // Fallback or error
+        console.error("Invalid target day:", targetDay);
+        return [];
+    }
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === targetDayIndex) {
+            dates.push(d.toISOString().split('T')[0]);
+        }
+    }
+
+    if (dates.length === 0) return [];
+
+    // 2. Fetch active fields
+    const { data: fields } = await supabase
+        .from('fields')
+        .select('id')
+        .eq('active', true);
+
+    if (!fields || fields.length === 0) return [];
+
+    // 3. Process each date
+    const results: RegularSlotResult[] = [];
+    const startMin = timeToMinute(timeFrom);
+
+    // Optimization: Fetch all bookings for the entire range in one go if range is small, 
+    // but range could be a year. Safe to fetch per date or batch?
+    // Let's fetch per date for now to keep it simple and robust (avoid memory issues with huge ranges).
+    // Or fetch by range date >= start AND date <= end.
+
+    // Fetch bookings for the whole range (filtered by dates roughly)
+    // To avoid over-fetching, we can query `date` IN list, but list might be long.
+    // Better: `date >= startDate` AND `date <= endDate`.
+    const { data: allBookings, error } = await supabase
+        .from('bookings')
+        .select('date, time_from, time_to, field_no')
+        .gte('date', dates[0])
+        .lte('date', dates[dates.length - 1])
+        .neq('status', 'cancelled');
+
+    if (error) {
+        console.error("Error fetching bookings:", error);
+        return [];
+    }
+
+    for (const date of dates) {
+        const dateBookings = (allBookings || []).filter((b: any) => b.date === date);
+        const availableFields: number[] = [];
+
+        for (const field of fields) {
+            const fieldBookings = dateBookings.filter((b: any) => b.field_no === field.id);
+
+            // Check collision
+            const isBusy = fieldBookings.some((b: any) => {
+                const bStart = timeToMinute(b.time_from.substring(0, 5));
+                const bEnd = timeToMinute(b.time_to.substring(0, 5));
+                const reqStart = startMin;
+                const reqEnd = startMin + durationMin;
+
+                // Collision: (StartA < EndB) and (EndA > StartB)
+                return reqStart < bEnd && reqEnd > bStart;
+            });
+
+            if (!isBusy) {
+                availableFields.push(field.id);
+            }
+        }
+
+        results.push({
+            date,
+            available: availableFields.length > 0,
+            availableFieldIds: availableFields,
+            reason: availableFields.length === 0 ? 'Full' : undefined
+        });
+    }
+
+    return results;
+}

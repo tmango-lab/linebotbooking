@@ -411,3 +411,65 @@ export async function cancelPromoCode(code: string): Promise<boolean> {
 
     return true;
 }
+
+// =====================================================
+// Manual Promo Codes (VIP)
+// =====================================================
+
+export interface ManualPromoCode {
+    id: number;
+    code: string;
+    discount_type: 'percent' | 'fixed';
+    discount_value: number;
+    min_price: number;
+    max_discount: number | null;
+    status: 'active' | 'inactive' | 'expired';
+}
+
+/**
+ * Validate manual promo code
+ */
+export async function validateManualPromoCode(code: string): Promise<{ valid: boolean; code?: ManualPromoCode; reason?: string }> {
+    const { data, error } = await supabase
+        .from('manual_promo_codes')
+        .select('*')
+        .eq('code', code)
+        .single();
+
+    if (error || !data) {
+        return { valid: false, reason: 'Code not found' };
+    }
+
+    if (data.status !== 'active') {
+        return { valid: false, reason: `Code is ${data.status}` };
+    }
+
+    return { valid: true, code: data as ManualPromoCode };
+}
+
+/**
+ * Apply manual discount to a single booking price
+ */
+export function applyManualDiscount(price: number, promo: ManualPromoCode): { discount: number; finalPrice: number } {
+    if (price < (promo.min_price || 0)) {
+        return { discount: 0, finalPrice: price };
+    }
+
+    let discount = 0;
+    if (promo.discount_type === 'fixed') {
+        discount = Math.min(price, promo.discount_value);
+    } else {
+        // Percent
+        discount = (price * promo.discount_value) / 100;
+        if (promo.max_discount && discount > promo.max_discount) {
+            discount = promo.max_discount;
+        }
+        // Round to nearest 10
+        discount = Math.round(discount / 10) * 10;
+    }
+
+    return {
+        discount,
+        finalPrice: Math.max(0, price - discount)
+    };
+}
