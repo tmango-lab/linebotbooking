@@ -93,13 +93,19 @@ serve(async (req) => {
             description: b.display_name || '',
             price: b.price_total_thb,
             total_price: b.price_total_thb,
+            status: b.status, // Pass actual status (pending_payment, confirmed, etc.)
             cancel: b.status === 'cancelled' ? 1 : 0,
             admin_note: b.admin_note || null,
             paid_at: b.paid_at || null,
             source: b.source || 'admin',
             is_promo: b.is_promo || false,
             // Attach discount if exists
-            discount: promoMap[b.booking_id] || 0
+            discount: promoMap[b.booking_id] || 0,
+            // QR Deposit specific fields
+            payment_method: b.payment_method || 'cash',
+            payment_status: b.payment_status || 'unpaid',
+            payment_slip_url: b.payment_slip_url || null,
+            timeout_at: b.timeout_at || null
         }));
 
         return new Response(JSON.stringify({ bookings }), {

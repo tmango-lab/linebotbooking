@@ -73,7 +73,7 @@ serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-        const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source, courtId } = await req.json();
+        const { matchId, price, adminNote, timeStart, timeEnd, customerName, tel, isPaid, source, courtId, status, paymentStatus } = await req.json();
 
         if (!matchId) throw new Error('Missing matchId');
 
@@ -119,6 +119,14 @@ serve(async (req) => {
         // Handle Source
         if (source !== undefined) {
             updatePayload.source = source;
+        }
+
+        // Handle Status & Payment Status
+        if (status !== undefined) {
+            updatePayload.status = status;
+        }
+        if (paymentStatus !== undefined) {
+            updatePayload.payment_status = paymentStatus;
         }
 
         // Handle Court Move (map Matchday court_id to local field_no)

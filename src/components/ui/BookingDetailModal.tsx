@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag } from 'lucide-react';
+import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon } from 'lucide-react';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
@@ -13,15 +13,20 @@ interface BookingDetailModalProps {
         price: number;
         remark?: string;
         court_name?: string;
-        admin_note?: string; // New field for internal note
+        admin_note?: string;
         paid_at?: string | null;
         source?: string;
         is_promo?: boolean;
         is_refunded?: boolean;
         discount?: number;
+        status?: string;
+        payment_method?: string;
+        payment_status?: string;
+        payment_slip_url?: string | null;
+        timeout_at?: string | null;
     } | null;
     onBookingCancelled: () => void;
-    onBookingUpdated?: () => void; // New callback for updates
+    onBookingUpdated?: () => void;
 }
 
 export default function BookingDetailModal({ isOpen, onClose, booking, onBookingCancelled, onBookingUpdated }: BookingDetailModalProps) {
@@ -29,15 +34,15 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const [error, setError] = useState<string | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
-    const [isRefunded, setIsRefunded] = useState(false); // Refund Checkbox State
+    const [isRefunded, setIsRefunded] = useState(false);
 
     // State for editable fields
-    const [isEditingDetails, setIsEditingDetails] = useState(false); // Controls visibility of Name, Tel, Price inputs
+    const [isEditingDetails, setIsEditingDetails] = useState(false);
     const [editName, setEditName] = useState('');
     const [editTel, setEditTel] = useState('');
     const [editPrice, setEditPrice] = useState<string>('');
     const [editNote, setEditNote] = useState('');
-    const [isPaid, setIsPaid] = useState(false); // Local state for payment status
+    const [isPaid, setIsPaid] = useState(false);
 
     // Reset state when modal opens or booking changes
     useEffect(() => {
@@ -53,7 +58,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setIsConfirming(false);
             setCancelReason('');
         }
-    }, [isOpen, booking?.id]); // Depend on ID to prevent resets on parent re-render
+    }, [isOpen, booking?.id]);
 
     if (!isOpen || !booking) return null;
 
@@ -67,31 +72,34 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         return date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     };
 
-    // State for cancellation
-    // Moved up to avoid hook error
-    // const [isRefunded, setIsRefunded] = useState(false); 
-
+    const formatFullDateTime = (dateStr: string) => {
+        const date = new Date(dateStr);
+        return date.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
 
     const handleSave = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            // Use Service Role Key for admin access
             const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-            const updatePayload = {
+            const updatePayload: any = {
                 matchId: booking.id,
-                // Always send current values
                 price: parseInt(editPrice, 10),
                 adminNote: editNote,
                 isPaid: isPaid,
                 customerName: editName,
                 tel: editTel,
-                // Pass context for Matchday updates (required by API)
                 timeStart: booking.time_start,
                 timeEnd: booking.time_end,
             };
+
+            // If manually marking as paid and it was pending_payment, update status to confirmed
+            if (isPaid && booking.status === 'pending_payment') {
+                updatePayload.status = 'confirmed';
+                updatePayload.paymentStatus = 'paid';
+            }
 
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
                 method: 'POST',
@@ -109,12 +117,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
             await response.json();
 
-            // Notify parent to refresh data
             if (onBookingUpdated) {
                 onBookingUpdated();
             }
 
-            // Close modal after saving
             onClose();
 
         } catch (err: any) {
@@ -130,7 +136,6 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         setError(null);
 
         try {
-            // Use Service Role Key for admin access
             const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-booking`, {
@@ -142,7 +147,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                 body: JSON.stringify({
                     matchId: booking.id,
                     reason: cancelReason || 'Admin cancelled via Dashboard',
-                    isRefunded: isRefunded // Checkbox value
+                    isRefunded: isRefunded
                 })
             });
 
@@ -162,23 +167,66 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         }
     };
 
+    const handleConfirmPayment = async () => {
+        setIsPaid(true);
+        // We will call handleSave which now handles the status update
+        // But for better UX, let's trigger the save immediately
+        setLoading(true);
+        setError(null);
+
+        try {
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const updatePayload = {
+                matchId: booking.id,
+                price: booking.price,
+                adminNote: (booking.admin_note ? booking.admin_note + ' | ' : '') + '[Admin Confirm Payment]',
+                isPaid: true,
+                status: 'confirmed',
+                paymentStatus: 'paid',
+                customerName: booking.name,
+                tel: booking.tel,
+                timeStart: booking.time_start,
+                timeEnd: booking.time_end,
+            };
+
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Payment confirmation failed: ${errorText}`);
+            }
+
+            if (onBookingUpdated) onBookingUpdated();
+            onClose();
+
+        } catch (err: any) {
+            setError(err.message || 'Failed to confirm payment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleClose = () => {
         setIsConfirming(false);
         setIsEditingDetails(false);
         setCancelReason('');
-        setIsRefunded(false); // Reset
+        setIsRefunded(false);
         setError(null);
         onClose();
     };
 
-    // Financial Breakdown Calculation
-    // Try to find discount from admin_note e.g. "(-100)"
-    // Or if booking.discount exists directly
     const getFinancials = () => {
         const netPrice = booking.price;
         let discount = 0;
 
-        // 1. Check admin_note for "(-XXX)" pattern
         const noteMatch = (booking.admin_note || '').match(/\(-(\d+)\)/);
         if (noteMatch) {
             discount = parseInt(noteMatch[1], 10);
@@ -192,6 +240,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
     const { basePrice, discount, netPrice } = getFinancials();
 
+    const isPendingPayment = booking.status === 'pending_payment';
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -230,6 +279,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                 {booking.source === 'line' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
                                 {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><Monitor className="w-3 h-3 mr-1" />Admin</span>}
                                 {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" />Promo</span>}
+                                {isPendingPayment && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 animate-pulse"><Clock className="w-3 h-3 mr-1" />รอจ่ายมัดจำ</span>}
                             </h3>
 
                             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -284,6 +334,31 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                         )}
                                     </div>
 
+                                    {/* Payment Method & Status */}
+                                    <div className="grid grid-cols-2 gap-2 mt-2">
+                                        <div className="flex items-center text-xs text-gray-500 bg-white p-2 rounded-md border border-gray-200">
+                                            {booking.payment_method === 'qr' ? (
+                                                <QrCode className="w-4 h-4 mr-2 text-green-600" />
+                                            ) : (
+                                                <Banknote className="w-4 h-4 mr-2 text-blue-600" />
+                                            )}
+                                            <span className="font-medium">{booking.payment_method === 'qr' ? 'มัดจำ 200 (QR)' : 'จ่ายหน้าสนาม'}</span>
+                                        </div>
+                                        <div className={`flex items-center text-xs p-2 rounded-md border border-gray-200 ${booking.paid_at ? 'bg-green-50 text-green-700 border-green-200' : (isPendingPayment ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-50 text-gray-600')}`}>
+                                            <CheckCircle2 className={`w-4 h-4 mr-2 ${booking.paid_at ? 'text-green-500' : 'text-gray-300'}`} />
+                                            <span className="font-bold">{booking.paid_at ? 'ชำระแล้ว' : (isPendingPayment ? 'รอโอน' : 'ยังไม่ชำระ')}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Timeout Info for Pending Payment */}
+                                    {isPendingPayment && booking.timeout_at && (
+                                        <div className="flex items-center bg-amber-50 p-2 rounded-md border border-amber-100 text-[11px] text-amber-800">
+                                            <AlertTriangle className="w-3.5 h-3.5 mr-2 text-amber-500" />
+                                            <span>จะถูกยกเลิกอัตโนมัติหากไม่ชำระภายใน: </span>
+                                            <span className="font-bold ml-1">{formatFullDateTime(booking.timeout_at)}</span>
+                                        </div>
+                                    )}
+
                                     {/* Price */}
                                     <div className="flex items-center text-sm text-gray-600">
                                         <span className="w-4 flex justify-center mr-2 font-bold text-indigo-500 flex-shrink-0">฿</span>
@@ -299,6 +374,52 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             <span className="font-medium text-gray-900 ml-2">{parseInt(editPrice || '0').toLocaleString()} บาท</span>
                                         )}
                                     </div>
+
+                                    {/* Payment Slip Preview */}
+                                    {booking.payment_slip_url && (
+                                        <div className="mt-3 bg-white p-3 rounded-md border border-gray-200 shadow-sm">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <div className="flex items-center text-xs font-semibold text-gray-700">
+                                                    <ImageIcon className="w-3 h-3 mr-1 text-indigo-500" />
+                                                    สลิปมัดจำจาก LINE
+                                                </div>
+                                                <a
+                                                    href={booking.payment_slip_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[10px] text-indigo-600 hover:underline flex items-center"
+                                                >
+                                                    เปิดรูปเต็ม <ExternalLink className="w-2.5 h-2.5 ml-1" />
+                                                </a>
+                                            </div>
+                                            <div className="relative group cursor-pointer overflow-hidden rounded-md border border-gray-100 aspect-[3/4] max-h-48 bg-gray-50 flex items-center justify-center">
+                                                <img
+                                                    src={booking.payment_slip_url}
+                                                    alt="Payment Slip"
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    onClick={() => window.open(booking.payment_slip_url!, '_blank')}
+                                                />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
+                                                    <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Quick Actions for Pending Payment */}
+                                    {isPendingPayment && (
+                                        <div className="mt-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleConfirmPayment}
+                                                disabled={loading}
+                                                className="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-bold text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            >
+                                                {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                                                แอดมินยืนยันได้รับเงินแล้ว (QR)
+                                            </button>
+                                        </div>
+                                    )}
 
                                     {/* Payment Status (Always Editable Button Group) */}
                                     <div className="flex items-center text-sm text-gray-600 mt-2">
@@ -339,7 +460,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                         <textarea
                                             value={editNote}
                                             onChange={(e) => setEditNote(e.target.value)}
-                                            rows={3}
+                                            rows={2}
                                             className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                                             placeholder="บันทึกข้อความถึงทีมงาน..."
                                         />
