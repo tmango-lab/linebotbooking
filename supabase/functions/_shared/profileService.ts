@@ -28,6 +28,71 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
 }
 
 export async function upsertProfile(userId: string, teamName: string, phoneNumber: string): Promise<void> {
+    // 1. Check if there is a 'manual_' profile with this phone number
+    const { data: manualProfile, error: searchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .like('user_id', 'manual_%')
+        .limit(1)
+        .maybeSingle();
+
+    if (searchError) {
+        console.error('Error searching manual profile:', searchError);
+        // Continue to normal upsert if search fails
+    }
+
+    if (manualProfile) {
+        console.log(`Found manual profile to adopt: ${manualProfile.user_id} -> ${userId}`);
+
+        // 2. Migrate the manual profile to the new LINE user ID
+        // unique constraints or FKs might exist, but assuming user_id is PK update.
+        // If this fails (e.g., if LINE user somehow already exists? Upsert handles that, but here we are migrating manual),
+        // we'll fall back to upsert.
+
+        try {
+            // First, delete any existing profile for this LINE user (unlikely if they are registering, but possible if re-registering)
+            // Actually, if we just update the PK of manualProfile to userId, 
+            // it will fail if userId already exists in profiles.
+
+            // Check if target userId already exists
+            const { data: existingTarget } = await supabase
+                .from('profiles')
+                .select('user_id')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            if (existingTarget) {
+                // If LINE user already has a profile, we DO NOT migrate. 
+                // We just update the Phone/Team of the existing LINE profile (which falls through to normal upsert below).
+                // And maybe we should delete the manual one? No, let admin decide. 
+                // Or maybe we treat it as duplicate.
+                console.log(`Target LINE user ${userId} already exists. migration skipped.`);
+            } else {
+                // Target ID is free. We can rename manual_id -> line_id
+                const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                        user_id: userId,
+                        team_name: teamName, // Update team name to what user typed
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', manualProfile.user_id);
+
+                if (updateError) {
+                    console.error('Error migrating manual profile:', updateError);
+                    throw updateError;
+                }
+
+                console.log('Migration successful');
+                return; // Done
+            }
+        } catch (err) {
+            console.error('Migration failed, falling back to new insert:', err);
+        }
+    }
+
+    // 3. Normal Upsert (if no manual profile found or migration skipped)
     const { error } = await supabase
         .from('profiles')
         .upsert({
