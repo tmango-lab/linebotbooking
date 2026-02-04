@@ -191,6 +191,12 @@ export default function BookingCard({
                             {booking.is_promo && (
                                 <Tag className="w-3 h-3 text-pink-500" />
                             )}
+
+                            {(booking.source === 'line' || booking.source === 'line_bot_regular') && (
+                                <svg viewBox="0 0 24 24" fill="currentColor" className={`w-3 h-3 ${isPaid ? 'text-green-600' : 'text-green-500'}`}>
+                                    <path d="M22 10.4c0-5.7-5-10.4-10.6-10.4C5.4.1.8 4.7.8 10.4c0 4.7 3.5 8.7 8 9.9-.4 1.6-1.3 3.3-1.4 3.5-.1.3 0 .7.3.9.1.1.3.1.4.1.2 0 .5-.1.7-.3 2.9-2.5 4.6-4.9 4.7-5.1.3 0 .5.1.8.1 5.8 0 10.7-4.1 10.7-9.1zm-13.6 2.5c-.4 0-.7-.3-.7-.7V10c0-.4.3-.7.7-.7s.7.3.7.7v2.2c0 .4-.3.7-.7.7zm3.1 0c-.4 0-.7-.3-.7-.7V10c0-.4.3-.7.7-.7s.7.3.7.7v2.2c0 .4-.3.7-.7.7zm3.1 0c-.4 0-.7-.3-.7-.7V10c0-.4.3-.7.7-.7s.7.3.7.7v2.2c0 .4-.3.7-.7.7zm3.1 0c-.4 0-.7-.3-.7-.7V10c0-.4.3-.7.7-.7s.7.3.7.7v2.2c0 .4-.3.7-.7.7z" />
+                                </svg>
+                            )}
                         </div>
 
                         <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold border ${booking.paid_at

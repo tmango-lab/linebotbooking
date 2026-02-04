@@ -1424,6 +1424,11 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
         if (val.valid) promoData = val.code;
     }
 
+    // [FIX] Fetch Profile for Name/Phone
+    const profile = await getProfile(userId);
+    const displayName = profile?.team_name || 'VIP Member';
+    const phoneNumber = profile?.phone_number || '';
+
     const basePrice = await calculatePrice(1, time_from!, duration_h!);
 
     for (const slot of availableSlots) {
@@ -1432,10 +1437,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
 
         // Calculate price with promo
         let price = basePrice;
-        // Apply promo if valid
-        // Note: We already validated status 'active'.
-        // Should we update total booking price or per booking?
-        // Plan says "Discounts are applied per booking entry".
+
         if (promoData) {
             const { finalPrice } = applyManualDiscount(basePrice, promoData as any);
             price = finalPrice;
@@ -1445,15 +1447,19 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
             .from('bookings')
             .insert({
                 user_id: userId,
-                booking_id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000), // Ensure unique
+                booking_id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000),
                 field_no: fieldId,
                 date: slot.date,
                 time_from: time_from,
                 time_to: timeTo,
-                duration_h: duration_h, // [FIX] Add missing duration_h
-                price_total_thb: price, // [FIX] price -> price_total_thb
-                status: 'pending_payment',
-                source: 'line_bot_regular', // [FIX] booking_source -> source (to match existing schema)
+                duration_h: duration_h,
+                price_total_thb: price,
+                status: 'confirmed', // Confirmed immediately (VIP)
+                payment_status: 'pending', // Pay at field
+                payment_method: 'cash',
+                display_name: displayName,
+                phone_number: phoneNumber,
+                source: 'line_bot_regular',
                 admin_note: Deno.env.get('VITE_ADMIN_NOTE_PREFIX') ? `${Deno.env.get('VITE_ADMIN_NOTE_PREFIX')} Regular Booking` : 'Regular Booking VIP',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
@@ -1468,7 +1474,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
 
     await pushMessage(userId, {
         type: 'text',
-        text: `✅ จองสำเร็จ ${successCount} รายการ!\nรวมเป็นเงินทั้งสิ้น ${(successCount * (promoData ? applyManualDiscount(basePrice, promoData as any).finalPrice : basePrice)).toLocaleString()} บาท\n\nกรุณาโอนเงินและส่งสลิปเพื่อยืนยัน`
+        text: `✅ จองสำเร็จ ${successCount} รายการ!\nรวมเป็นเงินทั้งสิ้น ${(successCount * (promoData ? applyManualDiscount(basePrice, promoData as any).finalPrice : basePrice)).toLocaleString()} บาท\n\nกรุณามาให้ตรงเวลา หากต้องการเลื่อนโปรดแจ้งแอดมินล่วงหน้า`
     });
 
     await clearUserState(userId);
