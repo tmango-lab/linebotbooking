@@ -1374,41 +1374,42 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
         }
     }
 
-    let finalPrice = 0;
+    // [FIX START] Dynamic Pricing for Summary
+    // Calculate price for each slot
+    const resultsWithPrice = await Promise.all(results.map(async res => {
+        let dailyPrice = 0;
+        if (res.available && res.availableFieldIds && res.availableFieldIds.length > 0) {
+            const fieldId = res.availableFieldIds[0];
+            dailyPrice = await calculatePrice(fieldId, time_from!, duration_h!);
 
-    // Process results to include prices
-    const resultsWithPrice = results.map(res => {
-        let dailyPrice = basePrice;
-        if (res.available) {
+            // Apply Discount if exists
             if (promoData) {
-                const { discount, finalPrice: fp } = applyManualDiscount(dailyPrice, promoData as any);
-                // We don't sum here yet to avoid double counting if map runs multiple times? No, map runs once.
-                // But wait, the loop below sums it up.
-                // Actually let's do calculation here.
+                const { finalPrice: fp } = applyManualDiscount(dailyPrice, promoData as any);
                 dailyPrice = fp;
             }
         }
         return {
             ...res,
-            price: res.available ? dailyPrice : 0
+            price: res.available ? dailyPrice : 0,
+            originalPrice: res.available ? await calculatePrice(res.availableFieldIds[0], time_from!, duration_h!) : 0
         };
-    });
+    }));
 
     // Calculate Totals
     let calculatedTotalPrice = 0;
+    let totalFullPrice = 0;
 
     for (const res of resultsWithPrice) {
         if (res.available) {
-            calculatedTotalPrice += basePrice;
-            if (promoData) {
-                const { discount, finalPrice: fp } = applyManualDiscount(basePrice, promoData as any);
-                totalDiscount += discount;
-                finalPrice += fp;
-            } else {
-                finalPrice += basePrice;
-            }
+            calculatedTotalPrice += res.price || 0;
+            totalFullPrice += res.originalPrice || 0;
         }
     }
+
+    // Total Discount = Final Full Price - Final Sum
+    totalDiscount = totalFullPrice - calculatedTotalPrice;
+    let finalPrice = totalFullPrice - totalDiscount;
+    // [FIX END]
 
     // Get Field Name
     let fieldName = "สนามไหนก็ได้ (ว่าง)";
@@ -1536,33 +1537,46 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
         }
     }
 
-    // [FIX] Increment Promo Code Usage
+    // [FIX] Increment Promo Code Usage with Retry
     console.log(`[RegularBooking] Success Count: ${successCount}, PromoData:`, promoData);
 
     if (promoData && successCount > 0) {
-        try {
-            const { data: currentCode, error: fetchError } = await supabaseAdmin
-                .from('manual_promo_codes')
-                .select('id, used_count')
-                .eq('id', promoData.id)
-                .single();
-
-            if (fetchError) {
-                console.error('[RegularBooking] Failed to fetch current promo code:', fetchError);
-            } else if (currentCode) {
-                console.log(`[RegularBooking] Updating promo ${promoData.id}. Old count: ${currentCode.used_count}, Adding: ${successCount}`);
-                const { error: updateError } = await supabaseAdmin
+        const MAX_RETRIES = 3;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const { data: currentCode, error: fetchError } = await supabaseAdmin
                     .from('manual_promo_codes')
-                    .update({ used_count: (currentCode.used_count || 0) + successCount })
-                    .eq('id', promoData.id);
+                    .select('id, used_count')
+                    .eq('id', promoData.id)
+                    .single();
 
-                if (updateError) console.error('[RegularBooking] Update failed:', updateError);
-                else console.log('[RegularBooking] Update successful');
-            } else {
-                console.error('[RegularBooking] Current code not found in DB');
+                if (fetchError) {
+                    console.error(`[RegularBooking] (Attempt ${attempt}) Fetch failed:`, fetchError);
+                    if (attempt === MAX_RETRIES) break;
+                    await new Promise(res => setTimeout(res, 500)); // Wait 500ms
+                    continue;
+                }
+
+                if (currentCode) {
+                    console.log(`[RegularBooking] Updating promo ${promoData.id}. Old count: ${currentCode.used_count}, Adding: ${successCount}`);
+                    const { error: updateError } = await supabaseAdmin
+                        .from('manual_promo_codes')
+                        .update({ used_count: (currentCode.used_count || 0) + successCount })
+                        .eq('id', promoData.id);
+
+                    if (updateError) {
+                        console.error(`[RegularBooking] (Attempt ${attempt}) Update failed:`, updateError);
+                    } else {
+                        console.log('[RegularBooking] Update successful');
+                        break; // Success
+                    }
+                } else {
+                    console.error('[RegularBooking] Code not found during update');
+                    break;
+                }
+            } catch (err) {
+                console.error(`[RegularBooking] (Attempt ${attempt}) Exception:`, err);
             }
-        } catch (err) {
-            console.error('[RegularBooking] Exception updating promo usage:', err);
         }
     }
 
