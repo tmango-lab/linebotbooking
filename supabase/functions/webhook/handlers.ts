@@ -1467,6 +1467,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     let successCount = 0;
+    let totalPrice = 0; // [FIX] Track total price
     const durationMin = duration_h! * 60;
     const timeTo = addMinutesToTime(time_from!, durationMin).substring(0, 5);
 
@@ -1490,13 +1491,14 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
     const displayName = profile?.team_name || 'VIP Member';
     const phoneNumber = profile?.phone_number || '';
 
-    const basePrice = await calculatePrice(1, time_from!, duration_h!);
+    // Remove static basePrice calculation
 
     for (const slot of availableSlots) {
         // Pick first available field
         const fieldId = slot.availableFieldIds[0];
 
-        // Calculate price with promo
+        // [FIX] Calculate dynamic price based on actual field
+        const basePrice = await calculatePrice(fieldId, time_from!, duration_h!);
         let price = basePrice;
 
         if (promoData) {
@@ -1530,6 +1532,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
             console.error(`[RegularBooking] Failed to insert ${slot.date}:`, error);
         } else {
             successCount++;
+            totalPrice += price; // [FIX] Sum up actual price
         }
     }
 
@@ -1565,7 +1568,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
 
     await pushMessage(userId, {
         type: 'text',
-        text: `✅ จองสำเร็จ ${successCount} รายการ!\nรวมเป็นเงินทั้งสิ้น ${(successCount * (promoData ? applyManualDiscount(basePrice, promoData as any).finalPrice : basePrice)).toLocaleString()} บาท\n\nกรุณามาให้ตรงเวลา หากต้องการเลื่อนโปรดแจ้งแอดมินล่วงหน้า`
+        text: `✅ จองสำเร็จ ${successCount} รายการ!\nรวมเป็นเงินทั้งสิ้น ${totalPrice.toLocaleString()} บาท\n\nกรุณามาให้ตรงเวลา หากต้องการเลื่อนโปรดแจ้งแอดมินล่วงหน้า`
     });
 
     await clearUserState(userId);
