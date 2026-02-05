@@ -523,6 +523,15 @@ export async function handlePostback(event: LineEvent) {
         case 'confirmRegularBooking':
             await handleConfirmRegularBooking(event, userId, params);
             break;
+
+        // [NEW] Attendance Nudge Actions
+        case 'confirm_attendance':
+            await handleConfirmAttendance(event, userId, params);
+            break;
+        case 'cancel_attendance':
+            await handleCancelAttendance(event, userId, params);
+            break;
+
         default:
             console.warn("Unknown Action:", action);
     }
@@ -1586,4 +1595,54 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
     });
 
     await clearUserState(userId);
+}
+
+// =====================================================
+// Attendance Nudge Handlers
+// =====================================================
+
+async function handleConfirmAttendance(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    console.log(`[Attendance] User ${userId} confirming booking ${bookingId}`);
+
+    if (!bookingId) return;
+
+    const { error } = await supabase
+        .from('bookings')
+        .update({ attendance_status: 'confirmed' })
+        .eq('booking_id', bookingId);
+
+    if (error) {
+        console.error(`[Attendance] Failed to confirm ${bookingId}:`, error);
+        await replyMessage(event.replyToken!, { type: 'text', text: 'เกิดข้อผิดพลาดในการยืนยัน โปรดลองใหม่อีกครั้งครับ' });
+        return;
+    }
+
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: 'ขอบคุณครับ! เจอกันเย็นนี้ครับ 🙏⚽'
+    });
+}
+
+async function handleCancelAttendance(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    console.log(`[Attendance] User ${userId} requesting cancel for booking ${bookingId}`);
+
+    if (!bookingId) return;
+
+    const { error } = await supabase
+        .from('bookings')
+        .update({ attendance_status: 'cancel_requested' })
+        .eq('booking_id', bookingId);
+
+    if (error) {
+        console.error(`[Attendance] Failed to request cancel ${bookingId}:`, error);
+        await replyMessage(event.replyToken!, { type: 'text', text: 'เกิดข้อผิดพลาด โปรดลองใหม่อีกครั้งครับ' });
+        return;
+    }
+
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: 'รับเรื่องแล้วครับ เดี๋ยวแอดมินจะโทรหาเพื่อสอบถามรายละเอียดนะครับ 📞'
+    });
 }
