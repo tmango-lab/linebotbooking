@@ -1525,6 +1525,26 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
         }
     }
 
+    // [FIX] Increment Promo Code Usage
+    if (promoData && successCount > 0) {
+        try {
+            const { data: currentCode } = await supabaseAdmin
+                .from('manual_promo_codes')
+                .select('used_count')
+                .eq('id', promoData.id)
+                .single();
+
+            if (currentCode) {
+                await supabaseAdmin
+                    .from('manual_promo_codes')
+                    .update({ used_count: (currentCode.used_count || 0) + successCount })
+                    .eq('id', promoData.id);
+            }
+        } catch (err) {
+            console.error('[RegularBooking] Failed to update promo usage:', err);
+        }
+    }
+
     await pushMessage(userId, {
         type: 'text',
         text: `✅ จองสำเร็จ ${successCount} รายการ!\nรวมเป็นเงินทั้งสิ้น ${(successCount * (promoData ? applyManualDiscount(basePrice, promoData as any).finalPrice : basePrice)).toLocaleString()} บาท\n\nกรุณามาให้ตรงเวลา หากต้องการเลื่อนโปรดแจ้งแอดมินล่วงหน้า`
