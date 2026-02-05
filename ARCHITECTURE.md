@@ -468,3 +468,57 @@ The `upsertProfile` function contains "Adoption Logic" to link manual entries to
 2. If a match is found, the `manual_` ID is **updated/renamed** to the user's real LINE UID.
 3. This preserves history and configuration from the manual record without creating duplicates.
 
+
+---
+
+## 12. Regular Booking (VIP Implementation)
+
+### Overview
+A special booking mode for VIP customers (e.g., long-term contracts) that allows them to book multiple slots at once using a **Secret Code** flow in LINE.
+
+### Flow Description
+1.  **Entry Point**: User types a secret keyword (e.g., "จองประจำ") in LINE.
+2.  **Validation**:
+    - System checks  for 'vip'.
+    - If valid, starts the flow. If not, ignores or replies with standard message.
+3.  **Selection**:
+    - User selects **Day** (e.g., Every Thursday).
+    - User selects **Time** (e.g., 18:00 - 20:00).
+    - User selects **Field** (Specific ID or ANY).
+4.  **Summary & Discount**:
+    - System calculates total price for the selected range (e.g., next 4 weeks).
+    - User inputs a **Manual Promo Code** (e.g., "TMG100").
+    - System verifies code limit (, ) and applies discount.
+5.  **Confirmation**:
+    - User confirms booking.
+    - System creates multiple booking records in  table.
+    -  is set to .
+    - Promo code usage is incremented atomically.
+
+### Key Data Structures
+
+####  Table
+Used for VIP-specific discounts.
+```sql
+CREATE TABLE manual_promo_codes (
+    id SERIAL PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    discount_amount INTEGER DEFAULT 0,
+    discount_type TEXT DEFAULT 'fixed', -- 'fixed' or 'percent'
+    usage_limit INTEGER DEFAULT 0,      -- Max allowed uses
+    usage_count INTEGER DEFAULT 0,      -- Current usage
+    status TEXT DEFAULT 'active'
+);
+```
+
+####  Table Updates
+Added  column to distinguish VIPs.
+```sql
+ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'user'; -- 'user', 'vip', 'admin'
+```
+
+### Logic Implementation ()
+- **Dynamic Pricing**: Calculates price per slot using , ensuring accuracy for different fields (e.g., Field 3 vs Field 1).
+- **Atomic Updates**: Uses strict read-modify-write pattern (with retries) for incrementing .
+- **Silent Failure**: Invalid promo codes do not block the flow but show an error message, maintaining the "secret" feel.
+
