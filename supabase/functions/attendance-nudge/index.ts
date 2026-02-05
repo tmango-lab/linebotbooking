@@ -70,19 +70,19 @@ Deno.serve(async (req) => {
         let failCount = 0
 
         for (const booking of bookings) {
-            // Try to get explicit line_user_id from profile, OR use booking.user_id if it IS the line_user_id
+            // Pass profile explicitly
             const profile = profileMap.get(booking.user_id);
-            // In this system, user_id is often the LINE User ID (Uxxxxxxxx...).
-            // Let's assume user_id is the LINE ID if profile doesn't have a distinct one.
-            // Check if profile has line_user_id column. If not, use user_id.
             const lineUserId = profile?.line_user_id || booking.user_id;
 
             if (!lineUserId) {
                 console.warn(`[Skip] Booking ${booking.booking_id} has no LINE User ID`)
                 continue
             }
+
             try {
-                const flexMsg = buildAttendanceNudgeFlex(booking)
+                // Use display_name from booking, fallback to team_name from profile
+                const teamName = booking.display_name || profile?.team_name || "ลูกค้า";
+                const flexMsg = buildAttendanceNudgeFlex(booking, teamName)
                 await pushMessage(lineUserId, flexMsg)
                 successCount++
                 console.log(`[Sent] Nudge sent to booking ${booking.booking_id} (User: ${lineUserId})`)
@@ -112,19 +112,14 @@ Deno.serve(async (req) => {
 })
 
 // Helper to build the Flex Message
-function buildAttendanceNudgeFlex(booking: any) {
-    // Format field name (e.g. "Field 1 (7-a-side)")
-    // Note: In real app, might need to fetch field details or use booking.field_id logic if `field_label` isn't in booking
-    // Assuming we can derive or it's simple. Let's send a generic "สนาม" or try to map if possible.
-    // For now, let's keep it simple or use a helper if we had access to field data. 
-    // Since this is a standalone function, we might not have all context. 
-    // Let's use booking.field_no or similar if available, else just "สนามฟุตบอล"
-
+function buildAttendanceNudgeFlex(booking: any, teamName: string) {
+    // Fix: Use field_no instead of field_id (schema typically uses field_no)
+    const fieldLabel = booking.field_no ? `สนาม ${booking.field_no}` : "สนามฟุตบอล";
     const timeRange = `${booking.time_from.substring(0, 5)} - ${booking.time_to.substring(0, 5)}`
 
     return {
         type: "flex",
-        altText: "⚽️ ยืนยันนัดหมายวันนี้",
+        altText: `⚽️ ยืนยันนัดหมายวันนี้ (${teamName})`,
         contents: {
             type: "bubble",
             body: {
@@ -137,6 +132,14 @@ function buildAttendanceNudgeFlex(booking: any) {
                         weight: "bold",
                         size: "lg",
                         color: "#1DB446"
+                    },
+                    {
+                        type: "text",
+                        text: `ถึง: ${teamName}`,
+                        weight: "bold",
+                        size: "md",
+                        color: "#333333",
+                        margin: "sm"
                     },
                     { type: "separator", margin: "md" },
                     {
@@ -169,7 +172,7 @@ function buildAttendanceNudgeFlex(booking: any) {
                                 spacing: "sm",
                                 contents: [
                                     { type: "text", text: "สนาม", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: `สนาม ${booking.field_id}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: fieldLabel, wrap: true, color: "#666666", size: "sm", flex: 5 }
                                 ]
                             }
                         ]
@@ -225,6 +228,9 @@ function buildAttendanceNudgeFlex(booking: any) {
 function formatThaiDate(dateStr: string): string {
     const [year, month, day] = dateStr.split('-').map(Number);
     const date = new Date(year, month - 1, day);
+
+    const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
     const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-    return `${day} ${thaiMonths[date.getMonth()]} ${year + 543}`;
+
+    return `${dayNames[date.getDay()]} ${day} ${thaiMonths[date.getMonth()]} ${year + 543}`;
 }
