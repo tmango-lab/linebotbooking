@@ -302,6 +302,11 @@ export async function handleMessage(event: LineEvent) {
                 type: 'text',
                 text: `✨ รหัสลับถูกต้อง! คุณได้รับส่วนลดเรียบร้อยครับ\n(รหัสจะถูกนำไปใช้อัตโนมัติในขั้นตอนสรุปรายการครับ)`
             });
+
+            // If user is at summary step or has enough info, re-show summary with updated price
+            if (userState.regular_start_date && userState.regular_end_date && userState.regular_day && userState.time_from && userState.duration_h && userState.regular_field_id !== undefined) {
+                await showRegularBookingSummary(event, userId);
+            }
             return;
         }
     }
@@ -1414,6 +1419,9 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
     });
 
     await replyMessage(event.replyToken!, summaryFlex);
+
+    // Set step to summary to track current state
+    await saveUserState(userId, { step: 'regular_summary' });
 }
 
 async function handleConfirmRegularBooking(event: LineEvent, userId: string, params: any) {
