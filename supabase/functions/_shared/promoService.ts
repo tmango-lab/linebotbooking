@@ -424,7 +424,8 @@ export interface ManualPromoCode {
     min_price: number;
     max_discount: number | null;
     status: 'active' | 'inactive' | 'expired';
-    used_count?: number;
+    usage_count?: number;
+    usage_limit?: number;
 }
 
 /**

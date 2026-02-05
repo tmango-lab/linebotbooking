@@ -1428,7 +1428,7 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
         time: time_from!,
         duration: duration_h!,
         slots: resultsWithPrice, // Pass extended slots
-        price: calculatedTotalPrice,
+        price: totalFullPrice, // [FIX] Use Full Price (Before Discount)
         fieldName: fieldName,
         promoCode: promoData ? {
             code: promoData.code,
@@ -1546,7 +1546,7 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
             try {
                 const { data: currentCode, error: fetchError } = await supabaseAdmin
                     .from('manual_promo_codes')
-                    .select('id, used_count')
+                    .select('id, usage_count')
                     .eq('id', promoData.id)
                     .single();
 
@@ -1558,10 +1558,10 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
                 }
 
                 if (currentCode) {
-                    console.log(`[RegularBooking] Updating promo ${promoData.id}. Old count: ${currentCode.used_count}, Adding: ${successCount}`);
+                    console.log(`[RegularBooking] Updating promo ${promoData.id}. Old count: ${currentCode.usage_count}, Adding: ${successCount}`);
                     const { error: updateError } = await supabaseAdmin
                         .from('manual_promo_codes')
-                        .update({ used_count: (currentCode.used_count || 0) + successCount })
+                        .update({ usage_count: (currentCode.usage_count || 0) + successCount })
                         .eq('id', promoData.id);
 
                     if (updateError) {
