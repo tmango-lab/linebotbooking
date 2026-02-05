@@ -1473,8 +1473,16 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
     // Get Promo Data
     let promoData = null;
     if (manual_promo_code) {
+        console.log(`[RegularBooking] Validating promo code: ${manual_promo_code}`);
         const val = await validateManualPromoCode(manual_promo_code);
-        if (val.valid) promoData = val.code;
+        if (val.valid) {
+            promoData = val.code;
+            console.log(`[RegularBooking] Promo valid. ID: ${promoData?.id}, Current Count: ${promoData?.used_count}`);
+        } else {
+            console.log(`[RegularBooking] Promo invalid: ${val.reason}`);
+        }
+    } else {
+        console.log(`[RegularBooking] No manual promo code provided.`);
     }
 
     // [FIX] Fetch Profile for Name/Phone
@@ -1526,22 +1534,32 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
     }
 
     // [FIX] Increment Promo Code Usage
+    console.log(`[RegularBooking] Success Count: ${successCount}, PromoData:`, promoData);
+
     if (promoData && successCount > 0) {
         try {
-            const { data: currentCode } = await supabaseAdmin
+            const { data: currentCode, error: fetchError } = await supabaseAdmin
                 .from('manual_promo_codes')
-                .select('used_count')
+                .select('id, used_count')
                 .eq('id', promoData.id)
                 .single();
 
-            if (currentCode) {
-                await supabaseAdmin
+            if (fetchError) {
+                console.error('[RegularBooking] Failed to fetch current promo code:', fetchError);
+            } else if (currentCode) {
+                console.log(`[RegularBooking] Updating promo ${promoData.id}. Old count: ${currentCode.used_count}, Adding: ${successCount}`);
+                const { error: updateError } = await supabaseAdmin
                     .from('manual_promo_codes')
                     .update({ used_count: (currentCode.used_count || 0) + successCount })
                     .eq('id', promoData.id);
+
+                if (updateError) console.error('[RegularBooking] Update failed:', updateError);
+                else console.log('[RegularBooking] Update successful');
+            } else {
+                console.error('[RegularBooking] Current code not found in DB');
             }
         } catch (err) {
-            console.error('[RegularBooking] Failed to update promo usage:', err);
+            console.error('[RegularBooking] Exception updating promo usage:', err);
         }
     }
 
