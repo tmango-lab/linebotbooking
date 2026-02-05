@@ -132,25 +132,22 @@ export default function CampaignPage() {
 
     const handleCopyLink = (campaign: any) => {
         // Construct Deep Link
-        // For Public: Link to wallet
-        // For Secret: Link with auto-fill query params
-        // But since we simplified WalletPage to just auto-show public ones, 
-        // we can just link to wallet page generally for public, 
-        // or specifically for secret code auto-fill if we want to be fancy.
+        // Construct Direct Collection Link
+        // Format: https://.../wallet?id=CAMPAIGN_ID&action=collect
+        // If it has a secret code, add &code=...
 
-        // Let's make it smart:
-        // Public -> https://.../wallet
-        // Secret -> https://.../wallet?code={SECRET_CODE} (Need to pick one code if multiple)
-
-        let url = `${window.location.origin}/#/wallet`;
+        let url = `${window.location.origin}/#/wallet?id=${campaign.id}&action=collect`;
 
         if (!campaign.is_public && campaign.secret_codes && campaign.secret_codes.length > 0) {
-            // Pick first secret code for convenience
-            url += `?code=${campaign.secret_codes[0]}`;
+            url += `&code=${campaign.secret_codes[0]}`;
+        } else if (campaign.is_public) {
+            // Even for public, adding action=collect makes it a "one-click" link
+            // We pass an empty code for public ones
+            url += `&code=`;
         }
 
         navigator.clipboard.writeText(url);
-        alert(`คัดลอกลิงก์แล้ว!\n${url}`);
+        alert(`คัดลอกลิงก์เก็บคูปองด่วนแล้ว!\n${url}\n\n(หมายเหตุ: ลิงก์นี้ต้องการ userId=... ต่อท้ายเพื่อให้ทำงานสมบูรณ์ใน LINE)`);
     };
 
     const filteredCampaigns = campaigns.filter(c =>
