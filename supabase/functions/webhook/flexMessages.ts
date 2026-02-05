@@ -894,37 +894,58 @@ export function buildRegularBookingSummaryFlex(params: {
     targetDay: string;
     time: string;
     duration: number;
-    slots: { date: string, available: boolean, reason?: string, price?: number }[]; // [NEW] Added price
+    slots: { date: string, available: boolean, reason?: string, price?: number, originalPrice?: number }[]; // [NEW] Added price and originalPrice
     price: number; // Total Base Price
     fieldName: string; // [NEW] Display Field Name
     promoCode?: { code: string; discount_amount: number; final_price: number } | null;
 }) {
     const { startDate, endDate, targetDay, time, duration, slots, price, fieldName, promoCode } = params;
 
-    const slotRows = slots.map(slot => ({
-        type: "box",
-        layout: "baseline",
-        spacing: "sm",
-        contents: [
-            { type: "text", text: formatDateToThai(slot.date), color: "#666666", size: "sm", flex: 4 }, // Increased flex
-            ...(slot.price ? [{
-                type: "text",
-                text: `${slot.price.toLocaleString()}฿`,
-                color: "#333333",
-                size: "sm",
-                flex: 2,
-                align: "end"
-            }] : []),
-            {
-                type: "text",
-                text: slot.available ? "✅" : "❌", // Shorten status to icon for space
-                color: slot.available ? "#06C755" : "#FF5252",
-                size: "sm",
-                flex: 1,
-                align: "end"
-            }
-        ]
-    }));
+    const slotRows = slots.map(slot => {
+        const hasDiscount = slot.originalPrice && slot.price && slot.originalPrice > slot.price;
+        return {
+            type: "box",
+            layout: "baseline",
+            spacing: "sm",
+            contents: [
+                { type: "text", text: formatDateToThai(slot.date), color: "#666666", size: "sm", flex: 3 },
+                ...(hasDiscount ? [
+                    {
+                        type: "text",
+                        text: `${slot.originalPrice} -->`,
+                        color: "#333333",
+                        size: "sm",
+                        flex: 0,
+                        align: "end"
+                    },
+                    {
+                        type: "text",
+                        text: `${slot.price?.toLocaleString()}฿`,
+                        color: "#FF0000", // Red color for discounted price
+                        size: "sm",
+                        flex: 0,
+                        align: "end",
+                        weight: "bold"
+                    }
+                ] : (slot.price ? [{
+                    type: "text",
+                    text: `${slot.price.toLocaleString()}฿`,
+                    color: "#333333",
+                    size: "sm",
+                    flex: 2,
+                    align: "end"
+                }] : [])),
+                {
+                    type: "text",
+                    text: slot.available ? "✅" : "❌",
+                    color: slot.available ? "#06C755" : "#FF5252",
+                    size: "sm",
+                    flex: 1,
+                    align: "end"
+                }
+            ]
+        };
+    });
 
     // Only show first 50 slots to avoid Flex limits (Box contents max 50)
     // If more, show "..."
