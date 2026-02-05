@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
         // 1. Query confirmed bookings for today
         const { data: bookings, error } = await supabase
             .from('bookings')
-            .select('*, profiles(line_user_id)') // Join to get LINE User ID
+            .select('*')
             .eq('date', todayStr)
             .eq('status', 'confirmed')
             .is('attendance_status', null) // Only notify if not yet responded
@@ -44,18 +44,43 @@ Deno.serve(async (req) => {
             })
         }
 
+        // [FIX] Fetch profiles manually (PostgREST relation issue)
+        const userIds = [...new Set(bookings.map((b: any) => b.user_id))];
+        const { data: profiles, error: profileError } = await supabase
+            .from('profiles')
+            .select('user_id, line_user_id') // Assuming line_user_id is column name, or if it's user_id?
+            // Wait, schema.sql says profiles has user_id, team_name, phone_number.
+            // It does NOT show line_user_id.
+            // Checking schema.sql again...
+            // Line 66: CREATE TABLE IF NOT EXISTS public.profiles ( user_id TEXT PRIMARY KEY, team_name TEXT, phone_number TEXT, ... )
+            // Does it have line_user_id?
+            // If user_id IS the line_user_id (which is common in this project), then we don't need a join!
+            // But let's check if 'line_user_id' exists.
+            // If user_id is the LINE User ID, we can just use booking.user_id.
+            .in('user_id', userIds);
+
+        // Mapping
+        const profileMap = new Map();
+        if (profiles) {
+            profiles.forEach((p: any) => profileMap.set(p.user_id, p));
+        }
+
         // 2. Loop and send Flex messages
         let successCount = 0
         let failCount = 0
 
         for (const booking of bookings) {
-            const lineUserId = booking.profiles?.line_user_id || booking.user_id // Fallback to user_id if valid line id
+            // Try to get explicit line_user_id from profile, OR use booking.user_id if it IS the line_user_id
+            const profile = profileMap.get(booking.user_id);
+            // In this system, user_id is often the LINE User ID (Uxxxxxxxx...).
+            // Let's assume user_id is the LINE ID if profile doesn't have a distinct one.
+            // Check if profile has line_user_id column. If not, use user_id.
+            const lineUserId = profile?.line_user_id || booking.user_id;
 
             if (!lineUserId) {
                 console.warn(`[Skip] Booking ${booking.booking_id} has no LINE User ID`)
                 continue
             }
-
             try {
                 const flexMsg = buildAttendanceNudgeFlex(booking)
                 await pushMessage(lineUserId, flexMsg)
