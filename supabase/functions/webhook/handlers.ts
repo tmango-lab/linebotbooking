@@ -293,6 +293,19 @@ export async function handleMessage(event: LineEvent) {
         return; // Stop further processing if crashed
     }
 
+    // [NEW] Silent Promo Detection during Regular Flow
+    if (userState?.is_regular_flow && text && text.length >= 4 && text.length <= 15) {
+        const validation = await validateManualPromoCode(text);
+        if (validation.valid && validation.code) {
+            await saveUserState(userId, { manual_promo_code: validation.code.code });
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: `✨ รหัสลับถูกต้อง! คุณได้รับส่วนลดเรียบร้อยครับ\n(รหัสจะถูกนำไปใช้อัตโนมัติในขั้นตอนสรุปรายการครับ)`
+            });
+            return;
+        }
+    }
+
     // [MODIFIED] Unify 'จองสนาม' and 'ค้นหาเวลา' to trigger Search All
     if (text === 'จองสนาม' || text === 'ค้นหาเวลา') {
         // [PROFILE CHECK]
