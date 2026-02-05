@@ -40,6 +40,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         // Inventory
         limit_per_user: 1,
         total_quantity: 100,
+        redemption_limit: 0, // New: 0 or Null = Unlimited (UI uses 0 to represent empty/unlimited)
         secret_codes: [] as string[], // ['CODE1', 'CODE2']
         status: 'active'
     });
@@ -74,6 +75,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
 
                     limit_per_user: campaign.limit_per_user || 1,
                     total_quantity: campaign.total_quantity || 100,
+                    redemption_limit: campaign.redemption_limit || 0,
                     secret_codes: campaign.secret_codes || [],
                     status: campaign.status || 'active'
                 });
@@ -99,6 +101,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     eligible_days: [],
                     limit_per_user: 1,
                     total_quantity: 100,
+                    redemption_limit: 0,
                     secret_codes: [],
                     status: 'active'
                 });
@@ -176,6 +179,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                 // Inventory
                 limit_per_user: Number(formData.limit_per_user),
                 total_quantity: Number(formData.total_quantity),
+                redemption_limit: formData.redemption_limit > 0 ? Number(formData.redemption_limit) : null,
                 secret_codes: formData.secret_codes.length > 0 ? formData.secret_codes : null,
                 status: formData.status,
             };
@@ -486,6 +490,16 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                         <input type="number" min="1" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.limit_per_user}
                                             onChange={e => setFormData({ ...formData, limit_per_user: parseInt(e.target.value) })} />
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700">จำกัดจำนวนการใช้ (Redemption Limit)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input type="number" min="0" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
+                                                placeholder="0 = ไม่จำกัด"
+                                                value={formData.redemption_limit}
+                                                onChange={e => setFormData({ ...formData, redemption_limit: parseInt(e.target.value) || 0 })} />
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">จำนวนครั้งที่ใช้ได้จริง (เช่น แจก 100 ใบ แต่ให้ใช้ได้แค่ 5 คน)</p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">วันที่เริ่มแคมเปญ</label>

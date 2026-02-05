@@ -403,6 +403,59 @@ export async function handleImage(event: LineEvent) {
             .from('payment-slips')
             .getPublicUrl(fileName);
 
+        // 5.5 Check Redemption Limit (If Promo)
+        if (booking.is_promo) {
+            // We need to fetch the campaign linked to this booking via user_coupons
+            // But existing booking usually has 'booking_id' which is matched in user_coupons
+            // Let's find the coupon used for this booking
+            const { data: coupons, error: couponError } = await supabase
+                .from('user_coupons')
+                .select('*, campaigns!inner(*)')
+                .eq('booking_id', booking.booking_id)
+                .single();
+
+            if (coupons && coupons.campaigns) {
+                const campaign = coupons.campaigns;
+                if (campaign.redemption_limit !== null) {
+                    // Check current count
+                    // Ideally we check before update, but for now we do optimistic check
+                    if (campaign.redemption_count >= campaign.redemption_limit) {
+                        // LIMIT REACHED!
+                        // Option A: Reject Slip (Strict)
+                        // Option B: Accept Slip but Remove Discount (Complex)
+                        // Option C: Accept Slip, Keep Discount, but Log Over-redemption (Lenient)
+                        // User requirement: "Only 5 people get it" -> So we must Reject or Remove Discount.
+                        // Rejecting slip is safest to avoid "Free Lunch" if they paid discounted price.
+                        // Actually they paid "Discounted Price", so if we reject, they have to pay more?
+                        // Let's Reject and tell them "Quota Full" contact admin?
+                        // Or better: Let them get it if they paid? 
+                        // "มีแค่ 5 คน เท่านั้นที่กดชำระเงินสำเร็จถึงจะได้ของ"
+                        // This implies race condition. 
+                        // If 6th person pays, they shouldn't get the reward.
+
+                        // Decision: Fallback to regular price? That requires refund/new transfer.
+                        // Let's fail the verification with specific message.
+                        await pushMessage(userId, {
+                            type: 'text',
+                            text: `❌ สิทธิ์เต็มแล้ว (Redemption Limit Reached)\n\nขออภัยค่ะ สิทธิ์สำหรับแคมเปญนี้ครบจำนวนที่กำหนดแล้ว\nกรุณาติดต่อแอดมินเพื่อดำเนินการต่อ (อาจต้องชำระส่วนต่าง)`
+                        });
+                        return;
+                    }
+
+                    // Increment Count
+                    const { error: incError } = await supabase.rpc('increment_campaign_redemption', {
+                        campaign_id: campaign.id
+                    });
+                    console.log(`[Slip Verify] Campaign ${campaign.id} count incremented (RPC: ${!incError})`);
+                } else {
+                    // Unlimited campaign, just count it
+                    const { error: incError } = await supabase.rpc('increment_campaign_redemption', {
+                        campaign_id: campaign.id
+                    });
+                }
+            }
+        }
+
         // 6. Update Booking
         const { error: updateError } = await supabase
             .from('bookings')

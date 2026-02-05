@@ -43,7 +43,7 @@ export default function CampaignPage() {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: string) => {
         if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแคมเปญนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
 
         try {
@@ -54,9 +54,9 @@ export default function CampaignPage() {
 
             if (error) throw error;
             fetchCampaigns();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting campaign:', error);
-            alert('ลบแคมเปญไม่สำเร็จ');
+            alert(`ลบแคมเปญไม่สำเร็จ: ${error.message || 'โปรดตรวจสอบความสัมพันธ์ของข้อมูล'}`);
         }
     };
 

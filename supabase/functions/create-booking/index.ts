@@ -120,6 +120,23 @@ serve(async (req) => {
         }
 
         if (campaign) {
+            // REDEMPTION LIMIT CHECK (Global)
+            // Check independent of user
+            if (campaign.redemption_limit !== null) {
+                // Re-fetch strictly to be safe on concurrency (simple check)
+                const { count, error: limitCheckError } = await supabase
+                    .from('bookings')
+                    .select('booking_id', { count: 'exact', head: true })
+                    .eq('is_promo', true)
+                // This is tricky because we don't have a direct link to campaign easily without join 
+                // BUT we added existing `redemption_count` column to campaign. Let's use that.
+
+                // Better: Check campaign.redemption_count directly (assuming we trust the snapshot or refetch)
+                if (campaign.redemption_count >= campaign.redemption_limit) {
+                    throw new Error('Campaign reward limit reached (Fully Redeemed)');
+                }
+            }
+
             // B. Validate Micro-Conditions
 
             // B1. Field Check
@@ -259,39 +276,49 @@ serve(async (req) => {
         }
 
         // 5. Mark Coupon as Used (Atomic-ish)
-        if (couponId) {
-            const { error: markError } = await supabase
-                .from('user_coupons')
-                .update({
-                    status: 'used',
-                    booking_id: booking.booking_id,
-                    used_at: new Date().toISOString()
-                })
                 .eq('id', couponId);
 
-            if (markError) {
-                console.error('[CRITICAL] Booking created but failed to mark coupon used:', markError);
-            }
+        if (markError) {
+            console.error('[CRITICAL] Booking created but failed to mark coupon used:', markError);
         }
-
-        return new Response(JSON.stringify({
-            success: true,
-            booking: {
-                id: booking.booking_id,
-                field_no: booking.field_no,
-                price: booking.price_total_thb,
-                customer_name: booking.display_name
-            }
-        }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-
-    } catch (error: any) {
-        console.error('[Create Booking Error]:', error.message);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
     }
+
+        // 6. [NEW] Increment Redemption Count for Campaign (If Confirmed/Paid)
+        if (campaign && !isQR) {
+        const { error: incError } = await supabase.rpc('increment_campaign_redemption', {
+            campaign_id: campaign.id
+        });
+
+        if (incError) {
+            console.error('[CRITICAL] Failed to increment redemption count:', incError);
+            // Try fallback direct update
+            await supabase
+                .from('campaigns')
+                .update({ redemption_count: (campaign.redemption_count || 0) + 1 })
+                .eq('id', campaign.id);
+        } else {
+            console.log(`[Redemption Limit] Incremented count for campaign ${campaign.id}`);
+        }
+    }
+
+    return new Response(JSON.stringify({
+        success: true,
+        booking: {
+            id: booking.booking_id,
+            field_no: booking.field_no,
+            price: booking.price_total_thb,
+            customer_name: booking.display_name
+        }
+    }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+} catch (error: any) {
+    console.error('[Create Booking Error]:', error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+}
 });
