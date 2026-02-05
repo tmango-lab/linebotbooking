@@ -105,7 +105,8 @@ serve(async (req) => {
             payment_method: b.payment_method || 'cash',
             payment_status: b.payment_status || 'unpaid',
             payment_slip_url: b.payment_slip_url || null,
-            timeout_at: b.timeout_at || null
+            timeout_at: b.timeout_at || null,
+            attendance_status: b.attendance_status || null // [NEW] Pass attendance status
         }));
 
         return new Response(JSON.stringify({ bookings }), {

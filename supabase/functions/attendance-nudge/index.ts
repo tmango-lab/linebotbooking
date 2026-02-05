@@ -112,34 +112,47 @@ Deno.serve(async (req) => {
 })
 
 // Helper to build the Flex Message
+// Helper to build the Flex Message
 function buildAttendanceNudgeFlex(booking: any, teamName: string) {
-    // Fix: Use field_no instead of field_id (schema typically uses field_no)
     const fieldLabel = booking.field_no ? `สนาม ${booking.field_no}` : "สนามฟุตบอล";
     const timeRange = `${booking.time_from.substring(0, 5)} - ${booking.time_to.substring(0, 5)}`
 
+    // Thai Date
+    const dateStr = formatThaiDate(booking.date);
+
     return {
         type: "flex",
-        altText: `⚽️ ยืนยันนัดหมายวันนี้ (${teamName})`,
+        altText: `⚽️ ยืนยันนัดหมาย: ${teamName}`,
         contents: {
             type: "bubble",
+            size: "kilo", // Slightly wider if needed
+            header: {
+                type: "box",
+                layout: "vertical",
+                backgroundColor: "#06C755",
+                paddingAll: "lg",
+                contents: [
+                    {
+                        type: "text",
+                        text: "Confirm Match ⚽",
+                        color: "#FFFFFF",
+                        weight: "bold",
+                        size: "sm"
+                    }
+                ]
+            },
             body: {
                 type: "box",
                 layout: "vertical",
                 contents: [
                     {
                         type: "text",
-                        text: "⚽️ ยืนยันนัดหมายวันนี้",
+                        text: teamName,
                         weight: "bold",
-                        size: "lg",
-                        color: "#1DB446"
-                    },
-                    {
-                        type: "text",
-                        text: `ถึง: ${teamName}`,
-                        weight: "bold",
-                        size: "md",
-                        color: "#333333",
-                        margin: "sm"
+                        size: "xl",
+                        color: "#000000",
+                        wrap: true,
+                        margin: "none"
                     },
                     { type: "separator", margin: "md" },
                     {
@@ -153,8 +166,8 @@ function buildAttendanceNudgeFlex(booking: any, teamName: string) {
                                 layout: "baseline",
                                 spacing: "sm",
                                 contents: [
-                                    { type: "text", text: "วันที่", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: formatThaiDate(booking.date), wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: "📅", flex: 1, size: "sm" },
+                                    { type: "text", text: dateStr, wrap: true, color: "#333333", size: "sm", flex: 8 }
                                 ]
                             },
                             {
@@ -162,8 +175,8 @@ function buildAttendanceNudgeFlex(booking: any, teamName: string) {
                                 layout: "baseline",
                                 spacing: "sm",
                                 contents: [
-                                    { type: "text", text: "เวลา", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: timeRange, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: "⏰", flex: 1, size: "sm" },
+                                    { type: "text", text: timeRange, wrap: true, color: "#333333", size: "sm", flex: 8 }
                                 ]
                             },
                             {
@@ -171,19 +184,11 @@ function buildAttendanceNudgeFlex(booking: any, teamName: string) {
                                 layout: "baseline",
                                 spacing: "sm",
                                 contents: [
-                                    { type: "text", text: "สนาม", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: fieldLabel, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: "📍", flex: 1, size: "sm" },
+                                    { type: "text", text: fieldLabel, wrap: true, color: "#333333", size: "sm", flex: 8 }
                                 ]
                             }
                         ]
-                    },
-                    {
-                        type: "text",
-                        text: "⚠️ หากแจ้งยกเลิกหลัง 12.00 หรือลดเวลา อาจเสียสิทธิประโยชน์ได้",
-                        size: "xs",
-                        color: "#FF0000",
-                        wrap: true,
-                        margin: "md"
                     }
                 ]
             },
@@ -196,9 +201,10 @@ function buildAttendanceNudgeFlex(booking: any, teamName: string) {
                         type: "button",
                         style: "primary",
                         color: "#06C755",
+                        height: "sm",
                         action: {
                             type: "postback",
-                            label: "ไปแน่นอน ✅",
+                            label: "✓  Confirm",
                             data: `action=confirm_attendance&booking_id=${booking.booking_id}`,
                             displayText: "ยืนยัน: ไปแน่นอนครับ"
                         }
@@ -206,10 +212,11 @@ function buildAttendanceNudgeFlex(booking: any, teamName: string) {
                     {
                         type: "button",
                         style: "secondary",
-                        color: "#FF6B6B",
+                        color: "#DE350B", // Red
+                        height: "sm",
                         action: {
                             type: "postback",
-                            label: "ติดธุระ ขอยกเลิก ❌",
+                            label: "✕  Decline",
                             data: `action=cancel_attendance&booking_id=${booking.booking_id}`,
                             displayText: "ขอยกเลิก: ติดธุระครับ"
                         }
