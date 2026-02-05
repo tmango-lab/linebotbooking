@@ -90,6 +90,18 @@ function calculateEndTime(start: string, durationH: number): string {
 }
 
 // 1. Select Date Flex
+// Helper to format date to Thai (e.g., 2026-02-05 -> พฤ. 05-02-2026)
+function formatDateToThai(dateStr: string): string {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+    const dayName = dayNames[date.getDay()];
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${dayName} ${d}-${m}-${y}`;
+}
+
 export function buildSelectDateFlex() {
     return {
         type: "flex",
@@ -884,16 +896,17 @@ export function buildRegularBookingSummaryFlex(params: {
     duration: number;
     slots: { date: string, available: boolean, reason?: string, price?: number }[]; // [NEW] Added price
     price: number; // Total Base Price
+    fieldName: string; // [NEW] Display Field Name
     promoCode?: { code: string; discount_amount: number; final_price: number } | null;
 }) {
-    const { startDate, endDate, targetDay, time, duration, slots, price, promoCode } = params;
+    const { startDate, endDate, targetDay, time, duration, slots, price, fieldName, promoCode } = params;
 
     const slotRows = slots.map(slot => ({
         type: "box",
         layout: "baseline",
         spacing: "sm",
         contents: [
-            { type: "text", text: slot.date, color: "#666666", size: "sm", flex: 4 }, // Increased flex
+            { type: "text", text: formatDateToThai(slot.date), color: "#666666", size: "sm", flex: 4 }, // Increased flex
             ...(slot.price ? [{
                 type: "text",
                 text: `${slot.price.toLocaleString()}฿`,
@@ -931,9 +944,10 @@ export function buildRegularBookingSummaryFlex(params: {
                 layout: "vertical",
                 contents: [
                     { type: "text", text: "📅 สรุปการจองประจำ", weight: "bold", size: "xl", color: "#333333" },
-                    { type: "text", text: `${startDate} - ${endDate}`, size: "xs", color: "#999999", margin: "xs" },
+                    { type: "text", text: `${formatDateToThai(startDate)} - ${formatDateToThai(endDate)}`, size: "xs", color: "#999999", margin: "xs" },
                     { type: "separator", margin: "md" },
 
+                    // Info Section
                     // Info Section
                     {
                         type: "box",
@@ -941,9 +955,16 @@ export function buildRegularBookingSummaryFlex(params: {
                         margin: "md",
                         spacing: "sm",
                         contents: [
-                            { type: "text", text: `วัน: ${translateDayToThai(targetDay)}`, size: "sm", color: "#333333" }, // [NEW] Translate Day
-                            { type: "text", text: `เวลา: ${time} - ${calculateEndTime(time, duration)} น.`, size: "sm", color: "#333333" }, // [NEW] Show Range
-                            { type: "text", text: `จำนวน: ${availableCount}/${totalCount} ครั้งที่จองได้`, size: "sm", color: availableCount === totalCount ? "#06C755" : "#FF9800", weight: "bold" }
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                contents: [
+                                    { type: "text", text: `วัน: ${translateDayToThai(targetDay)}`, size: "sm", color: "#333333", flex: 3 },
+                                    { type: "text", text: `เวลา: ${time} - ${calculateEndTime(time, duration)} น.`, size: "sm", color: "#333333", flex: 4, align: "end" }
+                                ]
+                            },
+                            { type: "text", text: `สนาม: ${fieldName}`, size: "sm", color: "#333333", weight: "bold" },
+                            { type: "text", text: `จำนวน: ${availableCount}/${totalCount} ครั้งที่จองได้`, size: "sm", color: availableCount === totalCount ? "#06C755" : "#FF9800", weight: "bold", margin: "xs" }
                         ]
                     },
 

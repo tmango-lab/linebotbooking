@@ -298,15 +298,22 @@ export async function handleMessage(event: LineEvent) {
         const validation = await validateManualPromoCode(text);
         if (validation.valid && validation.code) {
             await saveUserState(userId, { manual_promo_code: validation.code.code });
-            await replyMessage(event.replyToken!, {
-                type: 'text',
-                text: `✨ รหัสลับถูกต้อง! คุณได้รับส่วนลดเรียบร้อยครับ\n(รหัสจะถูกนำไปใช้อัตโนมัติในขั้นตอนสรุปรายการครับ)`
-            });
+
+            const messages: any[] = [];
 
             // If user is at summary step or has enough info, re-show summary with updated price
             if (userState.regular_start_date && userState.regular_end_date && userState.regular_day && userState.time_from && userState.duration_h && userState.regular_field_id !== undefined) {
-                await showRegularBookingSummary(event, userId);
+                const summaryMsg = await showRegularBookingSummary(event, userId, undefined, true);
+                if (summaryMsg) messages.push(summaryMsg);
+            } else {
+                // Only send text if NOT showing summary yet
+                messages.push({
+                    type: 'text',
+                    text: `✨ รหัสลับถูกต้อง! คุณได้รับส่วนลดเรียบร้อยครับ`
+                });
             }
+
+            await replyMessage(event.replyToken!, messages);
             return;
         }
     }
@@ -1310,7 +1317,7 @@ async function handleRegularInputCode(event: LineEvent, userId: string, params: 
 // I'll stick to this flow. I will add the logic to handleMessage in a separate call or check if I can add it now.
 // I used `EndLine: 216` for handleMessage modification. I can start a new chunk for handleMessage logic.
 
-async function showRegularBookingSummary(event: LineEvent, userId: string, promoCodeStr?: string) {
+async function showRegularBookingSummary(event: LineEvent, userId: string, promoCodeStr?: string, returnOnly = false) {
     const state = await getUserState(userId);
     const { regular_start_date, regular_end_date, regular_day, time_from, duration_h, manual_promo_code, regular_field_id } = state;
 
@@ -1403,6 +1410,16 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
         }
     }
 
+    // Get Field Name
+    let fieldName = "สนามไหนก็ได้ (ว่าง)";
+    if (regular_field_id && regular_field_id > 0) {
+        const fields = await getActiveFields();
+        if (fields) {
+            const field = fields.find((f: any) => f.id === regular_field_id);
+            if (field) fieldName = field.label;
+        }
+    }
+
     const summaryFlex = buildRegularBookingSummaryFlex({
         startDate: regular_start_date!,
         endDate: regular_end_date!,
@@ -1411,12 +1428,15 @@ async function showRegularBookingSummary(event: LineEvent, userId: string, promo
         duration: duration_h!,
         slots: resultsWithPrice, // Pass extended slots
         price: calculatedTotalPrice,
+        fieldName: fieldName,
         promoCode: promoData ? {
             code: promoData.code,
             discount_amount: totalDiscount,
             final_price: finalPrice
         } : null
     });
+
+    if (returnOnly) return summaryFlex;
 
     await replyMessage(event.replyToken!, summaryFlex);
 
