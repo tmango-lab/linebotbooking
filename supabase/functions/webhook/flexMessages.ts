@@ -1020,12 +1020,6 @@ export function buildRegularBookingSummaryFlex(params: {
                     }] : []),
                     {
                         type: "button",
-                        style: "secondary",
-                        height: "sm",
-                        action: postbackAction("🎁 ใส่โค้ดลับ", "action=regularInputCode")
-                    },
-                    {
-                        type: "button",
                         style: "link",
                         height: "sm",
                         action: { type: "message", label: "ยกเลิก / เริ่มใหม่", text: "จองประจำล่วงหน้า" }

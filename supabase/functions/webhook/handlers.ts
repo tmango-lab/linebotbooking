@@ -75,11 +75,7 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
-    // [NEW] Regular Booking - Manual Code Input
-    if (userState?.step === 'regular_input_code') {
-        await showRegularBookingSummary(event, userId, text);
-        return;
-    }
+    // [REMOVED] Old manual code input step (Now handled by silent matching)
 
     // PING CHECK
     if (text === 'ping') {
@@ -87,8 +83,8 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
-    // [NEW] Regular Booking Flow (VIP Only)
-    if (text === 'จองประจำล่วงหน้า') {
+    // [REFINED] Regular Booking Flow (VIP Only) - Supports "จองประจำ [CODE]"
+    if (text === 'จองประจำล่วงหน้า' || (text && text.startsWith('จองประจำ'))) {
         const profile = await getProfile(userId);
 
         // 1. If no profile -> Prompt Registration
@@ -110,8 +106,24 @@ export async function handleMessage(event: LineEvent) {
             return;
         }
 
+        // 3. Secret Code Detection (e.g. "จองประจำ VIP100")
+        let initialCode = "";
+        const parts = text.split(/\s+/);
+        if (parts.length > 1) {
+            const potentialCode = parts[1];
+            const validation = await validateManualPromoCode(potentialCode);
+            if (validation.valid && validation.code) {
+                initialCode = validation.code.code;
+                console.log(`[SecretFlow] Applying initial code: ${initialCode}`);
+            }
+        }
+
         // Start Flow
-        await saveUserState(userId, { is_regular_flow: true, step: 'regular_start_date' });
+        await saveUserState(userId, {
+            is_regular_flow: true,
+            step: 'regular_start_date',
+            manual_promo_code: initialCode // Save if found
+        });
 
         await replyMessage(event.replyToken!, {
             type: "flex",
@@ -124,7 +136,7 @@ export async function handleMessage(event: LineEvent) {
                     spacing: "md",
                     contents: [
                         { type: "text", text: "🗓️ เลือกวันเริ่มต้น", weight: "bold", size: "lg" },
-                        { type: "text", text: "กรุณาเลือกวันที่ต้องการเริ่มจอง", size: "sm", color: "#666666" },
+                        { type: "text", text: initialCode ? `✨ รหัสลับ "${initialCode}" ถูกเปิดใช้งานแล้ว` : "กรุณาเลือกวันที่ต้องการเริ่มจอง", size: "sm", color: initialCode ? "#06C755" : "#666666" },
                         {
                             type: "button",
                             style: "primary",
