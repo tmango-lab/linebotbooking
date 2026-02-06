@@ -62,11 +62,16 @@ serve(async (req) => {
                     coupon_type,
                     benefit_type,
                     benefit_value,
+                    discount_amount,
+                    discount_percent,
+                    reward_item,
+                    min_spend,
                     conditions,
                     image_url,
                     eligible_fields,
                     payment_methods,
-                    allowed_time_range
+                    allowed_time_range,
+                    eligible_days
                 )
             `)
             .eq('user_id', userId)
@@ -74,6 +79,13 @@ serve(async (req) => {
             .gt('expires_at', now); // Must not be expired
 
         if (error) throw error;
+
+        // [NEW] Fetch Profile securely (Bypassing RLS)
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('team_name, phone_number, role')
+            .eq('user_id', userId)
+            .maybeSingle();
 
         // Group by Type (Main vs On-Top)
         // Note: Supabase returns foreign key as single object or array depending on relation. REFERENCES campaigns(id) is singular.
@@ -84,6 +96,24 @@ serve(async (req) => {
             const campaign = c.campaign;
             if (!campaign) return;
 
+            // Robust Benefit Detection
+            let bType = campaign.benefit_type || 'DISCOUNT';
+            let bValue: any = campaign.benefit_value;
+
+            // Fallback to dedicated columns if JSON is empty/legacy
+            if (!bValue || Object.keys(bValue).length === 0) {
+                if (campaign.discount_amount > 0) {
+                    bType = 'DISCOUNT';
+                    bValue = { amount: campaign.discount_amount };
+                } else if (campaign.discount_percent > 0) {
+                    bType = 'DISCOUNT';
+                    bValue = { percent: campaign.discount_percent };
+                } else if (campaign.reward_item) {
+                    bType = 'REWARD';
+                    bValue = { item: campaign.reward_item };
+                }
+            }
+
             const formatted = {
                 coupon_id: c.id,
                 campaign_id: campaign.id,
@@ -92,14 +122,15 @@ serve(async (req) => {
                 expiry: c.expires_at,
                 image: campaign.image_url,
                 benefit: {
-                    type: campaign.benefit_type,
-                    value: campaign.benefit_value
+                    type: bType,
+                    value: bValue
                 },
                 conditions: {
                     fields: campaign.eligible_fields,
                     payment: campaign.payment_methods,
                     time: campaign.allowed_time_range,
-                    days: campaign.days_of_week
+                    days: campaign.eligible_days || campaign.days_of_week,
+                    min_spend: campaign.min_spend || 0
                 }
             };
 
@@ -116,7 +147,8 @@ serve(async (req) => {
             success: true,
             main: mainCoupons,
             on_top: onTopCoupons,
-            total: coupons.length
+            total: coupons.length,
+            profile: profile || null // Return profile
         }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,

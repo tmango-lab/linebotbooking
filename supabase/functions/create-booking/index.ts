@@ -62,7 +62,14 @@ serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        const { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, paymentMethod, campaignId, userId, source } = await req.json();
+        let { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, paymentMethod, campaignId, userId, source } = await req.json();
+
+        // [FIX] Normalize Payment Method
+        if (paymentMethod === 'field') {
+            paymentMethod = 'CASH';
+        } else if (paymentMethod === 'qr') {
+            paymentMethod = 'QR';
+        }
 
         // 1. Basic Validation
         if (!fieldId || !date || !startTime || !endTime || !customerName || !phoneNumber) {
@@ -120,20 +127,24 @@ serve(async (req) => {
         }
 
         if (campaign) {
-            // REDEMPTION LIMIT CHECK (Global)
-            // Check independent of user
-            if (campaign.redemption_limit !== null) {
-                // Re-fetch strictly to be safe on concurrency (simple check)
-                const { count, error: limitCheckError } = await supabase
-                    .from('bookings')
-                    .select('booking_id', { count: 'exact', head: true })
-                    .eq('is_promo', true)
-                // This is tricky because we don't have a direct link to campaign easily without join 
-                // BUT we added existing `redemption_count` column to campaign. Let's use that.
+            // REDEMPTION LIMIT CHECK (Global Atomic)
+            // Use RPC to check and increment atomically to prevent race conditions
+            if (campaign.redemption_limit !== null && campaign.redemption_limit > 0) {
+                const { data: limitCheck, error: rpcError } = await supabase
+                    .rpc('check_campaign_limit', {
+                        p_campaign_id: campaign.id,
+                        p_limit: campaign.redemption_limit
+                    });
 
-                // Better: Check campaign.redemption_count directly (assuming we trust the snapshot or refetch)
-                if (campaign.redemption_count >= campaign.redemption_limit) {
-                    throw new Error('Campaign reward limit reached (Fully Redeemed)');
+                if (rpcError) {
+                    console.error('RPC Error:', rpcError);
+                    // Fallback to manual check if RPC fails? Or strict fail.
+                    // Strict fail is safer for limits.
+                    throw new Error('System Error: Unable to verify campaign limits.');
+                }
+
+                if (limitCheck === false) {
+                    throw new Error('ขออภัย! สิทธิ์สำหรับแคมเปญนี้เต็มแล้วครับ (Reward limit reached)');
                 }
             }
 
@@ -213,7 +224,7 @@ serve(async (req) => {
 
 
         // 4. Create Booking
-        const isQR = paymentMethod === 'qr';
+        const isQR = paymentMethod === 'QR';
         const timeoutMinutes = 10;
         const timeoutAt = isQR ? new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString() : null;
 
@@ -276,49 +287,60 @@ serve(async (req) => {
         }
 
         // 5. Mark Coupon as Used (Atomic-ish)
+        if (couponId) {
+            const { error: markError } = await supabase
+                .from('user_coupons')
+                .update({
+                    status: 'USED',
+                    used_at: new Date().toISOString(),
+                    booking_id: booking.booking_id
+                })
                 .eq('id', couponId);
 
-        if (markError) {
-            console.error('[CRITICAL] Booking created but failed to mark coupon used:', markError);
+            if (markError) {
+                console.error('[CRITICAL] Booking created but failed to mark coupon used:', markError);
+            }
         }
-    }
 
         // 6. [NEW] Increment Redemption Count for Campaign (If Confirmed/Paid)
         if (campaign && !isQR) {
-        const { error: incError } = await supabase.rpc('increment_campaign_redemption', {
-            campaign_id: campaign.id
+            const { data: rpcSuccess, error: incError } = await supabase.rpc('increment_campaign_redemption', {
+                target_campaign_id: campaign.id
+            });
+
+            if (incError || rpcSuccess === false) {
+                console.error('[CRITICAL] Failed to increment redemption count:', incError || 'Limit reached at last second');
+                // If it's cash/admin and it's already full, we technically already created the booking.
+                // But we should at least log it or try a fallback if it was just an RPC error.
+                if (incError) {
+                    await supabase
+                        .from('campaigns')
+                        .update({ redemption_count: (campaign.redemption_count || 0) + 1 })
+                        .eq('id', campaign.id);
+                }
+            } else {
+                console.log(`[Redemption Limit] Incremented count for campaign ${campaign.id}`);
+            }
+        }
+
+        return new Response(JSON.stringify({
+            success: true,
+            booking: {
+                id: booking.booking_id,
+                field_no: booking.field_no,
+                price: booking.price_total_thb,
+                customer_name: booking.display_name
+            }
+        }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
-        if (incError) {
-            console.error('[CRITICAL] Failed to increment redemption count:', incError);
-            // Try fallback direct update
-            await supabase
-                .from('campaigns')
-                .update({ redemption_count: (campaign.redemption_count || 0) + 1 })
-                .eq('id', campaign.id);
-        } else {
-            console.log(`[Redemption Limit] Incremented count for campaign ${campaign.id}`);
-        }
+    } catch (error: any) {
+        console.error('[Create Booking Error]:', error.message);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
-
-    return new Response(JSON.stringify({
-        success: true,
-        booking: {
-            id: booking.booking_id,
-            field_no: booking.field_no,
-            price: booking.price_total_thb,
-            customer_name: booking.display_name
-        }
-    }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-} catch (error: any) {
-    console.error('[Create Booking Error]:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-}
 });

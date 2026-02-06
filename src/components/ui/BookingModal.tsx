@@ -21,7 +21,7 @@ export default function BookingModal({ isOpen, onClose, onConfirm, bookingDetail
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [note, setNote] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('โอนเงิน'); // Default
+    const [paymentMethod, setPaymentMethod] = useState('QR PromtPay'); // Default
     const [campaignId, setCampaignId] = useState('');
 
     // Campaign Data
@@ -37,7 +37,7 @@ export default function BookingModal({ isOpen, onClose, onConfirm, bookingDetail
             setName('');
             setPhone('');
             setNote('');
-            setPaymentMethod('โอนเงิน');
+            setPaymentMethod('QR PromtPay');
             setCampaignId('');
             setError(null);
             setLoading(false);
@@ -186,9 +186,8 @@ export default function BookingModal({ isOpen, onClose, onConfirm, bookingDetail
                                             value={paymentMethod}
                                             onChange={(e) => setPaymentMethod(e.target.value)}
                                         >
-                                            <option value="โอนเงิน">โอนเงิน</option>
-                                            <option value="เงินสด">เงินสด</option>
-                                            <option value="QR Code">QR Code</option>
+                                            <option value="QR PromtPay">QR PromtPay</option>
+                                            <option value="เงินสด (หน้าสนาม)">เงินสด (หน้าสนาม)</option>
                                         </select>
                                     </div>
 

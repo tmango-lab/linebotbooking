@@ -152,16 +152,13 @@ const BookingV2Page: React.FC = () => {
                         })));
                     }
 
-                    // Fetch Profile
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('user_id', currentUserId)
-                        .maybeSingle();
-
-                    if (profile) setUserProfile(profile);
+                    if (couponData.profile) {
+                        setUserProfile(couponData.profile);
+                    }
                 }
 
+                // [REMOVED] Direct Profile Fetch (RLS Blocked)
+                // const { data: profile } = await supabase...
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setErrorMsg("Unexpected system error: " + err.message);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { Loader2, Ticket, Gift, Lock, Send } from 'lucide-react';
 import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
@@ -28,6 +28,7 @@ export default function WalletPage() {
     const [loading, setLoading] = useState(false);
     const [collectDetails, setCollectDetails] = useState({ campaignId: '', secretCode: '' });
     const [collecting, setCollecting] = useState(false);
+    const collectingRef = useRef(false);
     const [sendingFlex, setSendingFlex] = useState(false);
 
     // Check URL for userId and Auto-Collect Action
@@ -46,7 +47,7 @@ export default function WalletPage() {
 
         const uid = params.get('userId');
         const action = params.get('action');
-        const code = params.get('code');    // Secret Code
+        const code = params.get('code') || '';    // Secret Code
         const cid = params.get('id') || params.get('campaignId'); // Campaign ID
 
         if (uid) {
@@ -54,9 +55,10 @@ export default function WalletPage() {
             fetchWallet(uid);
 
             // Auto-Collect Flow (The Pa-Kao Flow)
-            if (action === 'collect' && code && cid) {
+            if (action === 'collect' && cid && !collectingRef.current) {
+                collectingRef.current = true;
                 // Delay slightly to ensure UI is ready or just call it
-                console.log('Auto-collecting secret coupon...', { code, cid });
+                console.log('Auto-collecting coupon...', { code, cid });
 
                 // We need to set state first because handleCollect uses state
                 // But handleCollect is async and state might not update instantly if we call it immediately
@@ -241,6 +243,13 @@ export default function WalletPage() {
         }
     }
 
+    const handleUseCoupon = (coupon: Coupon) => {
+        // Redirect to booking page with couponId
+        // This allows user to proceed to the race test
+        const target = `/booking-v3?userId=${userId}&couponId=${coupon.coupon_id}`;
+        window.location.hash = `#${target}`;
+    };
+
     const CouponCard = ({ coupon, type }: { coupon: Coupon, type: 'Main' | 'On-top' }) => {
         const isMain = type === 'Main';
         // Premium Styles
@@ -298,7 +307,10 @@ export default function WalletPage() {
                         <p>Code: <span className="font-mono tracking-widest font-bold">{coupon.coupon_id.slice(0, 8)}...</span></p>
                         <p>Exp: {coupon.expiry ? new Date(coupon.expiry).toLocaleDateString() : 'No Expiry'}</p>
                     </div>
-                    <button className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
+                    <button
+                        onClick={() => handleUseCoupon(coupon)}
+                        className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}
+                    >
                         Use Now
                     </button>
                 </div>

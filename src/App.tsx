@@ -14,6 +14,7 @@ import CampaignPage from './pages/admin/CampaignPage'; // New V2
 import WalletPage from './pages/user/WalletPage';
 import BookingV2Page from './pages/liff/BookingV2Page'; // Import V2 Page
 import BookingV3Page from './pages/liff/BookingV3Page'; // Import V3 Page
+import BookingSuccessPage from './pages/liff/BookingSuccessPage';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 // Simple status page (Legacy/Root)
@@ -219,6 +220,7 @@ function App() {
         <Route path="/wallet" element={<WalletPage />} />
         <Route path="/booking-v2" element={<BookingV2Page />} />
         <Route path="/booking-v3" element={<BookingV3Page />} />
+        <Route path="/booking-success" element={<BookingSuccessPage />} />
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<LoginPage />} />

@@ -442,19 +442,25 @@ export async function handleImage(event: LineEvent) {
                         return;
                     }
 
-                    // Increment Count
-                    const { error: incError } = await supabase.rpc('increment_campaign_redemption', {
-                        campaign_id: campaign.id
+                    // Increment Count (Atomic)
+                    const { data: rpcSuccess, error: incError } = await supabase.rpc('increment_campaign_redemption', {
+                        target_campaign_id: campaign.id
                     });
-                    console.log(`[Slip Verify] Campaign ${campaign.id} count incremented (RPC: ${!incError})`);
-                } else {
-                    // Unlimited campaign, just count it
-                    const { error: incError } = await supabase.rpc('increment_campaign_redemption', {
-                        campaign_id: campaign.id
-                    });
+
+                    if (incError || rpcSuccess === false) {
+                        console.error('[Slip Verify] Failed to increment redemption count:', incError || 'Limit reached at last second');
+                        if (rpcSuccess === false) {
+                            await pushMessage(userId, {
+                                type: 'text',
+                                text: `❌ ขออภัยค่ะ สิทธิ์แคมเปญเต็มในระหว่างที่คุณชำระเงิน\nกรุณาติดต่อแอดมินเพื่อตรวจสอบนะคะ 🙏`
+                            });
+                            return;
+                        }
+                    }
+                    console.log(`[Slip Verify] Campaign ${campaign.id} count incremented (RPC Success: ${rpcSuccess})`);
                 }
             }
-        }
+        } // [FIX] Closes booking.is_promo
 
         // 6. Update Booking
         const { error: updateError } = await supabase
@@ -482,7 +488,7 @@ export async function handleImage(event: LineEvent) {
         console.error('[Handle Image Error]:', err.message);
         await pushMessage(userId, { type: 'text', text: `⚠️ เกิดข้อผิดพลาดในการตรวจสอบสลิป: ${err.message}` });
     }
-}
+} // [FIX] Closes handleImage
 
 // === Postback Handler ===
 export async function handlePostback(event: LineEvent) {

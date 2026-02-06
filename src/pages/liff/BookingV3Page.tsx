@@ -141,27 +141,46 @@ const BookingV3Page: React.FC = () => {
 
                     if (couponData.success) {
                         const allUserCoupons = [...(couponData.main || []), ...(couponData.on_top || [])];
-                        setCoupons(allUserCoupons.map((c: any) => ({
-                            id: c.coupon_id,
-                            campaign_id: c.campaign_id,
-                            name: c.name,
-                            discount_type: c.benefit?.type?.toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FIXED',
-                            discount_value: Number(c.benefit?.value) || 0,
-                            min_spend: Number(c.conditions?.min_spend) || 0,
-                            eligible_fields: c.conditions?.fields || null
-                        })));
+                        const fetchedCoupons = allUserCoupons.map((c: any) => {
+                            const bType = c.benefit?.type?.toUpperCase();
+                            const bValue = c.benefit?.value;
+
+                            let discountVal = 0;
+                            if (bValue) {
+                                if (typeof bValue === 'number') discountVal = bValue;
+                                else discountVal = bValue.amount || bValue.percent || 0;
+                            }
+
+                            return {
+                                id: c.coupon_id,
+                                campaign_id: c.campaign_id,
+                                name: c.name,
+                                discount_type: (bType === 'PERCENT' ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
+                                discount_value: Number(discountVal),
+                                min_spend: Number(c.conditions?.min_spend) || 0,
+                                eligible_fields: c.conditions?.fields || null
+                            };
+                        });
+                        setCoupons(fetchedCoupons);
+
+                        // [NEW] Auto-select coupon from URL
+                        const urlCouponId = searchParams.get('couponId');
+                        if (urlCouponId) {
+                            const target = fetchedCoupons.find(c => c.id === urlCouponId);
+                            if (target) {
+                                console.log("Auto-applying coupon from URL:", target.name);
+                                setManualCoupon(target);
+                            }
+                        }
                     }
 
-                    // Fetch Profile
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('user_id', currentUserId)
-                        .maybeSingle();
-
-                    if (profile) setUserProfile(profile);
+                    if (couponData.profile) {
+                        setUserProfile(couponData.profile);
+                        console.log("Profile loaded from API:", couponData.profile);
+                    }
                 }
-
+                // [REMOVED] Direct Profile Fetch (RLS Blocked)
+                // const { data: profile } = await supabase...
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setErrorMsg("Unexpected system error: " + err.message);
@@ -220,6 +239,7 @@ const BookingV3Page: React.FC = () => {
         let maxSavings = 0;
 
         for (const c of coupons) {
+            // BEST coupon must be valid
             if (c.min_spend && originalPrice < c.min_spend) continue;
             if (c.eligible_fields && c.eligible_fields.length > 0) {
                 if (!c.eligible_fields.includes(selection?.fieldId || 0)) continue;
@@ -235,16 +255,16 @@ const BookingV3Page: React.FC = () => {
             }
         }
         setBestCoupon(best);
-
-        // Validation: Reset manual coupon if ineligible
-        if (manualCoupon && (originalPrice < manualCoupon.min_spend || (manualCoupon.eligible_fields && !manualCoupon.eligible_fields.includes(selection?.fieldId || 0)))) {
-            setManualCoupon(null);
-        }
-
-    }, [originalPrice, coupons, selection, manualCoupon]);
+    }, [originalPrice, coupons, selection]);
 
     const appliedCoupon = manualCoupon || bestCoupon;
-    const discount = appliedCoupon ? (appliedCoupon.discount_type === 'FIXED' ? appliedCoupon.discount_value : (originalPrice * appliedCoupon.discount_value) / 100) : 0;
+
+    // Validity Check for final calculation
+    const isCouponValid = appliedCoupon &&
+        (!appliedCoupon.min_spend || originalPrice >= appliedCoupon.min_spend) &&
+        (!appliedCoupon.eligible_fields || appliedCoupon.eligible_fields.length === 0 || appliedCoupon.eligible_fields.includes(selection?.fieldId || 0));
+
+    const discount = isCouponValid ? (appliedCoupon.discount_type === 'FIXED' ? appliedCoupon.discount_value : (originalPrice * appliedCoupon.discount_value) / 100) : 0;
     const finalPrice = Math.max(0, originalPrice - discount);
 
     const handleFinalConfirm = async (team: string, phone: string, payment: string) => {
@@ -276,12 +296,17 @@ const BookingV3Page: React.FC = () => {
 
             const data = await res.json();
             if (data.success) {
-                if (payment === 'qr') {
-                    alert("จองสนามสำเร็จแล้วครับ! ✅\n\nโอนเงินมัดจำ 200 บาทผ่าน QR Code ที่ส่งไปให้ในระบบ LINE และส่งสลิปยืนยันภายใน 10 นาทีเพื่อรักษาสิทธิ์นะครับ 🙏");
-                } else {
-                    alert("จองสนามสำเร็จแล้วครับ! ✅\n\nเตรียมพบกันที่สนามตามวันและเวลาที่เลือก ขอบคุณที่ใช้บริการครับ 🙏");
-                }
-                navigate(`/?userId=${userId}`);
+                // Success - Navigate to Success Page
+                const params = new URLSearchParams({
+                    bookingId: data.booking.id,
+                    price: data.booking.price.toString(),
+                    paymentMethod: payment || 'cash',
+                    fieldName: `สนาม ${(selectedField?.name || '').replace('สนาม ', '').replace('#', '').trim()}`,
+                    date: getThaiDateString(selectedDate),
+                    time: `${selection!.startTime} - ${selection!.endTime}`,
+                    userId: userId || ''
+                });
+                navigate(`/booking-success?${params.toString()}`);
             } else {
                 throw new Error(data.error || "Booking failed");
             }

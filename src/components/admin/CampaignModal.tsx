@@ -439,7 +439,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">ช่องทางชำระเงิน</label>
                                             <div className="flex flex-wrap gap-2">
-                                                {['CASH', 'QR', 'TRANSFER'].map(method => (
+                                                {['CASH', 'QR'].map(method => (
                                                     <button key={method} type="button"
                                                         onClick={() => toggleArrayItem(method, 'payment_methods')}
                                                         className={`px-3 py-1 rounded-md text-xs font-medium border ${formData.payment_methods.includes(method)
@@ -447,7 +447,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                             : 'bg-white text-gray-600 border-gray-300'
                                                             }`}
                                                     >
-                                                        {method === 'CASH' ? 'เงินสด' : method === 'QR' ? 'QR Code' : 'โอนเงิน'}
+                                                        {method === 'CASH' ? 'เงินสด (หน้าสนาม)' : 'QR PromtPay'}
                                                     </button>
                                                 ))}
                                             </div>

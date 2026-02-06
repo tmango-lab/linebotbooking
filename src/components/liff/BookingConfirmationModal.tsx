@@ -31,6 +31,18 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Form State
+    const [teamName, setTeamName] = useState(initialProfile?.team_name || '');
+    const [phoneNumber, setPhoneNumber] = useState(initialProfile?.phone_number || '');
+
+    // Update state when initialProfile changes (e.g. first open)
+    React.useEffect(() => {
+        if (initialProfile) {
+            setTeamName(initialProfile.team_name || '');
+            setPhoneNumber(initialProfile.phone_number || '');
+        }
+    }, [initialProfile]);
+
     if (!isOpen) return null;
 
     // Filter payment methods based on coupon
@@ -39,16 +51,21 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     const showField = allowedMethods.length === 0 || allowedMethods.includes('field');
 
     const handleConfirm = () => {
+        if (!teamName.trim()) {
+            alert("กรุณาระบุชื่อทีม/ผู้จอง");
+            return;
+        }
+        if (!phoneNumber.trim()) {
+            alert("กรุณาระบุเบอร์โทรศัพท์");
+            return;
+        }
         if (!paymentMethod) {
             alert("กรุณาเลือกวิธีชำระเงิน");
             return;
         }
 
-        const team = initialProfile?.team_name || 'Guest';
-        const phone = initialProfile?.phone_number || '';
-
         setIsSubmitting(true);
-        onConfirm(team, phone, paymentMethod);
+        onConfirm(teamName, phoneNumber, paymentMethod);
     };
 
     return (
@@ -61,6 +78,30 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                 </div>
 
                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                    {/* Input Fields */}
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ชื่อทีม / ผู้จอง</label>
+                            <input
+                                type="text"
+                                value={teamName}
+                                onChange={(e) => setTeamName(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                                placeholder="เช่น หมูเด้ง เอฟซี"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">เบอร์โทรศัพท์</label>
+                            <input
+                                type="tel"
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                                placeholder="08x-xxx-xxxx"
+                            />
+                        </div>
+                    </div>
+
                     <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                         <div className="flex justify-between">
                             <span className="text-gray-500 text-sm">สนาม</span>
@@ -113,7 +154,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                                         <rect x="15" y="3" width="6" height="6" rx="1" strokeWidth={2} />
                                         <rect x="3" y="15" width="6" height="6" rx="1" strokeWidth={2} />
                                     </svg>
-                                    <span className="text-[10px] sm:text-xs">มัดจำ 200 บาท (QR)</span>
+                                    <span className="text-[10px] sm:text-xs">QR PromtPay</span>
                                 </button>
                             )}
                             {showField && (
@@ -128,7 +169,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
-                                    <span className="text-[10px] sm:text-xs">จ่ายที่สนาม</span>
+                                    <span className="text-[10px] sm:text-xs">เงินสด (หน้าสนาม)</span>
                                 </button>
                             )}
                         </div>
