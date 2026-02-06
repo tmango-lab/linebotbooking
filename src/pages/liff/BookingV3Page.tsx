@@ -19,7 +19,6 @@ const BookingV3Page: React.FC = () => {
         setIsCouponSheetOpen,
         isConfirmModalOpen,
         setIsConfirmModalOpen,
-        manualCoupon,
         setManualCoupon,
         originalPrice,
         bestCoupon,
