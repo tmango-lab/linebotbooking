@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code } from 'lucide-react';
+import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users } from 'lucide-react';
 import CampaignModal from '../../components/admin/CampaignModal';
 
 export default function CampaignPage() {
@@ -260,6 +260,12 @@ export default function CampaignPage() {
                                         <Layers className="w-4 h-4 mr-2 text-gray-400" />
                                         <span>
                                             จำนวน: {campaign.total_quantity} | สิทธิ์ต่อคน: {campaign.limit_per_user}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center text-red-600 font-medium mt-1">
+                                        <Users className="w-4 h-4 mr-2" />
+                                        <span>
+                                            ใช้ไปแล้ว: {campaign.redemption_count || 0} / {campaign.redemption_limit ? campaign.redemption_limit : '∞'}
                                         </span>
                                     </div>
                                 </div>

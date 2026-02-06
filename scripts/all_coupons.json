@@ -1,0 +1,15 @@
+[
+  {
+    "id": "a2974cd4-1649-440a-9bde-0cf05f6c94de",
+    "user_id": "WINNER",
+    "campaign_id": "7dabda04-5e0e-4e1a-a1e0-5c1231723b0c",
+    "status": "ACTIVE",
+    "expires_at": "2026-03-08T00:00:00+00:00",
+    "created_at": "2026-02-06T02:29:17.462322+00:00",
+    "used_at": null,
+    "booking_id": null,
+    "campaigns": {
+      "name": "TEST LIMIT REDEMTION 2/3"
+    }
+  }
+]

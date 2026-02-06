@@ -11,6 +11,7 @@ import CustomerPage from './pages/admin/CustomerPage';
 import ReportPage from './pages/admin/ReportPage';
 import PromoCodePage from './pages/admin/PromoCodePage';
 import CampaignPage from './pages/admin/CampaignPage'; // New V2
+import RefundPage from './pages/admin/RefundPage'; // New Refund UI
 import WalletPage from './pages/user/WalletPage';
 import BookingV2Page from './pages/liff/BookingV2Page'; // Import V2 Page
 import BookingV3Page from './pages/liff/BookingV3Page'; // Import V3 Page
@@ -232,6 +233,7 @@ function App() {
           <Route path="campaigns" element={<CampaignPage />} /> {/* New V2 */}
           <Route path="reports" element={<ReportPage />} />
           <Route path="promo-codes" element={<PromoCodePage />} />
+          <Route path="refunds" element={<RefundPage />} />
         </Route>
 
         {/* Catch All - Redirect to Status Page */}

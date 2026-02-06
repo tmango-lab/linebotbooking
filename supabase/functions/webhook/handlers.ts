@@ -449,12 +449,37 @@ export async function handleImage(event: LineEvent) {
 
                     if (incError || rpcSuccess === false) {
                         console.error('[Slip Verify] Failed to increment redemption count:', incError || 'Limit reached at last second');
+
                         if (rpcSuccess === false) {
+                            // [CRITICAL] Race Condition: Limit reached BUT slip already uploaded.
+                            // Action: Immediate Cancel + Flag for Refund
+                            console.log(`[Slip Verify] Quota Full for Booking ${booking.booking_id}. Flagging for Refund.`);
+
+                            await supabase
+                                .from('bookings')
+                                .update({
+                                    status: 'cancelled',
+                                    payment_status: 'pending', // Keep pending? Or 'refund_needed'? 'pending' is safer for now, status 'cancelled' + Slip URL is the key.
+                                    admin_note: (booking.admin_note || '') + ' | QUOTA_FULL_REFUND_NEEDED | [Slip Verified: Limit Reached]',
+                                    payment_slip_url: publicUrl, // Save the slip so admin can see it!
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('booking_id', booking.booking_id);
+
                             await pushMessage(userId, {
                                 type: 'text',
-                                text: `❌ ขออภัยค่ะ สิทธิ์แคมเปญเต็มในระหว่างที่คุณชำระเงิน\nกรุณาติดต่อแอดมินเพื่อตรวจสอบนะคะ 🙏`
+                                text: `❌ **สิทธิ์เต็มแล้วครับ!** (Quota Full)\n\nขออภัยอย่างสูงครับ เนื่องจากสิทธิ์แคมเปญครบจำนวนพอดีในช่วงที่คุณชำระเงิน\n\n📌 **ระบบได้ยกเลิกรายการนี้แล้ว**\nกรุณาติดต่อแอดมินเพื่อ **ขอคืนเงิน (Refund)** ได้เลยครับ\n(Admin จะเห็นสลิปของคุณในระบบแล้วครับ)`
                             });
                             return;
+                        } else if (incError) {
+                            // Fallback: Manual Increment (if RPC missing)
+                            console.log('[Slip Verify] Attempting fallback manual increment...');
+                            const { error: fallbackError } = await supabase
+                                .from('campaigns')
+                                .update({ redemption_count: (campaign.redemption_count || 0) + 1 })
+                                .eq('id', campaign.id);
+
+                            if (fallbackError) console.error('[Slip Verify] Fallback failed:', fallbackError);
                         }
                     }
                     console.log(`[Slip Verify] Campaign ${campaign.id} count incremented (RPC Success: ${rpcSuccess})`);

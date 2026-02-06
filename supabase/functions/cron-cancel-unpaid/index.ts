@@ -52,6 +52,24 @@ serve(async (req) => {
 
                 if (cancelError) throw cancelError;
 
+                // 2.1 Release Coupon (If any)
+                // We find the coupon using the booking_id
+                const { data: coupons, error: couponError } = await supabase
+                    .from('user_coupons')
+                    .update({
+                        status: 'ACTIVE',
+                        used_at: null,
+                        booking_id: null
+                    })
+                    .eq('booking_id', booking.booking_id)
+                    .select();
+
+                if (couponError) {
+                    console.error(`[Cron Cancel] Failed to release coupon for ${booking.booking_id}:`, couponError.message);
+                } else if (coupons && coupons.length > 0) {
+                    console.log(`[Cron Cancel] Released coupon for booking: ${booking.booking_id}`);
+                }
+
                 // 3. Notify User
                 if (booking.user_id) {
                     await pushMessage(booking.user_id, {

@@ -1,0 +1,24 @@
+{
+  "campaign": {
+    "name": "TEST LIMIT REDEMTION 2/3",
+    "redemption_count": 2,
+    "redemption_limit": 2
+  },
+  "used_coupons_count": 2,
+  "details": [
+    {
+      "coupon_id": "e9230029-3dd0-42e0-b1ae-45cd04a785e7",
+      "user_id": "LOSER",
+      "display_name": "LOSER (Booking Status: confirmed)",
+      "used_at": "2026-02-06T04:17:33.649+00:00",
+      "booking_id": "1770351453190"
+    },
+    {
+      "coupon_id": "5a9b2c67-f0ca-4f0b-a2de-d6de57bbb898",
+      "user_id": "WINNER",
+      "display_name": "Booking ID 1770347334775 NOT FOUND in DB",
+      "used_at": "2026-02-06T04:23:47.002+00:00",
+      "booking_id": "1770347334775"
+    }
+  ]
+}

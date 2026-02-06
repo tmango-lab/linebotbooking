@@ -8,6 +8,7 @@ interface Coupon {
     discount_value: number;
     min_spend: number;
     eligible_fields: number[] | null;
+    eligible_payments: string[] | null;
 }
 
 interface CouponBottomSheetProps {

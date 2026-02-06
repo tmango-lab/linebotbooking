@@ -46,9 +46,23 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     if (!isOpen) return null;
 
     // Filter payment methods based on coupon
-    const allowedMethods = bookingDetails.appliedCoupon?.campaigns?.payment_methods || [];
-    const showQR = allowedMethods.length === 0 || allowedMethods.includes('qr');
-    const showField = allowedMethods.length === 0 || allowedMethods.includes('field');
+    const allowedMethods = (bookingDetails.appliedCoupon?.eligible_payments || []).map((m: string) => m.toLowerCase());
+
+    // Check if empty (allow all) or contains QR variations
+    const showQR = allowedMethods.length === 0 ||
+        allowedMethods.some((m: string) =>
+            m.includes('qr') ||
+            m.includes('promt') ||
+            m.includes('prompt')
+        );
+
+    // Check if empty (allow all) or contains Cash variations
+    const showField = allowedMethods.length === 0 ||
+        allowedMethods.some((m: string) =>
+            m.includes('field') ||
+            m.includes('เงินสด') ||
+            m.includes('cash')
+        );
 
     const handleConfirm = () => {
         if (!teamName.trim()) {
@@ -138,7 +152,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
 
                     <div className="space-y-3">
                         <h3 className="font-bold text-gray-800 text-xs uppercase tracking-wider text-center">เลือกวิธีชำระเงิน</h3>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className={`grid gap-3 ${(showQR && showField) ? 'grid-cols-2' : 'grid-cols-1 max-w-[200px] mx-auto'}`}>
                             {showQR && (
                                 <button
                                     onClick={() => setPaymentMethod('qr')}

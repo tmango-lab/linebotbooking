@@ -69,15 +69,64 @@ serve(async (req) => {
         let promoMap: Record<string, number> = {};
 
         if (bookingIds.length > 0) {
+            // 1. Fetch V1 Promo Codes
             const { data: promos } = await supabase
                 .from('promo_codes')
                 .select('booking_id, discount_amount')
                 .in('booking_id', bookingIds)
-                .eq('status', 'used'); // Only count used promos
+                .eq('status', 'used');
 
             if (promos) {
                 promos.forEach((p: any) => {
                     promoMap[p.booking_id] = Number(p.discount_amount) || 0;
+                });
+            }
+
+            // 2. Fetch V2 Coupons
+            const { data: coupons } = await supabase
+                .from('user_coupons')
+                .select(`
+                    booking_id,
+                    campaigns (
+                        discount_amount,
+                        discount_percent,
+                        reward_item
+                    )
+                `)
+                .in('booking_id', bookingIds)
+                .eq('status', 'USED');
+
+            if (coupons) {
+                coupons.forEach((c: any) => {
+                    const bookingId = c.booking_id;
+                    const camp = c.campaigns;
+                    // If V1 discount exists, skip (V1 priority or impossible to have both)
+                    if (promoMap[bookingId]) return;
+
+                    let discount = 0;
+                    if (camp) {
+                        if (camp.discount_amount > 0) {
+                            discount = camp.discount_amount;
+                        } else if (camp.discount_percent > 0) {
+                            // Need base price to calc percent. 
+                            // Fortunately we have localBookings!
+                            const b = localBookings.find((lb: any) => lb.booking_id === bookingId);
+                            if (b) {
+                                // Original Price must be inferred or we assume price_total_thb is net.
+                                // Formula: Net = Base - Discount
+                                // Net = Base - (Base * P/100) = Base * (1 - P/100)
+                                // Base = Net / (1 - P/100)
+                                // Discount = Base * P/100
+                                const netPrice = b.price_total_thb;
+                                const p = camp.discount_percent;
+                                const basePrice = Math.round(netPrice / (1 - p / 100));
+                                discount = basePrice - netPrice;
+                            }
+                        }
+                    }
+                    if (discount > 0) {
+                        promoMap[bookingId] = discount;
+                    }
                 });
             }
         }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/api';
-import { LogOut, LayoutDashboard, Ticket, User, BarChart3 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Ticket, User, BarChart3, Receipt } from 'lucide-react';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
@@ -37,6 +37,7 @@ export default function AdminLayout() {
         { name: 'Customers', href: '/admin/customers', icon: User },
         { name: 'Reports', href: '/admin/reports', icon: BarChart3 },
         { name: 'Promo Codes (V1)', href: '/admin/promo-codes', icon: Ticket }, // Renamed for clarity
+        { name: 'Refunds', href: '/admin/refunds', icon: Receipt },
     ];
 
     return (

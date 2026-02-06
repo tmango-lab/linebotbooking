@@ -9,8 +9,8 @@ const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-const CAMPAIGN_ID = '7aa67af1-199c-41eb-96d4-12a5c36b116b';
-const USER_ID = 'LOSER';
+const CAMPAIGN_ID = '7dabda04-5e0e-4e1a-a1e0-5c1231723b0c';
+const USER_ID = 'WINNER';
 
 async function inspectCampaign() {
     console.log(`Inspecting Campaign: ${CAMPAIGN_ID}`);
@@ -57,9 +57,9 @@ async function inspectCampaign() {
         .eq('user_id', USER_ID);
 
     if (ucError) console.error('Error checking user coupon:', ucError);
-    console.log(`User '${USER_ID}' collected count:`, userCoupon?.length);
+    console.log(`User '${USER_ID}' coupons:`, userCoupon);
 
-    // 3. Dry Run Validation Logic
+    // Final result
     if (campaign.status !== 'ACTIVE') console.error('❌ FAIL: Campaign not ACTIVE');
     if (!campaign.is_public && (!campaign.secret_codes || campaign.secret_codes.length === 0)) console.warn('⚠️ WARN: Private campaign but no codes?');
 

@@ -396,20 +396,38 @@ When a booking with a **USED** coupon is modified:
 +### Key Components
 +1.  **Date Selection (Bottom Sheet)**:
 +    - **Trigger**: A sleek "Date Pill" in the header.
-+    - **Modal**: A native-feeling slide-up bottom sheet with a 7-column calendar grid.
-+    - **Range**: Supports browsing any month via Prev/Next navigation.
-+2.  **Booking Grid**:
-+    - **V2**: Horizontal scrollable grid for a multi-court overview.
-+    - **V3**: Vertical layout optimized for single-hand mobile use.
-+3.  **Auto-Apply Coupon Logic**:
-+    - Fetches the user's active coupons on mount.
-+    - Automatically selects the coupon that provides the **highest THB discount** for the current selection.
-+
-+### Robust User Retrieval (LIFF)
-+To solve the "Missing required fields" issue, the system now uses a two-tier strategy for getting the `userId`:
-+1.  **LIFF SDK**: Direct call to `liff.getProfile()` (Most reliable).
-+2.  **URL Fallback**: If LIFF is not initialized or in a browser, fallback to `?userId=` parameter.
-+ Implementation: `src/lib/liff.ts` -> `getLiffUser()`.
+
+---
+
+## 10. New Seamless Booking UI (Promotion V2 Interface)
+
+### Overview
+A modern, mobile-first booking interface designed for speed, clarity, and automatic value maximization. Available via `?mode=v2` or `?mode=v3` (Vertical).
+
+### Key Components
+1.  **Date Selection (Bottom Sheet)**:
+    - **Trigger**: A sleek "Date Pill" in the header.
+    - **Modal**: A native-feeling slide-up bottom sheet with a 7-column calendar grid.
+    - **Range**: Supports browsing any month via Prev/Next navigation.
+2.  **Booking Grid**:
+    - **V2**: Horizontal scrollable grid for a multi-court overview.
+    - **V3**: Vertical layout optimized for single-hand mobile use.
+3.- [x] **Auto-Apply Coupon Logic**:
+    - Fetches the user's active coupons on mount.
+    - Automatically selects the coupon that provides the **highest THB discount** for the current selection.
+- [x] **Logic Unification (`useBookingLogic`)**:
+    - **Architecture**: Core booking logic (state, fetching, calculations, handlers) is extracted into a shared custom hook `src/hooks/useBookingLogic.ts`.
+    - **Parity**: Both `BookingV2Page` (Horizontal) and `BookingV3Page` (Vertical) share 100% of the same processing logic.
+    - **Maintainability**: Changes to coupon handling, price calculation, or success redirection only need to be made in one place.
+- [x] **Payment Filtering & UI Polish**:
+    - **Restriction**: Coupons with `payment` conditions (e.g., QR Only) automatically filter out invalid methods in the `BookingConfirmationModal`.
+    - **Centering**: If only one payment method is available, the button is automatically centered and sized for visual balance.
+
+### Robust User Retrieval (LIFF)
+To solve the "Missing required fields" issue, the system now uses a two-tier strategy for getting the `userId`:
+1.  **LIFF SDK**: Direct call to `liff.getProfile()` (Most reliable).
+2.  **URL Fallback**: If LIFF is not initialized or in a browser, fallback to `?userId=` parameter.
+ Implementation: `src/lib/liff.ts` -> `getLiffUser()`.
 
 ---
 
@@ -522,3 +540,36 @@ ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'user'; -- 'user', 'vip', 'adm
 - **Atomic Updates**: Uses strict read-modify-write pattern (with retries) for incrementing .
 - **Silent Failure**: Invalid promo codes do not block the flow but show an error message, maintaining the "secret" feel.
 
+
+---
+
+## 13. Coupon V2 Implementation Details & Logic (2026-02)
+
+### 13.1 V1 vs V2 Data Structure
+*   **V1 (Legacy Promo Codes)**: Stored in `promo_codes` table. Discounts are fixed values.
+*   **V2 (Coupons)**: Stored in `user_coupons` table. Linked to `campaigns` table. **NOT** synced to `promo_codes`.
+
+### 13.2 Dashboard Compatibility & Flexible Anti-Gaming
+The system enforces a **Flexible but Safe** anti-gaming policy:
+
+1.  **Discount Visibility**: 
+    - The `get-bookings` function now joins `user_coupons` + `campaigns` to calculate the effective discount on the fly.
+    - This creates a **Virtual Discount Field** in the API response, even though `promo_codes` table is empty.
+
+2.  **Flexible Modification Rule (Upsell Friendly)**:
+    - **Case A: Upsell (Increase Duration/Price)**: The system recalculates `(New Price + Added Time) - Original Discount`. **The discount is PRESERVED**, allowing customers to pay only the difference.
+    - **Case B: Downsell (Decrease Duration/Price)**: The frontend "Anti-Gaming Check" detects the shrink. It effectively **REMOVES** the discount from the calculation context to prevent exploiting coupons for cheaper slots.
+
+3.  **Benefit**:
+    - **Win-Win**: Honest customers can extend their playtime without losing their coupon benefit.
+    - **Safe**: Bad actors cannot shrink a booking to pay less than the coupon intended.
+
+### 13.3 Redemption Limit & Race Condition (Atomic Flow)
+The system enforces strict redemption limits (e.g., "Only first 5 payers get the discount") using atomic operations and fallback mechanisms.
+
+1.  **Atomic Counter**: The system uses a PostgreSQL RPC (`increment_campaign_redemption`) to increment the count only if it's below the limit in a single transaction.
+2.  **Race Condition Handling**: If a user pays for a booking but the quota fills up *at the exact same second* (Race Condition):
+    - **Logic**: Detected when the RPC returns `false`.
+    - **Action**: The system automatically **Cancels** the booking and flags it for a **Refund**.
+    - **Notification**: The user is immediately notified via LINE that the quota is full and a refund is being processed.
+3.  **Verification**: This flow was successfully verified using the `simulate-payment.ts` script, confirming that the counter increments correctly and status updates reflect in the Admin UI.
