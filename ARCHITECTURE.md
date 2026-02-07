@@ -573,3 +573,26 @@ The system enforces strict redemption limits (e.g., "Only first 5 payers get the
     - **Action**: The system automatically **Cancels** the booking and flags it for a **Refund**.
     - **Notification**: The user is immediately notified via LINE that the quota is full and a refund is being processed.
 3.  **Verification**: This flow was successfully verified using the `simulate-payment.ts` script, confirming that the counter increments correctly and status updates reflect in the Admin UI.
++
++---
++
++## 14. Action Persistence & Attendance Status (2026-02)
++
++### Overview
++To reduce manual coordination, the LINE Bot allows users to self-confirm their attendance or request a cancellation. The system persists these actions to show a clear history to both the user and the admin.
++
++### Attendance Workflow
++1.  **User Trigger**: User selects "ดูตารางจอง" in LINE.
+2.  **Display Logic**: 
+    - The `buildBookingsCarousel` function checks the `attendance_status`.
+    - **Buttons**: If a status is already set (`confirmed` or `cancel_requested`), the action buttons are hidden to prevent duplicate or conflicting requests.
+    - **Badges**: A status badge with the exact **ICT+7 (Thailand)** timestamp is displayed prominently on the card.
+3.  **Record Keeping**:
+    - **Table**: `bookings`
+    - **Fields**: `attendance_status` (confirmed, cancel_requested), `attendance_updated_at` (timestamptz).
+4.  **Admin Integration**:
+    - "Cancel Requested" status updates the `admin_note` to "ลูกค้ายกเลิกผ่าน Bot" for visibility on the dashboard.
+    - These records persist until the admin manually deletes or modifies the booking.
+
+### Localized Time Implementation
+Since Supabase Edge Functions run in UTC, the system explicitly offsets the time by **+7 hours** in `formatActionTime` before generating the Flex Message UI to ensure compatibility with Thailand Time (ICT).
