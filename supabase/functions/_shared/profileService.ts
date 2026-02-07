@@ -9,7 +9,6 @@ export interface UserProfile {
     user_id: string;
     team_name: string;
     phone_number: string;
-    role?: string; // [NEW] 'vip' or 'member'
     tags?: string[]; // [NEW] replacing role system
     created_at?: string;
     updated_at?: string;

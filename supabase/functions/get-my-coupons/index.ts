@@ -83,7 +83,7 @@ serve(async (req) => {
         // [NEW] Fetch Profile securely (Bypassing RLS)
         const { data: profile } = await supabase
             .from('profiles')
-            .select('team_name, phone_number, role')
+            .select('team_name, phone_number')
             .eq('user_id', userId)
             .maybeSingle();
 

@@ -100,7 +100,8 @@ export async function handleMessage(event: LineEvent) {
 
         // 2. If not VIP -> Inform user
         // [MODIFIED] Check tags instead of role
-        const isVip = profile.tags?.includes('vip') || profile.role === 'vip'; // Backward compatibility
+        // [MODIFIED] Check tags only (Role column deprecated)
+        const isVip = profile.tags && profile.tags.includes('vip');
         if (!isVip) {
             await replyMessage(event.replyToken!, {
                 type: 'text',

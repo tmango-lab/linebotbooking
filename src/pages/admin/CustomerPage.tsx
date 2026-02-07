@@ -8,7 +8,6 @@ interface Profile {
     phone_number: string;
     created_at: string;
     updated_at: string;
-    role?: string;
     tags?: string[]; // [NEW]
 }
 
