@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users } from 'lucide-react';
+import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users, Send } from 'lucide-react';
 import CampaignModal from '../../components/admin/CampaignModal';
+import BroadcastModal from '../../components/admin/BroadcastModal';
 
 export default function CampaignPage() {
     const [campaigns, setCampaigns] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCampaign, setEditingCampaign] = useState<any | null>(null);
+
+    // Broadcast Modal State
+    const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+    const [broadcastCampaign, setBroadcastCampaign] = useState<any | null>(null);
 
     useEffect(() => {
         fetchCampaigns();
@@ -150,6 +154,11 @@ export default function CampaignPage() {
         alert(`คัดลอกลิงก์เก็บคูปองด่วนแล้ว!\n${url}\n\n(หมายเหตุ: ลิงก์นี้ต้องการ userId=... ต่อท้ายเพื่อให้ทำงานสมบูรณ์ใน LINE)`);
     };
 
+    const handleBroadcastClick = (campaign: any) => {
+        setBroadcastCampaign(campaign);
+        setIsBroadcastOpen(true);
+    };
+
     const filteredCampaigns = campaigns.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.description || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -285,7 +294,15 @@ export default function CampaignPage() {
                                         className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all"
                                     >
                                         <Share2 className="w-3 h-3 mr-1.5" />
-                                        แชร์ลิงก์
+                                        Share Link
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleBroadcastClick(campaign)}
+                                        className="text-xs font-medium text-white flex items-center bg-green-600 border border-transparent rounded-lg px-3 py-1.5 shadow-sm hover:bg-green-700 transition-all ml-2"
+                                    >
+                                        <Send className="w-3 h-3 mr-1.5" />
+                                        Broadcast
                                     </button>
 
                                     <div className="flex gap-2">
@@ -323,6 +340,13 @@ export default function CampaignPage() {
                 onClose={() => setIsModalOpen(false)}
                 campaign={editingCampaign}
                 onSuccess={fetchCampaigns}
+            />
+
+            <BroadcastModal
+                isOpen={isBroadcastOpen}
+                onClose={() => setIsBroadcastOpen(false)}
+                campaign={broadcastCampaign}
+                onSuccess={() => { }}
             />
         </div>
     );

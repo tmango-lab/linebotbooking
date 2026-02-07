@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus, Crown } from 'lucide-react';
+import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus } from 'lucide-react';
 
 interface Profile {
     user_id: string;
@@ -8,7 +8,8 @@ interface Profile {
     phone_number: string;
     created_at: string;
     updated_at: string;
-    role?: string; // [NEW]
+    role?: string;
+    tags?: string[]; // [NEW]
 }
 
 export default function CustomerPage() {
@@ -113,30 +114,41 @@ export default function CustomerPage() {
         }
     };
 
-    const toggleVip = async (p: Profile) => {
-        const currentRole = p.role || 'member';
-        const newRole = currentRole === 'vip' ? 'member' : 'vip';
+    const handleAddTag = async (p: Profile, tag: string) => {
+        if (!tag) return;
+        const currentTags = p.tags || [];
+        if (currentTags.includes(tag)) return;
 
-        if (!confirm(`เปลี่ยนสถานะลูกค้าคนนี้เป็น ${newRole.toUpperCase()} ?`)) return;
+        const newTags = [...currentTags, tag];
+        await updateTags(p, newTags);
+    };
 
+    const handleRemoveTag = async (p: Profile, tagToRemove: string) => {
+        const currentTags = p.tags || [];
+        const newTags = currentTags.filter(t => t !== tagToRemove);
+        await updateTags(p, newTags);
+    };
+
+    const updateTags = async (p: Profile, newTags: string[]) => {
         try {
             const { error } = await supabase
                 .from('profiles')
-                .update({ role: newRole })
+                .update({ tags: newTags })
                 .eq('user_id', p.user_id);
 
             if (error) throw error;
 
             // Optimistic update
-            setProfiles(prev => prev.map(pr => pr.user_id === p.user_id ? { ...pr, role: newRole } : pr));
+            setProfiles(prev => prev.map(pr => pr.user_id === p.user_id ? { ...pr, tags: newTags } : pr));
         } catch (err: any) {
-            alert('Error updating role: ' + err.message);
+            alert('Error updating tags: ' + err.message);
         }
     };
 
     const filteredProfiles = profiles.filter(p =>
         (p.team_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (p.phone_number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+        (p.phone_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (p.tags?.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())))
     );
 
     return (
@@ -221,11 +233,6 @@ export default function CustomerPage() {
                                                             <span className="text-sm font-medium text-gray-900 truncate" title={p.user_id}>
                                                                 {p.team_name || 'Unknown Team'}
                                                             </span>
-                                                            {p.role === 'vip' && (
-                                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center gap-1">
-                                                                    <Crown className="w-3 h-3" /> VIP
-                                                                </span>
-                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-2 text-sm text-gray-500">
                                                             <Phone className="h-4 w-4 text-gray-400" />
@@ -237,10 +244,38 @@ export default function CustomerPage() {
                                                         </div>
                                                     </div>
                                                 )}
+
+                                                {/* Tags Display */}
+                                                <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                                    {p.tags?.map(tag => (
+                                                        <span key={tag} className={`px-2 py-0.5 rounded text-xs font-medium border flex items-center gap-1 ${tag === 'vip' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                                            tag === 'inactive' ? 'bg-red-100 text-red-800 border-red-200' :
+                                                                'bg-gray-100 text-gray-700 border-gray-200'
+                                                            }`}>
+                                                            {tag}
+                                                            <button onClick={() => handleRemoveTag(p, tag)} className="hover:text-red-600 ml-1">
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </span>
+                                                    ))}
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="+ tag"
+                                                            className="w-16 text-xs border border-gray-300 rounded px-1 py-0.5 focus:w-24 transition-all"
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    handleAddTag(p, e.currentTarget.value);
+                                                                    e.currentTarget.value = '';
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             {/* Actions */}
-                                            <div className="ml-4 flex items-center gap-2">
+                                            <div className="ml-4 flex items-center gap-2 self-start">
                                                 {editingId === p.user_id ? (
                                                     <>
                                                         <button onClick={handleSaveEdit} className="p-1 rounded-full bg-green-100 text-green-600 hover:bg-green-200" title="Save">
@@ -255,13 +290,6 @@ export default function CustomerPage() {
                                                         <Edit2 className="h-4 w-4" />
                                                     </button>
                                                 )}
-                                                <button
-                                                    onClick={() => toggleVip(p)}
-                                                    className={`p-1 rounded-full text-gray-400 hover:bg-gray-50 transition-colors ${p.role === 'vip' ? 'text-yellow-500 hover:text-yellow-600' : 'hover:text-yellow-500'}`}
-                                                    title={p.role === 'vip' ? "Remove VIP" : "Set to VIP"}
-                                                >
-                                                    <Crown className={`h-4 w-4 ${p.role === 'vip' ? 'fill-current' : ''}`} />
-                                                </button>
                                             </div>
                                         </div>
                                     </li>
@@ -273,57 +301,59 @@ export default function CustomerPage() {
             </div>
 
             {/* Add Customer Modal */}
-            {isAdding && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-bold text-gray-900">Add New Customer</h2>
-                            <button onClick={handleCancelAdd} className="text-gray-400 hover:text-gray-500">
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Team Name</label>
-                                <input
-                                    type="text"
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border px-3 py-2"
-                                    value={addForm.team_name}
-                                    onChange={e => setAddForm({ ...addForm, team_name: e.target.value })}
-                                    placeholder="e.g. Walk-in Team"
-                                    autoFocus
-                                />
+            {
+                isAdding && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-lg font-bold text-gray-900">Add New Customer</h2>
+                                <button onClick={handleCancelAdd} className="text-gray-400 hover:text-gray-500">
+                                    <X className="h-5 w-5" />
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-                                <input
-                                    type="text"
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border px-3 py-2"
-                                    value={addForm.phone_number}
-                                    onChange={e => setAddForm({ ...addForm, phone_number: e.target.value })}
-                                    placeholder="e.g. 0812345678"
-                                />
-                            </div>
-                        </div>
 
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button
-                                onClick={handleCancelAdd}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveNew}
-                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                                Save Customer
-                            </button>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Team Name</label>
+                                    <input
+                                        type="text"
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border px-3 py-2"
+                                        value={addForm.team_name}
+                                        onChange={e => setAddForm({ ...addForm, team_name: e.target.value })}
+                                        placeholder="e.g. Walk-in Team"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                                    <input
+                                        type="text"
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border px-3 py-2"
+                                        value={addForm.phone_number}
+                                        onChange={e => setAddForm({ ...addForm, phone_number: e.target.value })}
+                                        placeholder="e.g. 0812345678"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="mt-6 flex justify-end gap-3">
+                                <button
+                                    onClick={handleCancelAdd}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveNew}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                >
+                                    Save Customer
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div>
     );
 }

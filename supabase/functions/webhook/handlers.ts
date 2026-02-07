@@ -99,7 +99,9 @@ export async function handleMessage(event: LineEvent) {
         }
 
         // 2. If not VIP -> Inform user
-        if (profile.role !== 'vip') {
+        // [MODIFIED] Check tags instead of role
+        const isVip = profile.tags?.includes('vip') || profile.role === 'vip'; // Backward compatibility
+        if (!isVip) {
             await replyMessage(event.replyToken!, {
                 type: 'text',
                 text: '⚠️ ฟีเจอร์ "จองประจำล่วงหน้า" เปิดให้ใช้งานเฉพาะสมาชิก VIP เท่านั้นครับ\n\nหากสนใจสมัคร VIP กรุณาติดต่อแอดมิน 083-914-4000 หรือทักแชทแจ้งแอดมินได้เลยครับ 😊'
