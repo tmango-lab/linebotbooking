@@ -1826,7 +1826,7 @@ async function handleConfirmBookingStatus(event: LineEvent, userId: string, para
 
         await replyMessage(event.replyToken!, {
             type: 'text',
-            text: 'ขอบคุณที่ยืนยันการจามนัดหมายค่ะ! เจอกันที่สนามนะคะ ⚽'
+            text: 'ขอบคุณที่ยืนยันการจอง เจอกันที่สนามนะคะ ⚽'
         });
     } catch (err: any) {
         console.error('[Confirm Booking Error]:', err.message);
