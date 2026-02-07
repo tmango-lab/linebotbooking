@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { getLiffUser } from '../../lib/liff';
+import { useLiff } from '../../providers/LiffProvider';
 import { Loader2, Ticket, Gift, Lock, Send } from 'lucide-react';
 import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
 
@@ -33,60 +33,48 @@ export default function WalletPage() {
     const [sendingFlex, setSendingFlex] = useState(false);
 
 
-    // ... (existing imports)
-
     // Check URL for userId and Auto-Collect Action
-    useEffect(() => {
-        const initUser = async () => {
-            // [FIX] Support HashRouter params (e.g. /#/wallet?userId=...)
-            let params = new URLSearchParams(window.location.search);
+    const { isReady, liffUser } = useLiff();
 
-            // If empty, check hash params
+    useEffect(() => {
+        if (!isReady) return;
+
+        const initUser = async () => {
+            // [FIX] Support HashRouter params
+            let params = new URLSearchParams(window.location.search);
             if (window.location.hash.includes('?')) {
                 const hashQuery = window.location.hash.split('?')[1];
                 const hashParams = new URLSearchParams(hashQuery);
-                // Merge params
                 hashParams.forEach((val, key) => params.append(key, val));
             }
 
             let uid = params.get('userId');
             const action = params.get('action');
-            const code = params.get('code') || '';    // Secret Code
-            const cid = params.get('id') || params.get('campaignId'); // Campaign ID
+            const code = params.get('code') || '';
+            const cid = params.get('id') || params.get('campaignId');
 
-            // [NEW] If no userId in URL, try LIFF
-            if (!uid) {
-                console.log("No userId in URL, attempting LIFF init...");
-                try {
-                    const liffUser = await getLiffUser();
-                    if (liffUser.userId) {
-                        uid = liffUser.userId;
-                        console.log("LIFF User ID found:", uid);
-                    }
-                } catch (e) {
-                    console.error("LIFF Init Error:", e);
-                }
+            // [NEW] Use ID from Provider if not in URL
+            if (!uid && liffUser?.userId) {
+                uid = liffUser.userId;
+                console.log("Using LIFF User ID from Provider:", uid);
             }
 
             if (uid) {
                 setUserId(uid);
                 fetchWallet(uid);
 
-                // Auto-Collect Flow (The Pa-Kao Flow)
                 if (action === 'collect' && cid && !collectingRef.current) {
                     collectingRef.current = true;
-                    // Delay slightly to ensure UI is ready or just call it
                     console.log('Auto-collecting coupon...', { code, cid });
                     doAutoCollect(uid, cid, code);
                 }
             } else {
-                // If still no UID, maybe show login prompt or error?
-                console.warn("Could not identify user via URL or LIFF.");
+                console.warn("Could not identify user via URL or LIFF Provider.");
             }
         };
 
         initUser();
-    }, []);
+    }, [isReady, liffUser]);
 
     const doAutoCollect = async (uid: string, cid: string, code: string) => {
         setCollecting(true);

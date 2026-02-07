@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/api';
 import './App.css';
+import { LiffProvider, useLiff } from './providers/LiffProvider'; // [NEW]
 
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
@@ -24,28 +25,23 @@ function StatusPage() {
   const [connectionCheck, setConnectionCheck] = useState<string>('Checking data...');
   const [secretInput, setSecretInput] = useState('');
   const navigate = useNavigate(); // Hook for navigation
-  // Debug State
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const [showButton, setShowButton] = useState(false);
 
-  // Helper to add log
-  const addLog = (msg: string) => setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
-
-  // Fix: Log changes to console to satisfy 'unused variable' linter
-  useEffect(() => {
-    if (debugLog.length > 0) console.log('Debug Log:', debugLog[debugLog.length - 1]);
-  }, [debugLog]);
+  // [NEW] Use Provider
+  const { isReady, liffUser, error } = useLiff();
 
   useEffect(() => {
     // [Fix] Handle Path to Hash Redirect (e.g. /wallet -> /#/wallet)
+    // ONLY do this if we are not already in a HashRouter valid state
+    // AND if we are not in a refresh loop.
     if (window.location.pathname.length > 1 && !window.location.hash) {
+      // This logic is dangerous if not handled via server rewrite rules
+      // But assuming Vercel rewrites all to index.html, this is client-side path fix.
       const path = window.location.pathname;
-      const search = window.location.search;
-      // Prevent infinite loop if already root
-      if (path !== '/') {
+      if (path !== '/' && !path.startsWith('/admin')) {
+        // Admin paths might be handled differently, but generally same rule.
         console.log(`Redirecting path ${path} to hash #${path}`);
-        window.location.href = `/#${path}${search}`;
-        return; // Stop execution to allow redirect
+        window.location.href = `/#${path}${window.location.search}`;
+        return;
       }
     }
 
@@ -75,76 +71,6 @@ function StatusPage() {
     };
     checkConnection();
 
-    // Check for V2 Mode
-    const searchParams = new URLSearchParams(window.location.search);
-    const mode = searchParams.get('mode');
-
-    // [V2/V3 Logic] If ?mode=v2/v3, redirect to respective Booking Pagge
-    if (mode === 'v2') {
-      addLog("Mode V2 Detected. Redirecting...");
-      setTimeout(() => {
-        navigate('/booking-v2' + window.location.search);
-      }, 100);
-      return;
-    }
-    if (mode === 'v3') {
-      addLog("Mode V3 Detected. Redirecting...");
-      setTimeout(() => {
-        navigate('/booking-v3' + window.location.search);
-      }, 100);
-      return;
-    }
-
-    // [NEW] LIFF/Deep Link Redirect for HashRouter
-    // ... logic continues ...
-
-    // Check both Search AND Hash for params
-    let liffState = searchParams.get('liff.state');
-
-    if (!liffState) {
-      // Try extracting from hash (e.g. #/?liff.state=...)
-      const hash = window.location.hash;
-      if (hash.includes('?')) {
-        const hashQuery = hash.split('?')[1];
-        const hashParams = new URLSearchParams(hashQuery);
-        liffState = hashParams.get('liff.state');
-        if (liffState) addLog("Found liff.state in HASH");
-      }
-    } else {
-      addLog("Found liff.state in SEARCH");
-    }
-
-    addLog(`Checking Params: ${window.location.search} | Hash: ${window.location.hash}`);
-
-    if (liffState) {
-      setShowButton(true);
-      addLog(`Found liff.state: ${liffState.substring(0, 15)}...`);
-
-      try {
-        const decodedState = decodeURIComponent(liffState);
-        addLog(`Decoded: ${decodedState}`);
-
-        // [Fix] Determine Target based on state content
-        let targetPath = '/wallet'; // Default
-        if (decodedState.includes('mode=v2')) {
-          targetPath = '/booking-v2';
-        } else if (decodedState.includes('mode=v3')) {
-          targetPath = '/booking-v3';
-        }
-
-        // Construct Target
-        const target = `${targetPath}${decodedState.startsWith('?') ? decodedState : '?' + decodedState}`;
-        addLog(`Target: ${target}`);
-
-        // Auto Redirect with Delay
-        addLog("Attempting Auto-Redirect in 1s...");
-        setTimeout(() => {
-          window.location.hash = target;
-        }, 1000);
-      } catch (e: any) {
-        addLog(`Error parsing: ${e.message}`);
-      }
-    }
   }, []);
 
   const handleSecretCheck = (val: string) => {
@@ -154,102 +80,92 @@ function StatusPage() {
     }
   };
 
-  const handleManualRedir = () => {
-    // Fallback: Just take everything from search and append to wallet hash
-    const params = new URLSearchParams(window.location.search);
-    const liffState = params.get('liff.state');
-    if (liffState) {
-      const decoded = decodeURIComponent(liffState);
-      window.location.hash = `/wallet${decoded.startsWith('?') ? decoded : '?' + decoded}`;
-    } else {
-      navigate('/wallet');
-    }
-  };
-
   // [Fix] Early Return if Redirecting (Prevents Flash)
   if (window.location.pathname.length > 1 && window.location.pathname !== '/') {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
-        <div className="loader"></div> {/* Assuming CSS loader exists, or just text */}
+        <div className="loader"></div>
         <p style={{ marginTop: '20px', color: '#666' }}>Redirecting to {window.location.pathname}...</p>
       </div>
     );
   }
 
+  // [NEW] Global Loading State for LIFF
+  if (!isReady) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+        <div className="loader"></div>
+        <p style={{ marginTop: '20px', color: '#666' }}>Initializing LINE...</p>
+      </div>
+    );
+  }
+
+  // If LIFF Initialized and User Found, we might want to auto-redirect from root?
+  // For now, keep Status Page as landing for debugging or root access.
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa', color: '#333' }}>
       <h1>Booking System</h1>
 
-      {/* LIFF REDIRECT MODE */}
-      {showButton ? (
-        <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <div style={{ fontSize: '24px', marginBottom: '20px' }}>⏳ Redirecting to Wallet...</div>
-          <div style={{ fontSize: '14px', color: '#666' }}>Please wait a moment.</div>
-
-          {/* Fallback Button (Unobtrusive) */}
-          <button
-            onClick={handleManualRedir}
-            style={{ marginTop: '30px', padding: '10px 20px', fontSize: '16px', backgroundColor: '#eee', color: '#333', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            Click here if not redirected
-          </button>
+      <div style={{ padding: '2rem', border: '1px solid #ccc', borderRadius: '8px', marginTop: '2rem', textAlign: 'center', backgroundColor: 'white' }}>
+        <p><strong>Status:</strong> {status}</p>
+        <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
+          {connectionCheck}
         </div>
-      ) : (
-        /* NORMAL STATUS MODE */
-        <div style={{ padding: '2rem', border: '1px solid #ccc', borderRadius: '8px', marginTop: '2rem', textAlign: 'center', backgroundColor: 'white' }}>
-          <p><strong>Status:</strong> {status}</p>
-          <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
-            {connectionCheck}
-          </div>
-          <div style={{ marginTop: '2rem' }}>
-            <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
-          </div>
 
-          {/* Secret Trigger Area */}
-          <div style={{ marginTop: '3rem', opacity: 0.1, }}>
-            <input
-              value={secretInput}
-              onChange={(e) => handleSecretCheck(e.target.value)}
-              placeholder="..."
-              style={{ border: 'none', background: 'transparent', textAlign: 'center', outline: 'none' }}
-            />
-          </div>
+        {liffUser?.userId && <p style={{ color: 'green', marginTop: '10px' }}>LIFF User: {liffUser.displayName || 'Identified'}</p>}
+        {error && <p style={{ color: 'red', marginTop: '10px' }}>LIFF Error: {error}</p>}
+
+        <div style={{ marginTop: '2rem' }}>
+          <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
         </div>
-      )}
+
+        {/* Secret Trigger Area */}
+        <div style={{ marginTop: '3rem', opacity: 0.1, }}>
+          <input
+            value={secretInput}
+            onChange={(e) => handleSecretCheck(e.target.value)}
+            placeholder="..."
+            style={{ border: 'none', background: 'transparent', textAlign: 'center', outline: 'none' }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
 function App() {
   return (
-    <HashRouter>
-      <Routes>
-        {/* Public Status Page */}
-        <Route path="/" element={<StatusPage />} />
+    <LiffProvider>
+      <HashRouter>
+        <Routes>
+          {/* Public Status Page */}
+          <Route path="/" element={<StatusPage />} />
 
-        {/* User Routes (V2) */}
-        <Route path="/wallet" element={<WalletPage />} />
-        <Route path="/booking-v2" element={<BookingV2Page />} />
-        <Route path="/booking-v3" element={<BookingV3Page />} />
-        <Route path="/booking-success" element={<BookingSuccessPage />} />
+          {/* User Routes (V2) */}
+          <Route path="/wallet" element={<WalletPage />} />
+          <Route path="/booking-v2" element={<BookingV2Page />} />
+          <Route path="/booking-v3" element={<BookingV3Page />} />
+          <Route path="/booking-success" element={<BookingSuccessPage />} />
 
-        {/* Admin Routes */}
-        <Route path="/admin/login" element={<LoginPage />} />
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<LoginPage />} />
 
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="customers" element={<CustomerPage />} />
-          <Route path="campaigns" element={<CampaignPage />} /> {/* New V2 */}
-          <Route path="reports" element={<ReportPage />} />
-          <Route path="promo-codes" element={<PromoCodePage />} />
-          <Route path="refunds" element={<RefundPage />} />
-        </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="customers" element={<CustomerPage />} />
+            <Route path="campaigns" element={<CampaignPage />} /> {/* New V2 */}
+            <Route path="reports" element={<ReportPage />} />
+            <Route path="promo-codes" element={<PromoCodePage />} />
+            <Route path="refunds" element={<RefundPage />} />
+          </Route>
 
-        {/* Catch All - Redirect to Status Page */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </HashRouter>
+          {/* Catch All - Redirect to Status Page */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HashRouter>
+    </LiffProvider>
   );
 }
 
