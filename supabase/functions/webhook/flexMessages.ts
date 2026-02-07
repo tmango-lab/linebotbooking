@@ -1108,6 +1108,7 @@ export function buildRegularBookingSummaryFlex(params: {
 // 10. View Bookings Carousel
 export function buildBookingsCarousel(bookings: any[], offset: number, totalCount: number, fieldMap: Record<number, string> = {}) {
     const bubbles = bookings.map(booking => {
+
         const timeFrom = booking.time_from.substring(0, 5);
         const timeTo = booking.time_to.substring(0, 5);
         const dateStr = formatBookingDate(booking.date);
