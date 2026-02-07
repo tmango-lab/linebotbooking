@@ -6,6 +6,19 @@
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>booking-system</title>
+  <script>
+    // [Optimization] Instant Redirect for SPA (Path to Hash)
+    // This prevents the "Loading..." screen from showing on subpaths
+    (function() {
+      var path = window.location.pathname;
+      var search = window.location.search;
+      if (path.length > 1 && path !== '/' && !path.startsWith('/admin')) {
+        var targetHash = '#' + path + search;
+        console.log('Instant Redirect to:', targetHash);
+        window.location.replace('/' + targetHash);
+      }
+    })();
+  </script>
 </head>
 
 <body>

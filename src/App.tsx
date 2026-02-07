@@ -30,20 +30,6 @@ function StatusPage() {
   const { isReady, liffUser, error } = useLiff();
 
   useEffect(() => {
-    // [Fix] Handle Path to Hash Redirect (e.g. /wallet -> /#/wallet)
-    // ONLY do this if we are not already in a HashRouter valid state
-    // AND if we are not in a refresh loop.
-    if (window.location.pathname.length > 1 && !window.location.hash) {
-      // This logic is dangerous if not handled via server rewrite rules
-      // But assuming Vercel rewrites all to index.html, this is client-side path fix.
-      const path = window.location.pathname;
-      if (path !== '/' && !path.startsWith('/admin')) {
-        // Admin paths might be handled differently, but generally same rule.
-        console.log(`Redirecting path ${path} to hash #${path}`);
-        window.location.href = `/#${path}${window.location.search}`;
-        return;
-      }
-    }
 
     if (supabase) {
       setStatus('Supabase Client Instantiated ✅');
@@ -80,15 +66,6 @@ function StatusPage() {
     }
   };
 
-  // [Fix] Early Return if Redirecting (Prevents Flash)
-  if (window.location.pathname.length > 1 && window.location.pathname !== '/') {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
-        <div className="loader"></div>
-        <p style={{ marginTop: '20px', color: '#666' }}>Redirecting to {window.location.pathname}...</p>
-      </div>
-    );
-  }
 
   // [NEW] Global Loading State for LIFF
   if (!isReady) {
