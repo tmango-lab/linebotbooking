@@ -42,7 +42,7 @@ serve(async (req) => {
 
         // Construct Wallet URL (Use LIFF URL for reliable redirection)
         const LIFF_ID = Deno.env.get("LIFF_ID") || "2009013698-RcmHMN8h";
-        const walletUrl = `https://liff.line.me/${LIFF_ID}/`;
+        const walletUrl = `https://liff.line.me/${LIFF_ID}/wallet`;
 
         // Build Flex Message
         const flexMessage = {
