@@ -20,7 +20,8 @@ import {
     buildConfirmationFlex,
     buildRegularBookingSummaryFlex,
     buildSearchAllSlotsCarousel, // [NEW] Fixed missing import
-    buildCouponFlex // [NEW] Fixed missing import
+    buildCouponFlex, // [NEW] Fixed missing import
+    buildBookingsCarousel // [NEW]
 } from './flexMessages.ts';
 import { searchRegularBookingSlots } from '../_shared/searchService.ts'; // [NEW]
 import { validateManualPromoCode, applyManualDiscount } from '../_shared/promoService.ts'; // [NEW]
@@ -346,6 +347,11 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
+    // [NEW] View Bookings
+    if (text === 'ดูตารางจอง') {
+        await handleViewBookings(event, userId, { offset: 0 });
+        return;
+    }
 }
 
 // === Image Handler (Payment Slip) ===
@@ -606,6 +612,18 @@ export async function handlePostback(event: LineEvent) {
             break;
         case 'confirmRegularBooking':
             await handleConfirmRegularBooking(event, userId, params);
+            break;
+
+        case 'viewBookings':
+            await handleViewBookings(event, userId, params);
+            break;
+
+        case 'confirmBookingStatus':
+            await handleConfirmBookingStatus(event, userId, params);
+            break;
+
+        case 'requestCancelBooking':
+            await handleRequestCancelBooking(event, userId, params);
             break;
 
         // [NEW] Attendance Nudge Actions
@@ -1729,4 +1747,124 @@ async function handleCancelAttendance(event: LineEvent, userId: string, params: 
         type: 'text',
         text: 'รับเรื่องแล้วครับ เดี๋ยวแอดมินจะโทรหาเพื่อสอบถามรายละเอียดนะครับ 📞'
     });
+}
+
+// =====================================================
+// View Bookings Handlers
+// =====================================================
+
+async function handleViewBookings(event: LineEvent, userId: string, params: any) {
+    const offset = parseInt(params.offset || '0');
+    const limit = 9;
+
+    console.log(`[View Bookings] User: ${userId}, Offset: ${offset}`);
+
+    try {
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Get total count for pagination
+        const { count, error: countError } = await supabase
+            .from('bookings')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gte('date', today)
+            .neq('status', 'cancelled');
+
+        if (countError) throw countError;
+
+        if (!count || count === 0) {
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: 'ยังไม่มีรายการจองล่วงหน้าในระบบค่ะ 😊'
+            });
+            return;
+        }
+
+        // 2. Get active fields for labels
+        const fields = (await getActiveFields()) || [];
+        const fieldMap: Record<number, string> = {};
+        fields.forEach((f: any) => {
+            fieldMap[f.id] = f.label;
+        });
+
+        // 3. Get subset of bookings
+        const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('user_id', userId)
+            .gte('date', today)
+            .neq('status', 'cancelled')
+            .order('date', { ascending: true })
+            .order('time_from', { ascending: true })
+            .range(offset, offset + limit - 1);
+
+        if (error) throw error;
+
+        const flexMsg = buildBookingsCarousel(bookings, offset, count, fieldMap);
+        await replyMessage(event.replyToken!, flexMsg);
+
+    } catch (err: any) {
+        console.error('[View Bookings Error]:', err.message);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: `⚠️ เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message}`
+        });
+    }
+}
+
+async function handleConfirmBookingStatus(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    if (!bookingId) return;
+
+    try {
+        const { error } = await supabase
+            .from('bookings')
+            .update({ attendance_status: 'confirmed' })
+            .eq('booking_id', bookingId);
+
+        if (error) throw error;
+
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'ขอบคุณที่ยืนยันการจามนัดหมายค่ะ! เจอกันที่สนามนะคะ ⚽'
+        });
+    } catch (err: any) {
+        console.error('[Confirm Booking Error]:', err.message);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'เกิดข้อผิดพลาดในการยืนยันรายการจองค่ะ'
+        });
+    }
+}
+
+async function handleRequestCancelBooking(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    if (!bookingId) return;
+
+    try {
+        const { error } = await supabase
+            .from('bookings')
+            .update({
+                attendance_status: 'cancel_requested',
+                admin_note: 'ลูกค้ายกเลิกผ่าน Bot'
+            })
+            .eq('booking_id', bookingId);
+
+        if (error) throw error;
+
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'เราได้รับคำขอยกเลิกของท่านแล้ว เดี๋ยวแอดมินจะติดต่อกลับไปนะคะ'
+        });
+
+        // Notification to Admin (if implemented elsewhere, we can trigger it here)
+        // For now, updating attendance_status + admin_note is the recommended way per requirements.
+
+    } catch (err: any) {
+        console.error('[Cancel Request Error]:', err.message);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'เกิดข้อผิดพลาดในการส่งคำขอยกเลิกค่ะ'
+        });
+    }
 }
