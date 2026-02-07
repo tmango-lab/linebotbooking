@@ -1142,7 +1142,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         contents: [
                             {
                                 type: "text",
-                                text: actionTime ? `✅ ยืนยันแล้วเมื่อ ${actionTime}` : "✅ ยืนยันเข้าสนามแล้ว",
+                                text: actionTime ? `✅ ยืนยันแล้วเมื่อ ${actionTime}` : "✅ ยืนยันแล้ว",
                                 color: "#2E7D32",
                                 size: "xs",
                                 weight: "bold",
@@ -1159,7 +1159,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         contents: [
                             {
                                 type: "text",
-                                text: actionTime ? `🚫 ขอยกเลิกเมื่อ ${actionTime}` : "🚫 ทำรายการขอยกเลิกแล้ว",
+                                text: actionTime ? `🚫 ขอยกเลิกเมื่อ ${actionTime}` : "🚫 ขอยกเลิกแล้ว",
                                 color: "#C62828",
                                 size: "xs",
                                 weight: "bold",
