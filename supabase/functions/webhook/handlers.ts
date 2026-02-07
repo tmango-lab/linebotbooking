@@ -1819,7 +1819,10 @@ async function handleConfirmBookingStatus(event: LineEvent, userId: string, para
     try {
         const { error } = await supabase
             .from('bookings')
-            .update({ attendance_status: 'confirmed' })
+            .update({
+                attendance_status: 'confirmed',
+                attendance_updated_at: new Date().toISOString()
+            })
             .eq('booking_id', bookingId);
 
         if (error) throw error;
@@ -1846,6 +1849,7 @@ async function handleRequestCancelBooking(event: LineEvent, userId: string, para
             .from('bookings')
             .update({
                 attendance_status: 'cancel_requested',
+                attendance_updated_at: new Date().toISOString(),
                 admin_note: 'ลูกค้ายกเลิกผ่าน Bot'
             })
             .eq('booking_id', bookingId);

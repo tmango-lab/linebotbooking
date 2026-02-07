@@ -117,6 +117,20 @@ function formatBookingDate(dateStr: string): string {
     return `${dayName} ${d} ${monthName} ${y.toString().padStart(2, '0')}`;
 }
 
+// Helper: Format action time (e.g., 7 ก.พ. 68 18:30)
+function formatActionTime(isoStr: string): string {
+    if (!isoStr) return "";
+    const date = new Date(isoStr);
+    const day = date.getDate();
+    const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    const month = monthNames[date.getMonth()];
+    const year = (date.getFullYear() + 543) % 100;
+    const hours = date.getHours().toString().padStart(2, '0');
+    const mins = date.getMinutes().toString().padStart(2, '0');
+
+    return `${day} ${month} ${year} ${hours}:${mins}`;
+}
+
 export function buildSelectDateFlex() {
     return {
         type: "flex",
@@ -1095,6 +1109,10 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
         const dateStr = formatBookingDate(booking.date);
         const fieldLabel = fieldMap[booking.field_no] || `สนามฟุตบอล ${booking.field_no || ''}`;
 
+        const isConfirmed = booking.attendance_status === 'confirmed';
+        const isCancelRequested = booking.attendance_status === 'cancel_requested';
+        const actionTime = booking.attendance_updated_at ? formatActionTime(booking.attendance_updated_at) : "";
+
         return {
             type: "bubble",
             size: "mega",
@@ -1110,6 +1128,42 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                 layout: "vertical",
                 spacing: "md",
                 contents: [
+                    // Status Badge (Show only if action taken)
+                    ...(isConfirmed ? [{
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#E8F5E9",
+                        cornerRadius: "sm",
+                        paddingAll: "sm",
+                        contents: [
+                            {
+                                type: "text",
+                                text: `✅ ยืนยันแล้วเมื่อ ${actionTime}`,
+                                color: "#2E7D32",
+                                size: "xs",
+                                weight: "bold",
+                                align: "center"
+                            }
+                        ]
+                    } as const] : []),
+                    ...(isCancelRequested ? [{
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#FFEBEE",
+                        cornerRadius: "sm",
+                        paddingAll: "sm",
+                        contents: [
+                            {
+                                type: "text",
+                                text: `🚫 ขอยกเลิกเมื่อ ${actionTime}`,
+                                color: "#C62828",
+                                size: "xs",
+                                weight: "bold",
+                                align: "center"
+                            }
+                        ]
+                    } as const] : []),
+
                     {
                         type: "text",
                         text: fieldLabel,
@@ -1149,7 +1203,8 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                 layout: "vertical",
                 spacing: "sm",
                 contents: [
-                    {
+                    // Confirm Button (Hide if already confirmed or cancel requested)
+                    ...(!isConfirmed && !isCancelRequested ? [{
                         type: "button",
                         style: "primary",
                         color: "#06C755",
@@ -1160,8 +1215,9 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                             displayText: "ยืนยันการจอง"
                         },
                         height: "sm"
-                    },
-                    {
+                    } as const] : []),
+                    // Cancel Button (Hide if already cancel requested)
+                    ...(!isCancelRequested ? [{
                         type: "button",
                         style: "primary",
                         color: "#FF4B4B",
@@ -1172,7 +1228,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                             data: `action=requestCancelBooking&booking_id=${booking.booking_id}`,
                             displayText: "ขอยกเลิกรายการนี้"
                         }
-                    }
+                    } as const] : [])
                 ]
             }
         };
