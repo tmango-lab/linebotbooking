@@ -121,12 +121,16 @@ function formatBookingDate(dateStr: string): string {
 function formatActionTime(isoStr: string): string {
     if (!isoStr) return "";
     const date = new Date(isoStr);
-    const day = date.getDate();
+
+    // Adjust to Thailand Time (+7 Hours) for Supabase Edge Functions environment
+    const thaiTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+
+    const day = thaiTime.getDate();
     const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-    const month = monthNames[date.getMonth()];
-    const year = (date.getFullYear() + 543) % 100;
-    const hours = date.getHours().toString().padStart(2, '0');
-    const mins = date.getMinutes().toString().padStart(2, '0');
+    const month = monthNames[thaiTime.getMonth()];
+    const year = (thaiTime.getFullYear() + 543) % 100;
+    const hours = thaiTime.getHours().toString().padStart(2, '0');
+    const mins = thaiTime.getMinutes().toString().padStart(2, '0');
 
     return `${day} ${month} ${year} ${hours}:${mins}`;
 }
@@ -1138,7 +1142,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         contents: [
                             {
                                 type: "text",
-                                text: `✅ ยืนยันแล้วเมื่อ ${actionTime}`,
+                                text: actionTime ? `✅ ยืนยันแล้วเมื่อ ${actionTime}` : "✅ ยืนยันเข้าสนามแล้ว",
                                 color: "#2E7D32",
                                 size: "xs",
                                 weight: "bold",
@@ -1155,7 +1159,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         contents: [
                             {
                                 type: "text",
-                                text: `🚫 ขอยกเลิกเมื่อ ${actionTime}`,
+                                text: actionTime ? `🚫 ขอยกเลิกเมื่อ ${actionTime}` : "🚫 ทำรายการขอยกเลิกแล้ว",
                                 color: "#C62828",
                                 size: "xs",
                                 weight: "bold",
@@ -1216,8 +1220,8 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         },
                         height: "sm"
                     } as const] : []),
-                    // Cancel Button (Hide if already cancel requested)
-                    ...(!isCancelRequested ? [{
+                    // Cancel Button (Hide if already cancel requested OR confirmed)
+                    ...(!isCancelRequested && !isConfirmed ? [{
                         type: "button",
                         style: "primary",
                         color: "#FF4B4B",
