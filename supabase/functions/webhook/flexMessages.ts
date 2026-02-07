@@ -680,7 +680,7 @@ export function buildSearchAllSlotsCarousel(
 }
 // 7. Coupon Flex Message (Pa-Kao)
 export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string, userId?: string) {
-    const LIFF_ID = '2009013698-RcmHMN8h';
+    const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
     const cleanPath = `/?userId=${encodeURIComponent(userId || '')}`;
     const collectPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}&userId=${encodeURIComponent(userId || '')}`;
 

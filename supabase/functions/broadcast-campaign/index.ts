@@ -40,8 +40,9 @@ serve(async (req) => {
 
         const campaign = campaigns[0];
 
-        // Construct Wallet URL
-        const walletUrl = `${Deno.env.get("VITE_APP_URL") || "https://your-app.vercel.app"}/#/wallet`;
+        // Construct Wallet URL (Use LIFF URL for reliable redirection)
+        const LIFF_ID = Deno.env.get("LIFF_ID") || "2009013698-RcmHMN8h";
+        const walletUrl = `https://liff.line.me/${LIFF_ID}/?userId=`; // LIFF will append the actual userId if opened within LINE
 
         // Build Flex Message
         const flexMessage = {

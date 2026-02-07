@@ -16,29 +16,18 @@
 - ใช้โค้ดโปรโมชั่นที่ลูกค้าได้รับจาก LINE
 - ยกเลิกการจอง
 - จัดการข้อมูลสนาม
+- **Tag Management & Broadcast**: ระบบแบ่งกลุ่มลูกค้า (Tags) และส่งข้อความตามกลุ่มเป้าหมาย (Broadcasting)
 - **Member Management**: เพิ่มข้อมูลลูกค้าแมนนวล และรองรับการดึงข้อมูลมาเชื่อมกับ LINE อัตโนมัติ
 
-### 3. Promo Code System
+### 3. Promo Code & Campaign System
 - สร้างโค้ด 6 หลักอัตโนมัติ
 - ส่วนลด 10% หรือจำนวนเงินคงที่
-- หมดอายุ 30 นาที
-- ตรวจสอบสถานะ (active/used/expired)
-- **ราคาส่วนลดแสดงถูกต้องทั้ง 3 ที่:**
-  - Admin Dashboard
-  - Matchday Booking Card
-  - Matchday Details Modal
-
-### 4. Price Calculation
-- คำนวณราคาตามช่วงเวลา:
-  - ก่อน 18:00: ราคาปกติ
-  - หลัง 18:00: ราคาพิเศษ
-- ปัดขึ้นเป็นร้อย (เช่น 850 → 900)
-- รองรับการจองข้ามช่วงเวลา
-- คำนวณราคาสุทธิหลังหักส่วนลด (Pre/Post Time Logic)
+- ระบบ Campaign สำหรับสร้างคอนเทนต์ Flex Message
+- **Targeted Broadcasting**: ส่ง Campaign หาลูกค้าตาม Tag ที่ระบุ
 
 ### 5. Regular Booking (VIP Only) [[NEW]](ARCHITECTURE.md#12-regular-booking-vip-implementation)
 - **Secret Booking Flow**: พิมพ์รหัสลับ (เช่น "จองประจำ") เพื่อเข้าสู่โหมดจองพิเศษ
-- **VIP Validation**: เฉพาะ user ที่มี role `vip` ในตาราง `profiles`
+- **VIP Validation**: เฉพาะ user ที่มีแท็ก `vip` ในตาราง `profiles`
 - **Manual Promo Codes**: ใช้โค้ดส่วนลดพิเศษ (เช่น "TMG100") ที่สร้างจาก Admin Dashboard
 - **Usage Tracking**: บันทึกจำนวนการใช้โค้ดและจำกัดสิทธิ์การใช้งาน
 

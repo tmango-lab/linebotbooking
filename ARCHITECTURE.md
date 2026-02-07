@@ -70,12 +70,13 @@ CREATE TABLE bookings (
 ```
 
 ### 2. `profiles` Table
-Stores customer information for quick booking.
+Stores customer information and segmentation tags.
 ```sql
 CREATE TABLE profiles (
     user_id TEXT PRIMARY KEY,       -- LINE User ID
     team_name TEXT,
-    phone_number TEXT
+    phone_number TEXT,
+    tags TEXT[] DEFAULT '{}'        -- [NEW] Replacing role system
 );
 ```
 
@@ -496,9 +497,9 @@ A special booking mode for VIP customers (e.g., long-term contracts) that allows
 
 ### Flow Description
 1.  **Entry Point**: User types a secret keyword (e.g., "จองประจำ") in LINE.
-2.  **Validation**:
-    - System checks  for 'vip'.
-    - If valid, starts the flow. If not, ignores or replies with standard message.
+2. **Validation**:
+    - System checks `profile.tags` for 'vip'.
+    - If valid, starts the flow. If not, replies with standard message.
 3.  **Selection**:
     - User selects **Day** (e.g., Every Thursday).
     - User selects **Time** (e.g., 18:00 - 20:00).
@@ -506,16 +507,16 @@ A special booking mode for VIP customers (e.g., long-term contracts) that allows
 4.  **Summary & Discount**:
     - System calculates total price for the selected range (e.g., next 4 weeks).
     - User inputs a **Manual Promo Code** (e.g., "TMG100").
-    - System verifies code limit (, ) and applies discount.
+    - System verifies code limit (`usage_limit`) and applies discount.
 5.  **Confirmation**:
     - User confirms booking.
-    - System creates multiple booking records in  table.
-    -  is set to .
+    - System creates multiple booking records in `bookings` table.
+    - `source` is set to `line`.
     - Promo code usage is incremented atomically.
 
 ### Key Data Structures
 
-####  Table
+#### `manual_promo_codes` Table
 Used for VIP-specific discounts.
 ```sql
 CREATE TABLE manual_promo_codes (
@@ -529,16 +530,30 @@ CREATE TABLE manual_promo_codes (
 );
 ```
 
-####  Table Updates
-Added  column to distinguish VIPs.
-```sql
-ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'user'; -- 'user', 'vip', 'admin'
-```
-
-### Logic Implementation ()
-- **Dynamic Pricing**: Calculates price per slot using , ensuring accuracy for different fields (e.g., Field 3 vs Field 1).
-- **Atomic Updates**: Uses strict read-modify-write pattern (with retries) for incrementing .
+### Logic Implementation (`regular-booking` flow)
+- **Dynamic Pricing**: Calculates price per slot using `calculatePrice`, ensuring accuracy for different fields (e.g., Field 3 vs Field 1).
+- **Atomic Updates**: Uses strict read-modify-write pattern (with retries) for incrementing `usage_count`.
 - **Silent Failure**: Invalid promo codes do not block the flow but show an error message, maintaining the "secret" feel.
+
+---
+
+### 14. Tag-Based Segmentation & Broadcasting (2026-02)
+
+### Overview
+The system has fully migrated from a hardcoded `role` column to a flexible `tags` array. This allows for arbitrary user groups (e.g., `vip`, `blacklisted`, `staff`, `tournament-group-a`).
+
+### 14.1 Broadcast Workflow
+1.  **Admin UI**: Admin selects a campaign and clicks "Broadcast".
+2.  **Targeting**: Admin can choose "All Customers" or select specific tags to target.
+3.  **Function (`broadcast-campaign`)**:
+    - Fetches the campaign Flex Message.
+    - Filters `profiles` using the `tags` array (via SQL `contains` or `@>`).
+    - Sends multicast messages to batches of up to 500 users at a time.
+
+### 14.2 VIP Logic
+VIP status is now defined as the presence of the `'vip'` string within the `tags` array. This is used by the LINE Bot to gate access to "Regular Booking" features.
+
+---
 
 
 ---
