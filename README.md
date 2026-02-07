@@ -113,6 +113,7 @@ npm run dev
 ## 📖 เอกสารเพิ่มเติม
 
 - **[System Architecture](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/system_architecture.md)** - สถาปัตยกรรมระบบแบบละเอียด
+- **[Wallet & LIFF Guide](docs/WALLET_SYSTEM_AND_LIFF.md)** - คู่มือการติดตั้งและใช้งานระบบ Wallet/LIFF ฉบับสมบูรณ์
 - **[Implementation Plan](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/implementation_plan.md)** - แผนการพัฒนาฟีเจอร์โค้ดโปรโมชั่น
 - **[Walkthrough](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/walkthrough.md)** - สรุปการแก้ไขและทดสอบ
 
