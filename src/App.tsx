@@ -166,6 +166,16 @@ function StatusPage() {
     }
   };
 
+  // [Fix] Early Return if Redirecting (Prevents Flash)
+  if (window.location.pathname.length > 1 && window.location.pathname !== '/') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+        <div className="loader"></div> {/* Assuming CSS loader exists, or just text */}
+        <p style={{ marginTop: '20px', color: '#666' }}>Redirecting to {window.location.pathname}...</p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa', color: '#333' }}>
       <h1>Booking System</h1>
