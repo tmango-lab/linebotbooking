@@ -1095,29 +1095,52 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
         const dateStr = formatBookingDate(booking.date);
         const fieldLabel = fieldMap[booking.field_no] || `สนามฟุตบอล ${booking.field_no || ''}`;
 
+        // Status Colors & Labels
+        const isPaid = booking.payment_status === 'paid' || !!booking.paid_at;
+        const statusLabel = isPaid ? "ชำระเงินแล้ว" : "รอชำระเงิน/หน้าสนาม";
+        const statusColor = isPaid ? "#06C755" : "#FF9800";
+
         return {
             type: "bubble",
-            hero: {
-                type: "image",
-                url: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=1000&auto=format&fit=crop",
-                size: "full",
-                aspectRatio: "20:13",
-                aspectMode: "cover"
-            },
-            body: {
+            size: "mega",
+            header: {
                 type: "box",
                 layout: "vertical",
                 contents: [
                     {
                         type: "text",
+                        text: statusLabel,
+                        color: "#ffffff",
+                        size: "xs",
+                        weight: "bold"
+                    }
+                ],
+                backgroundColor: statusColor,
+                paddingAll: "sm",
+                paddingStart: "xl"
+            },
+            hero: {
+                type: "image",
+                url: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=1000&auto=format&fit=crop",
+                size: "full",
+                aspectRatio: "20:10",
+                aspectMode: "cover"
+            },
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                contents: [
+                    {
+                        type: "text",
                         text: fieldLabel,
                         weight: "bold",
-                        size: "xl"
+                        size: "xl",
+                        color: "#111111"
                     },
                     {
                         type: "box",
                         layout: "vertical",
-                        margin: "md",
                         spacing: "sm",
                         contents: [
                             {
@@ -1125,8 +1148,8 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                                 layout: "baseline",
                                 spacing: "sm",
                                 contents: [
-                                    { type: "text", text: "วันที่", color: "#aaaaaa", size: "sm", flex: 1 },
-                                    { type: "text", text: dateStr, wrap: true, color: "#666666", size: "sm", flex: 4 }
+                                    { type: "text", text: "📅", flex: 1, size: "sm" },
+                                    { type: "text", text: dateStr, flex: 9, size: "sm", color: "#666666", weight: "bold" }
                                 ]
                             },
                             {
@@ -1134,8 +1157,25 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                                 layout: "baseline",
                                 spacing: "sm",
                                 contents: [
-                                    { type: "text", text: "เวลา", color: "#aaaaaa", size: "sm", flex: 1 },
-                                    { type: "text", text: `${timeFrom} - ${timeTo} น.`, wrap: true, color: "#666666", size: "sm", flex: 4 }
+                                    { type: "text", text: "⏰", flex: 1, size: "sm" },
+                                    { type: "text", text: `${timeFrom} - ${timeTo} น.`, flex: 9, size: "sm", color: "#666666", weight: "bold" }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#F8F9FA",
+                        paddingAll: "md",
+                        cornerRadius: "md",
+                        contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                contents: [
+                                    { type: "text", text: "ราคาประมาน", size: "xs", color: "#aaaaaa", flex: 1 },
+                                    { type: "text", text: `฿${(booking.price_total_thb || 0).toLocaleString()}`, size: "sm", weight: "bold", color: "#111111", align: "end", flex: 1 }
                                 ]
                             }
                         ]
@@ -1153,9 +1193,11 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         color: "#06C755",
                         action: {
                             type: "postback",
-                            label: "ยืนยัน",
-                            data: `action=confirmBookingStatus&booking_id=${booking.booking_id}`
-                        }
+                            label: "✅ ยืนยันเข้าสนาม",
+                            data: `action=confirmBookingStatus&booking_id=${booking.booking_id}`,
+                            displayText: "ยืนยันการจอง"
+                        },
+                        height: "sm"
                     },
                     {
                         type: "button",
@@ -1163,11 +1205,17 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         height: "sm",
                         action: {
                             type: "postback",
-                            label: "ขอยกเลิก",
-                            data: `action=requestCancelBooking&booking_id=${booking.booking_id}`
+                            label: "🚫 ขอยกเลิก",
+                            data: `action=requestCancelBooking&booking_id=${booking.booking_id}`,
+                            displayText: "ขอยกเลิกรายการนี้"
                         }
                     }
                 ]
+            },
+            styles: {
+                footer: {
+                    separator: true
+                }
             }
         };
     });
@@ -1176,6 +1224,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
     if (totalCount > offset + bookings.length) {
         bubbles.push({
             type: "bubble",
+            size: "mega",
             body: {
                 type: "box",
                 layout: "vertical",
@@ -1183,11 +1232,23 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                 contents: [
                     {
                         type: "text",
-                        text: "มีรายการจองเพิ่มเติม",
+                        text: "🔍",
+                        size: "4xl",
+                        align: "center"
+                    },
+                    {
+                        type: "text",
+                        text: "ยังมีรายการที่เหลืออีกนะ",
                         weight: "bold",
                         size: "lg",
-                        align: "center",
-                        margin: "xxl"
+                        align: "center"
+                    },
+                    {
+                        type: "text",
+                        text: `แสดงอยู่ ${offset + 1} - ${offset + bookings.length} จากทั้งหมด ${totalCount}`,
+                        size: "xs",
+                        color: "#aaaaaa",
+                        align: "center"
                     },
                     {
                         type: "button",
@@ -1195,21 +1256,22 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                         color: "#06C755",
                         action: {
                             type: "postback",
-                            label: "ถัดไป",
+                            label: "ดูรายการถัดไป",
                             data: `action=viewBookings&offset=${offset + 9}`
                         },
-                        margin: "md"
+                        margin: "lg",
+                        height: "sm"
                     }
                 ],
                 justifyContent: "center",
-                height: "250px"
+                paddingAll: "xxl"
             }
         });
     }
 
     return {
         type: "flex",
-        altText: "รายการจองของท่าน",
+        altText: "📅 รายการจองสนามของคุณ",
         contents: {
             type: "carousel",
             contents: bubbles
