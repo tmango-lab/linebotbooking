@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
+import { getLiffUser } from '../../lib/liff';
 import { Loader2, Ticket, Gift, Lock, Send } from 'lucide-react';
 import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
 
@@ -31,7 +32,6 @@ export default function WalletPage() {
     const collectingRef = useRef(false);
     const [sendingFlex, setSendingFlex] = useState(false);
 
-    import { getLiffUser } from '../../lib/liff'; // [NEW] Import LIFF Helper
 
     // ... (existing imports)
 
