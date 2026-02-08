@@ -12,7 +12,7 @@ export interface LiffUser {
     error?: string;
 }
 
-export const getLiffUser = async (): Promise<LiffUser> => {
+export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Promise<LiffUser> => {
     console.log("Initializing LIFF with ID:", LIFF_ID);
 
     try {
@@ -27,9 +27,10 @@ export const getLiffUser = async (): Promise<LiffUser> => {
         await liff.init({ liffId: LIFF_ID });
 
         if (!liff.isLoggedIn()) {
-            console.log("Not logged in, checking URL for fallback userId...");
+            console.log("Not logged in.");
+
+            // Check URL fallback first regardless of login requirement
             const params = new URLSearchParams(window.location.search);
-            // Check hash params too
             if (window.location.hash.includes('?')) {
                 const hashQuery = window.location.hash.split('?')[1];
                 const hashParams = new URLSearchParams(hashQuery);
@@ -42,9 +43,15 @@ export const getLiffUser = async (): Promise<LiffUser> => {
                 return { userId: urlUserId };
             }
 
-            console.log("No userId in URL, calling login()...");
-            liff.login();
-            return { userId: null }; // Redirecting...
+            // Only force login if explicitly requested
+            if (options.requireLogin) {
+                console.log("Login required. Calling login()...");
+                liff.login();
+                return { userId: null }; // Redirecting...
+            } else {
+                console.log("Login not required. Returning null user.");
+                return { userId: null };
+            }
         }
 
         const profile = await liff.getProfile();

@@ -86,7 +86,7 @@ export const useBookingLogic = () => {
     useEffect(() => {
         const init = async () => {
             setErrorMsg(null);
-            const liffUser = await getLiffUser();
+            const liffUser = await getLiffUser({ requireLogin: true }); // [MOD] Enforce login for booking
             const currentUserId = liffUser.userId || userId;
 
             if (!currentUserId) {

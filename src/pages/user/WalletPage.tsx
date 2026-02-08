@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
+import { getLiffUser } from '../../lib/liff'; // [Move] Import direct LIFF accessor
 import { Loader2, Ticket, Gift, Lock } from 'lucide-react';
 
 interface Coupon {
@@ -55,6 +56,13 @@ export default function WalletPage() {
                 uid = liffUser.userId;
             }
 
+            // [NEW] If still no UID, force login
+            if (!uid) {
+                console.log("Wallet: No User ID found, enforcing LIFF login...");
+                const user = await getLiffUser({ requireLogin: true });
+                if (user.userId) uid = user.userId;
+            }
+
             if (uid) {
                 setUserId(uid);
                 fetchWallet(uid);
@@ -64,7 +72,7 @@ export default function WalletPage() {
                     doAutoCollect(uid, cid, code);
                 }
             } else {
-                console.warn("Could not identify user via URL or LIFF Provider.");
+                console.warn("Could not identify user even after login attempt.");
             }
         };
 

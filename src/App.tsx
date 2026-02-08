@@ -116,8 +116,11 @@ function App() {
     <LiffProvider>
       <HashRouter>
         <Routes>
-          {/* Public Status Page */}
-          <Route path="/" element={<StatusPage />} />
+          {/* Redirect Root to Admin */}
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+
+          {/* Status Page for Debugging */}
+          <Route path="/status" element={<StatusPage />} />
 
           {/* User Routes (V2) */}
           <Route path="/wallet" element={<WalletPage />} />
