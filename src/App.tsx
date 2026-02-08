@@ -111,13 +111,28 @@ function StatusPage() {
   );
 }
 
+// [NEW] Smart Redirect Component
+function RootRedirect() {
+  // Check standard URL params (before hash) which LIFF often passes
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect');
+  const userId = params.get('userId');
+
+  if (redirect === 'wallet') {
+    const target = userId ? `/wallet?userId=${userId}` : '/wallet';
+    return <Navigate to={target} replace />;
+  }
+
+  return <Navigate to="/admin" replace />;
+}
+
 function App() {
   return (
     <LiffProvider>
       <HashRouter>
         <Routes>
-          {/* Redirect Root to Admin */}
-          <Route path="/" element={<Navigate to="/admin" replace />} />
+          {/* Smart Redirect for Root */}
+          <Route path="/" element={<RootRedirect />} />
 
           {/* Status Page for Debugging */}
           <Route path="/status" element={<StatusPage />} />

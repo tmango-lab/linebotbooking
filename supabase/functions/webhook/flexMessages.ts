@@ -681,7 +681,8 @@ export function buildSearchAllSlotsCarousel(
 // 7. Coupon Flex Message (Pa-Kao)
 export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string, userId?: string) {
     const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
-    const cleanPath = `/?userId=${encodeURIComponent(userId || '')}`;
+    // [MOD] Add redirect param to target wallet page explicitly
+    const cleanPath = `/?redirect=wallet&userId=${encodeURIComponent(userId || '')}`;
     const collectPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}&userId=${encodeURIComponent(userId || '')}`;
 
     const walletUrl = `https://liff.line.me/${LIFF_ID}${cleanPath}`;
