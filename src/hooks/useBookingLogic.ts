@@ -97,17 +97,48 @@ export const useBookingLogic = () => {
             setUserId(currentUserId);
 
             try {
-                // 1. Fetch Fields
-                const { data: fieldsData, error: fieldsError } = await supabase
+                // [OPTIMIZED] Fetch all data in parallel
+                const fieldsPromise = supabase
                     .from('fields')
                     .select('*')
                     .eq('active', true)
                     .order('id');
 
+                const bookingsPromise = fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                    },
+                    body: JSON.stringify({ date: selectedDate })
+                }).then(res => res.json());
+
+                // Start fetching coupons if user exists
+                let couponsPromise = Promise.resolve({ success: false, main: [], on_top: [], profile: null }) as Promise<any>;
+                if (currentUserId) {
+                    couponsPromise = fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                        },
+                        body: JSON.stringify({ userId: currentUserId })
+                    }).then(res => res.json());
+                }
+
+                // Wait for all
+                const [fieldsResult, bookingData, couponData] = await Promise.all([
+                    fieldsPromise,
+                    bookingsPromise,
+                    couponsPromise
+                ]);
+
+                // 1. Process Fields
+                const { data: fieldsData, error: fieldsError } = fieldsResult;
                 if (fieldsError) throw fieldsError;
 
                 if (!fieldsData || fieldsData.length === 0) {
-                    setErrorMsg("No active fields found in database.");
+                    setErrorMsg("No active fields found.");
                 } else {
                     setFields(fieldsData.map(f => ({
                         id: f.id,
@@ -118,79 +149,55 @@ export const useBookingLogic = () => {
                     })));
                 }
 
-                // 2. Fetch Existing Bookings
-                const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                    },
-                    body: JSON.stringify({ date: selectedDate })
-                });
-                const bookingData = await res.json();
-
+                // 2. Process Bookings
                 const reverseMap: Record<number, number> = {
                     2424: 1, 2425: 2, 2428: 3, 2426: 4, 2427: 5, 2429: 6
                 };
-
                 const normalizedBookings = (bookingData.bookings || []).map((b: any) => ({
                     ...b,
                     court_id: reverseMap[b.court_id] || b.court_id
                 }));
                 setExistingBookings(normalizedBookings);
 
-                // 3. Fetch Coupons & Profile
-                if (currentUserId) {
-                    const couponRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                        },
-                        body: JSON.stringify({ userId: currentUserId })
-                    });
-                    const couponData = await couponRes.json();
-
-                    if (couponData.success) {
-                        const allUserCoupons = [...(couponData.main || []), ...(couponData.on_top || [])];
-                        const fetchedCoupons = allUserCoupons.map((c: any) => {
-                            const bType = c.benefit?.type?.toUpperCase();
-                            const bValue = c.benefit?.value;
-                            let discountVal = 0;
-                            if (bValue) {
-                                if (typeof bValue === 'number') discountVal = bValue;
-                                else discountVal = bValue.amount || bValue.percent || 0;
-                            }
-                            return {
-                                id: c.coupon_id,
-                                campaign_id: c.campaign_id,
-                                name: c.name,
-                                discount_type: (bType === 'PERCENT' ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
-                                discount_value: Number(discountVal),
-                                min_spend: Number(c.conditions?.min_spend) || 0,
-                                eligible_fields: c.conditions?.fields || null,
-                                eligible_payments: c.conditions?.payment || null
-                            };
-                        });
-                        setCoupons(fetchedCoupons);
-
-                        // Auto-select coupon from URL
-                        const urlCouponId = searchParams.get('couponId');
-                        if (urlCouponId) {
-                            const target = fetchedCoupons.find(c => c.id === urlCouponId);
-                            if (target) {
-                                setManualCoupon(target);
-                            }
+                // 3. Process Coupons
+                if (couponData.success) {
+                    const allUserCoupons = [...(couponData.main || []), ...(couponData.on_top || [])];
+                    const fetchedCoupons = allUserCoupons.map((c: any) => {
+                        const bType = c.benefit?.type?.toUpperCase();
+                        const bValue = c.benefit?.value;
+                        let discountVal = 0;
+                        if (bValue) {
+                            if (typeof bValue === 'number') discountVal = bValue;
+                            else discountVal = bValue.amount || bValue.percent || 0;
                         }
-                    }
+                        return {
+                            id: c.coupon_id,
+                            campaign_id: c.campaign_id,
+                            name: c.name,
+                            discount_type: (bType === 'PERCENT' ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
+                            discount_value: Number(discountVal),
+                            min_spend: Number(c.conditions?.min_spend) || 0,
+                            eligible_fields: c.conditions?.fields || null,
+                            eligible_payments: c.conditions?.payment || null
+                        };
+                    });
+                    setCoupons(fetchedCoupons);
 
-                    if (couponData.profile) {
-                        setUserProfile(couponData.profile);
+                    // Auto-select coupon from URL
+                    const urlCouponId = searchParams.get('couponId');
+                    if (urlCouponId) {
+                        const target = fetchedCoupons.find(c => c.id === urlCouponId);
+                        if (target) setManualCoupon(target);
                     }
                 }
+
+                if (couponData.profile) {
+                    setUserProfile(couponData.profile);
+                }
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
-                setErrorMsg("Unexpected system error: " + err.message);
+                setErrorMsg("System error: " + err.message);
             }
             setIsReady(true);
         };
