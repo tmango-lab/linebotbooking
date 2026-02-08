@@ -1,36 +1,46 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { supabase } from './lib/api';
 import './App.css';
-import { LiffProvider, useLiff } from './providers/LiffProvider'; // [NEW]
+import { LiffProvider, useLiff } from './providers/LiffProvider';
 
-// Admin Imports
-import AdminLayout from './layouts/AdminLayout';
-import LoginPage from './pages/admin/LoginPage';
-import DashboardPage from './pages/admin/DashboardPage';
-import CustomerPage from './pages/admin/CustomerPage';
-import ReportPage from './pages/admin/ReportPage';
-import PromoCodePage from './pages/admin/PromoCodePage';
-import CampaignPage from './pages/admin/CampaignPage'; // New V2
-import RefundPage from './pages/admin/RefundPage'; // New Refund UI
-import WalletPage from './pages/user/WalletPage';
-import BookingV2Page from './pages/liff/BookingV2Page'; // Import V2 Page
-import BookingV3Page from './pages/liff/BookingV3Page'; // Import V3 Page
-import BookingSuccessPage from './pages/liff/BookingSuccessPage';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+// Lazy Load Components for better performance
+const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
+const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
+const CustomerPage = lazy(() => import('./pages/admin/CustomerPage'));
+const ReportPage = lazy(() => import('./pages/admin/ReportPage'));
+const PromoCodePage = lazy(() => import('./pages/admin/PromoCodePage'));
+const CampaignPage = lazy(() => import('./pages/admin/CampaignPage'));
+const RefundPage = lazy(() => import('./pages/admin/RefundPage'));
+
+const WalletPage = lazy(() => import('./pages/user/WalletPage'));
+const BookingV2Page = lazy(() => import('./pages/liff/BookingV2Page'));
+const BookingV3Page = lazy(() => import('./pages/liff/BookingV3Page'));
+const BookingSuccessPage = lazy(() => import('./pages/liff/BookingSuccessPage'));
+
+// Branded Loader
+const PageLoader = ({ text = "Loading..." }) => (
+  <div className="h-screen flex items-center justify-center flex-col bg-gray-50">
+    <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin shadow-lg"></div>
+    <div className="mt-6 text-center">
+      <h3 className="text-lg font-bold text-gray-800">Booking System</h3>
+      <p className="text-sm text-gray-500 mt-1">{text}</p>
+    </div>
+  </div>
+);
 
 // Simple status page (Legacy/Root)
 function StatusPage() {
   const [status, setStatus] = useState<string>('Initializing...');
   const [connectionCheck, setConnectionCheck] = useState<string>('Checking data...');
   const [secretInput, setSecretInput] = useState('');
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
 
-  // [NEW] Use Provider
+  // Use Provider
   const { isReady, liffUser, error } = useLiff();
 
   useEffect(() => {
-
     if (supabase) {
       setStatus('Supabase Client Instantiated ✅');
     }
@@ -40,7 +50,7 @@ function StatusPage() {
         const { count: bookingsCount, error: bookingError } = await supabase.from('bookings').select('*', { count: 'exact', head: true });
 
         if (bookingError) {
-          // [Fix] Ignore 401 Unauthorized (likely anonymous user/wallet user)
+          // Ignore 401 Unauthorized (likely anonymous user/wallet user)
           if (bookingError.code === '401' || bookingError.message.includes('401')) {
             setConnectionCheck('Connected (Anonymous Access) 🟢');
             setStatus('Ready (Public Mode) ✅');
@@ -67,7 +77,7 @@ function StatusPage() {
   };
 
 
-  // [NEW] Global Loading State for LIFF
+  // Global Loading State for LIFF
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
@@ -76,9 +86,6 @@ function StatusPage() {
       </div>
     );
   }
-
-  // If LIFF Initialized and User Found, we might want to auto-redirect from root?
-  // For now, keep Status Page as landing for debugging or root access.
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa', color: '#333' }}>
@@ -111,38 +118,27 @@ function StatusPage() {
   );
 }
 
-// [NEW] Smart Redirect Component
+// Smart Redirect Component
 function RootRedirect() {
-  // Check standard URL params (before hash) which LIFF often passes
   const params = new URLSearchParams(window.location.search);
   const redirect = params.get('redirect');
   const userId = params.get('userId');
 
-  // [NEW] Check for LIFF Login Callback Params to prevent Admin Redirect during auth flow
-  const liffState = params.get('liff.state'); // Standard LIFF param
-  const code = params.get('code');             // OAuth code
-  const state = params.get('state');           // OAuth state
+  const liffState = params.get('liff.state');
+  const code = params.get('code');
+  const state = params.get('state');
 
   if (liffState || code || state) {
-    // We are in the middle of a LIFF OAuth callback.
-    // Do NOT redirect to Admin. Just render a placeholder and let LIFF SDK take over.
-    return (
-      <div className="h-screen flex items-center justify-center flex-col bg-gray-50">
-        <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-500 font-medium">Processing secure login...</p>
-      </div>
-    );
+    return <PageLoader text="Verifying Secure Login..." />;
   }
 
   if (redirect === 'wallet') {
     const target = userId ? `/wallet?userId=${userId}` : '/wallet';
     return <Navigate to={target} replace />;
   }
-
   if (redirect === 'booking-v2') {
     return <Navigate to="/booking-v2" replace />;
   }
-
   if (redirect === 'booking-v3') {
     return <Navigate to="/booking-v3" replace />;
   }
@@ -154,35 +150,37 @@ function App() {
   return (
     <LiffProvider>
       <HashRouter>
-        <Routes>
-          {/* Smart Redirect for Root */}
-          <Route path="/" element={<RootRedirect />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Smart Redirect for Root */}
+            <Route path="/" element={<RootRedirect />} />
 
-          {/* Status Page for Debugging */}
-          <Route path="/status" element={<StatusPage />} />
+            {/* Status Page for Debugging */}
+            <Route path="/status" element={<StatusPage />} />
 
-          {/* User Routes (V2) */}
-          <Route path="/wallet" element={<WalletPage />} />
-          <Route path="/booking-v2" element={<BookingV2Page />} />
-          <Route path="/booking-v3" element={<BookingV3Page />} />
-          <Route path="/booking-success" element={<BookingSuccessPage />} />
+            {/* User Routes (V2) */}
+            <Route path="/wallet" element={<WalletPage />} />
+            <Route path="/booking-v2" element={<BookingV2Page />} />
+            <Route path="/booking-v3" element={<BookingV3Page />} />
+            <Route path="/booking-success" element={<BookingSuccessPage />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<LoginPage />} />
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<LoginPage />} />
 
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="customers" element={<CustomerPage />} />
-            <Route path="campaigns" element={<CampaignPage />} /> {/* New V2 */}
-            <Route path="reports" element={<ReportPage />} />
-            <Route path="promo-codes" element={<PromoCodePage />} />
-            <Route path="refunds" element={<RefundPage />} />
-          </Route>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="customers" element={<CustomerPage />} />
+              <Route path="campaigns" element={<CampaignPage />} />
+              <Route path="reports" element={<ReportPage />} />
+              <Route path="promo-codes" element={<PromoCodePage />} />
+              <Route path="refunds" element={<RefundPage />} />
+            </Route>
 
-          {/* Catch All - Redirect to Status Page */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Catch All - Redirect to Status Page */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </HashRouter>
     </LiffProvider>
   );
