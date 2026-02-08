@@ -4,7 +4,13 @@ import { supabase } from './lib/api';
 import './App.css';
 import { LiffProvider, useLiff } from './providers/LiffProvider';
 
-// Lazy Load Components for better performance
+// [OPTIMIZED] Static Imports for Customer Pages (Faster)
+import WalletPage from './pages/user/WalletPage';
+import BookingV2Page from './pages/liff/BookingV2Page';
+import BookingV3Page from './pages/liff/BookingV3Page';
+import BookingSuccessPage from './pages/liff/BookingSuccessPage';
+
+// Lazy Load Admin Components ONLY (To keep client bundle small)
 const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -14,15 +20,10 @@ const PromoCodePage = lazy(() => import('./pages/admin/PromoCodePage'));
 const CampaignPage = lazy(() => import('./pages/admin/CampaignPage'));
 const RefundPage = lazy(() => import('./pages/admin/RefundPage'));
 
-const WalletPage = lazy(() => import('./pages/user/WalletPage'));
-const BookingV2Page = lazy(() => import('./pages/liff/BookingV2Page'));
-const BookingV3Page = lazy(() => import('./pages/liff/BookingV3Page'));
-const BookingSuccessPage = lazy(() => import('./pages/liff/BookingSuccessPage'));
-
 // Branded Loader
 const PageLoader = ({ text = "Loading..." }) => (
   <div className="h-screen flex items-center justify-center flex-col bg-gray-50">
-    <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin shadow-lg"></div>
+    <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
     <div className="mt-6 text-center">
       <h3 className="text-lg font-bold text-gray-800">Booking System</h3>
       <p className="text-sm text-gray-500 mt-1">{text}</p>
