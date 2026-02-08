@@ -128,10 +128,14 @@ function RootRedirect() {
   const code = params.get('code');
   const state = params.get('state');
 
+  // [NEW] Check App Mode from Environment
+  const appMode = import.meta.env.VITE_APP_MODE; // 'admin', 'booking', 'wallet'
+
   if (liffState || code || state) {
     return <PageLoader text="Verifying Secure Login..." />;
   }
 
+  // 1. Priority: Explicit Redirect Param (Deep Links)
   if (redirect === 'wallet') {
     const target = userId ? `/wallet?userId=${userId}` : '/wallet';
     return <Navigate to={target} replace />;
@@ -143,6 +147,16 @@ function RootRedirect() {
     return <Navigate to="/booking-v3" replace />;
   }
 
+  // 2. Secondary Priority: App Mode Default
+  if (appMode === 'booking') {
+    return <Navigate to="/booking-v2" replace />;
+  }
+  if (appMode === 'wallet') {
+    const target = userId ? `/wallet?userId=${userId}` : '/wallet';
+    return <Navigate to={target} replace />;
+  }
+
+  // 3. Default: Admin Dashboard
   return <Navigate to="/admin" replace />;
 }
 
