@@ -43,6 +43,18 @@ const BookingV2Page: React.FC = () => {
         );
     }
 
+    // [New] Block access if critical error (e.g. not logged in)
+    if (errorMsg && !fields.length) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+                <div className="text-4xl mb-4">⚠️</div>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Access Restricted</h2>
+                <p className="text-gray-600 mb-6">{errorMsg}</p>
+                <p className="text-sm text-gray-400">Please open this page via LINE App.</p>
+            </div>
+        );
+    }
+
     const selectedField = fields.find(f => f.id === selection?.fieldId);
 
     return (

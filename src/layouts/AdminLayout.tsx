@@ -7,6 +7,7 @@ export default function AdminLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const [loading, setLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false); // [NEW] Strict state
 
     useEffect(() => {
         checkSession();
@@ -16,8 +17,14 @@ export default function AdminLayout() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
             navigate('/admin/login');
+            // Do not setIsLoading(false) here creates a stuck loading if nav fails, 
+            // but effectively we want to stop rendering this component's main content.
+            // We can set loading false, but use isAuthenticated to block.
+            setLoading(false);
+        } else {
+            setIsAuthenticated(true);
+            setLoading(false);
         }
-        setLoading(false);
     }
 
     async function handleLogout() {
@@ -30,6 +37,9 @@ export default function AdminLayout() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
         </div>
     );
+
+    // [Fix] If finished loading but not authenticated, render nothing (or redirect happened)
+    if (!isAuthenticated) return null;
 
     const navigation = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
