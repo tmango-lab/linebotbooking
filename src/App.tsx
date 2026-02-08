@@ -118,9 +118,33 @@ function RootRedirect() {
   const redirect = params.get('redirect');
   const userId = params.get('userId');
 
+  // [NEW] Check for LIFF Login Callback Params to prevent Admin Redirect during auth flow
+  const liffState = params.get('liff.state'); // Standard LIFF param
+  const code = params.get('code');             // OAuth code
+  const state = params.get('state');           // OAuth state
+
+  if (liffState || code || state) {
+    // We are in the middle of a LIFF OAuth callback.
+    // Do NOT redirect to Admin. Just render a placeholder and let LIFF SDK take over.
+    return (
+      <div className="h-screen flex items-center justify-center flex-col bg-gray-50">
+        <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-gray-500 font-medium">Processing secure login...</p>
+      </div>
+    );
+  }
+
   if (redirect === 'wallet') {
     const target = userId ? `/wallet?userId=${userId}` : '/wallet';
     return <Navigate to={target} replace />;
+  }
+
+  if (redirect === 'booking-v2') {
+    return <Navigate to="/booking-v2" replace />;
+  }
+
+  if (redirect === 'booking-v3') {
+    return <Navigate to="/booking-v3" replace />;
   }
 
   return <Navigate to="/admin" replace />;
