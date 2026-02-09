@@ -71,7 +71,8 @@ serve(async (req) => {
                     eligible_fields,
                     payment_methods,
                     allowed_time_range,
-                    eligible_days
+                    eligible_days,
+                    is_stackable
                 )
             `)
             .eq('user_id', userId)
@@ -131,7 +132,8 @@ serve(async (req) => {
                     time: campaign.allowed_time_range,
                     days: campaign.eligible_days || campaign.days_of_week,
                     min_spend: campaign.min_spend || 0
-                }
+                },
+                is_stackable: campaign.is_stackable || false
             };
 
             // Case-insensitive comparison

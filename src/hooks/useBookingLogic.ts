@@ -167,7 +167,6 @@ export const useBookingLogic = () => {
                 if (couponData.success) {
                     const allUserCoupons = [...(couponData.main || []), ...(couponData.on_top || [])];
                     const fetchedCoupons = allUserCoupons.map((c: any) => {
-                        const bType = c.benefit?.type?.toUpperCase();
                         const bValue = c.benefit?.value;
                         let discountVal = 0;
                         if (bValue) {
@@ -178,7 +177,7 @@ export const useBookingLogic = () => {
                             id: c.coupon_id,
                             campaign_id: c.campaign_id,
                             name: c.name,
-                            discount_type: (bType === 'PERCENT' ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
+                            discount_type: (bValue?.percent ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
                             discount_value: Number(discountVal),
                             min_spend: Number(c.conditions?.min_spend) || 0,
                             eligible_fields: c.conditions?.fields || null,
