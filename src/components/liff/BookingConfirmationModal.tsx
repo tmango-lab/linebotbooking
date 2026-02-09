@@ -13,8 +13,8 @@ interface BookingConfirmationModalProps {
         discount: number;
         finalPrice: number;
         couponName?: string;
-        appliedCoupon?: any; // Added appliedCoupon to access payment_methods
     };
+    allowedPaymentMethods: string[] | null; // [new]
     initialProfile: {
         team_name: string;
         phone_number: string;
@@ -26,7 +26,8 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     onClose,
     onConfirm,
     bookingDetails,
-    initialProfile
+    initialProfile,
+    allowedPaymentMethods
 }) => {
     const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,10 +47,10 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     if (!isOpen) return null;
 
     // Filter payment methods based on coupon
-    const allowedMethods = (bookingDetails.appliedCoupon?.eligible_payments || []).map((m: string) => m.toLowerCase());
+    const allowedMethods = (allowedPaymentMethods || []).map((m: string) => m.toLowerCase());
 
     // Check if empty (allow all) or contains QR variations
-    const showQR = allowedMethods.length === 0 ||
+    const showQR = !allowedPaymentMethods || allowedMethods.length === 0 ||
         allowedMethods.some((m: string) =>
             m.includes('qr') ||
             m.includes('promt') ||
@@ -57,7 +58,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
         );
 
     // Check if empty (allow all) or contains Cash variations
-    const showField = allowedMethods.length === 0 ||
+    const showField = !allowedPaymentMethods || allowedMethods.length === 0 ||
         allowedMethods.some((m: string) =>
             m.includes('field') ||
             m.includes('เงินสด') ||

@@ -36,7 +36,8 @@ const BookingV3Page: React.FC = () => {
         appliedMainCoupon,
         appliedOntopCoupon,
         setManualMainCoupon,
-        setManualOntopCoupon
+        setManualOntopCoupon,
+        allowedPaymentMethods // [NEW] From hook
     } = useBookingLogic();
 
     if (!isReady) {
@@ -146,9 +147,9 @@ const BookingV3Page: React.FC = () => {
                     originalPrice,
                     discount,
                     finalPrice,
-                    couponName: appliedCoupon?.name,
-                    appliedCoupon: appliedCoupon
+                    couponName: appliedCoupon?.name
                 }}
+                allowedPaymentMethods={allowedPaymentMethods} // [new]
                 initialProfile={userProfile ? {
                     team_name: userProfile.team_name,
                     phone_number: userProfile.phone_number

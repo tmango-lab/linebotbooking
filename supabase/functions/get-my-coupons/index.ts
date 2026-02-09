@@ -70,7 +70,8 @@ serve(async (req) => {
                     image_url,
                     eligible_fields,
                     payment_methods,
-                    allowed_time_range,
+                    valid_time_start,
+                    valid_time_end,
                     eligible_days,
                     is_stackable
                 )
@@ -129,8 +130,11 @@ serve(async (req) => {
                 conditions: {
                     fields: campaign.eligible_fields,
                     payment: campaign.payment_methods,
-                    time: campaign.allowed_time_range,
-                    days: campaign.eligible_days || campaign.days_of_week,
+                    time: {
+                        start: campaign.valid_time_start,
+                        end: campaign.valid_time_end
+                    },
+                    days: campaign.eligible_days,
                     min_spend: campaign.min_spend || 0
                 },
                 is_stackable: campaign.is_stackable || false

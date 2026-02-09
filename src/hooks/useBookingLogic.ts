@@ -19,8 +19,12 @@ export interface Coupon {
     discount_value: number;
     min_spend: number;
     eligible_fields: number[] | null;
+    eligible_days: string[] | null;
+    valid_time_start: string | null;
+    valid_time_end: string | null;
     eligible_payments: string[] | null;
-    category: 'MAIN' | 'ONTOP'; // New field
+    category: 'MAIN' | 'ONTOP';
+    expiry: string; // [NEW] For Date Check
 }
 
 export interface UserProfile {
@@ -181,8 +185,12 @@ export const useBookingLogic = () => {
                             discount_value: Number(discountVal),
                             min_spend: Number(c.conditions?.min_spend) || 0,
                             eligible_fields: c.conditions?.fields || null,
+                            eligible_days: c.conditions?.days || null,
+                            valid_time_start: c.conditions?.time?.start || null,
+                            valid_time_end: c.conditions?.time?.end || null,
                             eligible_payments: c.conditions?.payment || null,
-                            category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP" // Explicit cast
+                            category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP",
+                            expiry: c.expiry // [NEW]
                         };
                     });
                     setCoupons(fetchedCoupons);
@@ -253,10 +261,47 @@ export const useBookingLogic = () => {
     const appliedMain = manualMainCoupon;
     const appliedOntop = manualOntopCoupon;
 
+    // Helper: Centralized Validation Logic
+    const validateCoupon = (coupon: Coupon | null) => {
+        if (!coupon) return false;
+
+        // 1. Min Spend
+        if (coupon.min_spend && originalPrice < coupon.min_spend) return false;
+
+        // 2. Eligible Fields
+        if (coupon.eligible_fields && coupon.eligible_fields.length > 0) {
+            if (!selection || !coupon.eligible_fields.includes(selection.fieldId)) return false;
+        }
+
+        // 3. Eligible Days
+        if (coupon.eligible_days && coupon.eligible_days.length > 0) {
+            const d = new Date(selectedDate);
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const currentDay = dayNames[d.getDay()];
+            if (!coupon.eligible_days.includes(currentDay)) return false;
+        }
+
+        // 4. Valid Time Range
+        if (selection) {
+            if (coupon.valid_time_start && selection.startTime < coupon.valid_time_start) return false;
+            if (coupon.valid_time_end && selection.startTime > coupon.valid_time_end) return false;
+        }
+
+        // 5. Expiry Date (Booking Date vs Coupon Expiry)
+        if (coupon.expiry) {
+            // Compare YYYY-MM-DD
+            const bookingDate = new Date(selectedDate);
+            const expiryDate = new Date(coupon.expiry);
+            bookingDate.setHours(0, 0, 0, 0);
+            expiryDate.setHours(0, 0, 0, 0);
+            if (bookingDate > expiryDate) return false;
+        }
+
+        return true;
+    };
+
     // Validate Main
-    const isMainValid = appliedMain &&
-        (!appliedMain.min_spend || originalPrice >= appliedMain.min_spend) &&
-        (!appliedMain.eligible_fields || appliedMain.eligible_fields.length === 0 || appliedMain.eligible_fields.includes(selection?.fieldId || 0));
+    const isMainValid = validateCoupon(appliedMain);
 
     // Calculate Price after Main
     let priceAfterMain = originalPrice;
@@ -268,9 +313,7 @@ export const useBookingLogic = () => {
     }
 
     // Validate On-top
-    const isOntopValid = appliedOntop &&
-        (!appliedOntop.min_spend || originalPrice >= appliedOntop.min_spend) && // Check against original price usually? Or price after discount? Let's stick to original for eligibility.
-        (!appliedOntop.eligible_fields || appliedOntop.eligible_fields.length === 0 || appliedOntop.eligible_fields.includes(selection?.fieldId || 0));
+    const isOntopValid = validateCoupon(appliedOntop);
 
     // Calculate On-top Discount (Applied on Price After Main?)
     // Usually On-top is applied on the *remaining* price or the *full* price depending on business logic. 
@@ -283,7 +326,24 @@ export const useBookingLogic = () => {
 
     const totalDiscount = mainDiscount + ontopDiscount;
     const finalPrice = Math.max(0, originalPrice - totalDiscount);
-    const appliedCoupon = appliedMain || appliedOntop; // Fallback for legacy UI that expects one coupon
+    const appliedCoupon = appliedMain || appliedOntop;
+
+    // Calculate Combined Eligible Payments (Intersection)
+    let allowedPaymentMethods: string[] | null = null;
+
+    const combinePayments = (existing: string[] | null, newMethods: string[] | null) => {
+        if (!existing) return newMethods; // First constraint
+        if (!newMethods) return existing; // No new constraint
+        // Intersection
+        return existing.filter(m => newMethods.includes(m));
+    };
+
+    if (appliedMain?.eligible_payments && appliedMain.eligible_payments.length > 0) {
+        allowedPaymentMethods = appliedMain.eligible_payments;
+    }
+    if (appliedOntop?.eligible_payments && appliedOntop.eligible_payments.length > 0) {
+        allowedPaymentMethods = combinePayments(allowedPaymentMethods, appliedOntop.eligible_payments);
+    }
 
     const handleFinalConfirm = async (team: string, phone: string, payment: string) => {
         const forwardMap: Record<number, number> = {
@@ -365,6 +425,7 @@ export const useBookingLogic = () => {
         getThaiDateString,
         getThaiDateShort,
         handleFinalConfirm,
-        userId
+        userId,
+        allowedPaymentMethods // [NEW] Return calculated methods
     };
 };

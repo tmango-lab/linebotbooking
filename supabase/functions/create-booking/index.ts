@@ -104,7 +104,16 @@ serve(async (req) => {
 
             if (couponError || !coupon) throw new Error('Invalid Coupon ID');
             if (coupon.status !== 'ACTIVE') throw new Error('Coupon is not active (Used or Expired)');
-            if (new Date(coupon.expires_at) < new Date()) throw new Error('Coupon has expired');
+
+            // [STRICT] Check Expiry against Booking Date (not just today)
+            const expiryDate = new Date(coupon.expires_at);
+            const bookingDate = new Date(date); // YYYY-MM-DD
+            expiryDate.setHours(23, 59, 59, 999); // Allow until end of expiry day
+            bookingDate.setHours(0, 0, 0, 0);
+
+            if (expiryDate < bookingDate) {
+                throw new Error(`คูปองหมดอายุแล้ว (Expired on ${coupon.expires_at.split('T')[0]}) ไม่สามารถใช้จองวันที่ ${date} ได้`);
+            }
 
             campaign = coupon.campaigns;
         } else if (campaignId) {
