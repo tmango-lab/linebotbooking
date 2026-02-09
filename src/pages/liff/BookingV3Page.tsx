@@ -19,7 +19,7 @@ const BookingV3Page: React.FC = () => {
         setIsCouponSheetOpen,
         isConfirmModalOpen,
         setIsConfirmModalOpen,
-        setManualCoupon,
+
         originalPrice,
         bestCoupon,
         appliedCoupon,
@@ -32,7 +32,11 @@ const BookingV3Page: React.FC = () => {
         setIsDateModalOpen,
         getThaiDateString,
         getThaiDateShort,
-        handleFinalConfirm
+        handleFinalConfirm,
+        appliedMainCoupon,
+        appliedOntopCoupon,
+        setManualMainCoupon,
+        setManualOntopCoupon
     } = useBookingLogic();
 
     if (!isReady) {
@@ -114,10 +118,20 @@ const BookingV3Page: React.FC = () => {
                 selectedCouponId={appliedCoupon?.id || null}
                 bestCouponId={bestCoupon?.id || null}
                 onSelect={(c) => {
-                    if (c?.id === bestCoupon?.id) setManualCoupon(null);
-                    else setManualCoupon(c);
+                    if (c === null) {
+                        setManualMainCoupon(null);
+                        setManualOntopCoupon(null);
+                        return;
+                    }
+                    if (c.category === 'ONTOP') setManualOntopCoupon(c);
+                    else setManualMainCoupon(c);
                 }}
                 originalPrice={originalPrice}
+                // Connect new props
+                appliedMainCoupon={appliedMainCoupon}
+                appliedOntopCoupon={appliedOntopCoupon}
+                onSelectMain={setManualMainCoupon}
+                onSelectOntop={setManualOntopCoupon}
             />
 
             <BookingConfirmationModal

@@ -20,6 +20,7 @@ export interface Coupon {
     min_spend: number;
     eligible_fields: number[] | null;
     eligible_payments: string[] | null;
+    category: 'MAIN' | 'ONTOP'; // New field
 }
 
 export interface UserProfile {
@@ -48,11 +49,14 @@ export const useBookingLogic = () => {
     } | null>(null);
     const [isCouponSheetOpen, setIsCouponSheetOpen] = useState(false);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-    const [manualCoupon, setManualCoupon] = useState<Coupon | null>(null);
+
+    // [MODIFIED] Separate coupons
+    const [manualMainCoupon, setManualMainCoupon] = useState<Coupon | null>(null);
+    const [manualOntopCoupon, setManualOntopCoupon] = useState<Coupon | null>(null);
 
     // Calculated State
     const [originalPrice, setOriginalPrice] = useState(0);
-    const [bestCoupon, setBestCoupon] = useState<Coupon | null>(null);
+    const [bestCoupon] = useState<Coupon | null>(null); // Kept for legacy compatibility if needed, but logic will change
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // Date State
@@ -178,7 +182,8 @@ export const useBookingLogic = () => {
                             discount_value: Number(discountVal),
                             min_spend: Number(c.conditions?.min_spend) || 0,
                             eligible_fields: c.conditions?.fields || null,
-                            eligible_payments: c.conditions?.payment || null
+                            eligible_payments: c.conditions?.payment || null,
+                            category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP" // Explicit cast
                         };
                     });
                     setCoupons(fetchedCoupons);
@@ -187,7 +192,7 @@ export const useBookingLogic = () => {
                     const urlCouponId = searchParams.get('couponId');
                     if (urlCouponId) {
                         const target = fetchedCoupons.find(c => c.id === urlCouponId);
-                        if (target) setManualCoupon(target);
+                        if (target) setManualMainCoupon(target as Coupon);
                     }
                 }
 
@@ -242,42 +247,44 @@ export const useBookingLogic = () => {
 
     }, [selection, fields]);
 
-    // --- 3. Auto-Coupon Logic ---
-    useEffect(() => {
-        if (originalPrice === 0) {
-            setBestCoupon(null);
-            return;
-        }
+    // --- 3. Auto-Coupon Logic (Simplified for now: Just validate manual selection) ---
+    // In a real scenario, we might want to auto-select the best combination.
+    // For now, let's trust manual selection or just pick best Main if none selected.
 
-        let best = null;
-        let maxSavings = 0;
+    const appliedMain = manualMainCoupon;
+    const appliedOntop = manualOntopCoupon;
 
-        for (const c of coupons) {
-            if (c.min_spend && originalPrice < c.min_spend) continue;
-            if (c.eligible_fields && c.eligible_fields.length > 0) {
-                if (!c.eligible_fields.includes(selection?.fieldId || 0)) continue;
-            }
+    // Validate Main
+    const isMainValid = appliedMain &&
+        (!appliedMain.min_spend || originalPrice >= appliedMain.min_spend) &&
+        (!appliedMain.eligible_fields || appliedMain.eligible_fields.length === 0 || appliedMain.eligible_fields.includes(selection?.fieldId || 0));
 
-            let savings = 0;
-            if (c.discount_type === 'FIXED') savings = c.discount_value;
-            else if (c.discount_type === 'PERCENT') savings = (originalPrice * c.discount_value) / 100;
+    // Calculate Price after Main
+    let priceAfterMain = originalPrice;
+    let mainDiscount = 0;
+    if (isMainValid && appliedMain) {
+        if (appliedMain.discount_type === 'FIXED') mainDiscount = appliedMain.discount_value;
+        else mainDiscount = (originalPrice * appliedMain.discount_value) / 100;
+        priceAfterMain = Math.max(0, originalPrice - mainDiscount);
+    }
 
-            if (savings > maxSavings) {
-                maxSavings = savings;
-                best = c;
-            }
-        }
-        setBestCoupon(best);
-    }, [originalPrice, coupons, selection]);
+    // Validate On-top
+    const isOntopValid = appliedOntop &&
+        (!appliedOntop.min_spend || originalPrice >= appliedOntop.min_spend) && // Check against original price usually? Or price after discount? Let's stick to original for eligibility.
+        (!appliedOntop.eligible_fields || appliedOntop.eligible_fields.length === 0 || appliedOntop.eligible_fields.includes(selection?.fieldId || 0));
 
-    const appliedCoupon = manualCoupon || bestCoupon;
+    // Calculate On-top Discount (Applied on Price After Main?)
+    // Usually On-top is applied on the *remaining* price or the *full* price depending on business logic. 
+    // Plan said: "Price after Main Coupon -> Apply On-top Coupon".
+    let ontopDiscount = 0;
+    if (isOntopValid && appliedOntop) {
+        if (appliedOntop.discount_type === 'FIXED') ontopDiscount = appliedOntop.discount_value;
+        else ontopDiscount = (priceAfterMain * appliedOntop.discount_value) / 100;
+    }
 
-    const isCouponValid = appliedCoupon &&
-        (!appliedCoupon.min_spend || originalPrice >= appliedCoupon.min_spend) &&
-        (!appliedCoupon.eligible_fields || appliedCoupon.eligible_fields.length === 0 || appliedCoupon.eligible_fields.includes(selection?.fieldId || 0));
-
-    const discount = isCouponValid ? (appliedCoupon.discount_type === 'FIXED' ? appliedCoupon.discount_value : (originalPrice * appliedCoupon.discount_value) / 100) : 0;
-    const finalPrice = Math.max(0, originalPrice - discount);
+    const totalDiscount = mainDiscount + ontopDiscount;
+    const finalPrice = Math.max(0, originalPrice - totalDiscount);
+    const appliedCoupon = appliedMain || appliedOntop; // Fallback for legacy UI that expects one coupon
 
     const handleFinalConfirm = async (team: string, phone: string, payment: string) => {
         const forwardMap: Record<number, number> = {
@@ -340,12 +347,16 @@ export const useBookingLogic = () => {
         setIsCouponSheetOpen,
         isConfirmModalOpen,
         setIsConfirmModalOpen,
-        manualCoupon,
-        setManualCoupon,
+        manualMainCoupon,
+        setManualMainCoupon,
+        manualOntopCoupon,
+        setManualOntopCoupon,
         originalPrice,
         bestCoupon,
-        appliedCoupon,
-        discount,
+        appliedCoupon, // Legacy
+        appliedMainCoupon: isMainValid ? appliedMain : null,
+        appliedOntopCoupon: isOntopValid ? appliedOntop : null,
+        discount: totalDiscount,
         finalPrice,
         errorMsg,
         selectedDate,
