@@ -1,16 +1,6 @@
 import React from 'react';
 
-interface Coupon {
-    id: string;
-    campaign_id: number;
-    name: string;
-    discount_type: 'FIXED' | 'PERCENT';
-    discount_value: number;
-    min_spend: number;
-    eligible_fields: number[] | null;
-    eligible_payments: string[] | null;
-    category: 'MAIN' | 'ONTOP';
-}
+import type { Coupon } from '../../hooks/useBookingLogic';
 
 interface CouponBottomSheetProps {
     isOpen: boolean;

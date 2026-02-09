@@ -36,7 +36,8 @@ const BookingV2Page: React.FC = () => {
         appliedMainCoupon,
         appliedOntopCoupon,
         setManualMainCoupon,
-        setManualOntopCoupon
+        setManualOntopCoupon,
+        allowedPaymentMethods // [NEW] added for validation
     } = useBookingLogic();
 
     if (!isReady) {
@@ -163,13 +164,13 @@ const BookingV2Page: React.FC = () => {
                     originalPrice,
                     discount,
                     finalPrice,
-                    couponName: appliedCoupon?.name,
-                    appliedCoupon: appliedCoupon
+                    couponName: appliedCoupon?.name // Removed 'appliedCoupon'
                 }}
                 initialProfile={userProfile ? {
                     team_name: userProfile.team_name,
                     phone_number: userProfile.phone_number
                 } : null}
+                allowedPaymentMethods={allowedPaymentMethods} // [NEW] Pass allowed methods
             />
         </div>
     );
