@@ -89,6 +89,7 @@ serve(async (req) => {
         const originalPrice = calculatePrice(fieldNo, startTime, durationH);
         let finalPrice = originalPrice;
         let isPromo = false;
+        let discountAmount = 0;
         let adminNote = note || '';
 
         // 3. Process Coupon/Campaign (V2 Redemption Logic)
@@ -109,6 +110,11 @@ serve(async (req) => {
             if (couponError || !coupon) throw new Error('Invalid Coupon ID');
             if (coupon.status !== 'ACTIVE') throw new Error('Coupon is not active (Used or Expired)');
 
+            // [BUG_FIX #3] Check coupon ownership
+            if (userId && coupon.user_id !== userId) {
+                throw new Error('คูปองนี้ไม่ใช่ของคุณ (This coupon does not belong to you)');
+            }
+
             // [STRICT] Check Expiry against Booking Date (not just today)
             const expiryDate = new Date(coupon.expires_at);
             const bookingDate = new Date(date); // YYYY-MM-DD
@@ -120,6 +126,18 @@ serve(async (req) => {
             }
 
             campaign = coupon.campaigns;
+
+            // [BUG_FIX #1] Validate Campaign Status & Period for coupon path too
+            if (campaign.status !== 'ACTIVE' && campaign.status !== 'active') {
+                throw new Error('แคมเปญไม่ได้เปิดใช้งาน (Campaign is not active)');
+            }
+            const nowCheck = new Date();
+            if (campaign.start_date && new Date(campaign.start_date) > nowCheck) {
+                throw new Error('แคมเปญยังไม่เริ่ม (Campaign has not started)');
+            }
+            if (campaign.end_date && new Date(campaign.end_date) < nowCheck) {
+                throw new Error('แคมเปญสิ้นสุดแล้ว (Campaign has ended)');
+            }
         } else if (campaignId) {
             // A2. Fetch Campaign Directly (Admin Override)
             const { data: camp, error: campError } = await supabase
@@ -216,7 +234,6 @@ serve(async (req) => {
                 // No price reduction
             } else {
                 // Money Discount
-                let discountAmount = 0;
                 if (campaign.discount_amount > 0) {
                     discountAmount = campaign.discount_amount;
                 } else if (campaign.discount_percent > 0) {
@@ -237,6 +254,28 @@ serve(async (req) => {
             }
         }
 
+
+        // [BUG_FIX #4] Check for duplicate/overlapping bookings on same field+date
+        const { data: existingBookings } = await supabase
+            .from('bookings')
+            .select('booking_id, time_from, time_to')
+            .eq('field_no', fieldNo)
+            .eq('date', date)
+            .neq('status', 'cancelled');
+
+        if (existingBookings && existingBookings.length > 0) {
+            for (const eb of existingBookings) {
+                const ebStart = eb.time_from.split(':').map(Number);
+                const ebEnd = eb.time_to.split(':').map(Number);
+                const ebStartMin = ebStart[0] * 60 + (ebStart[1] || 0);
+                const ebEndMin = ebEnd[0] * 60 + (ebEnd[1] || 0);
+
+                // Overlap check: new booking overlaps if it starts before existing ends AND ends after existing starts
+                if (startMin < ebEndMin && endMin > ebStartMin) {
+                    throw new Error(`สนามนี้ถูกจองแล้วในช่วงเวลา ${eb.time_from}-${eb.time_to} (Field already booked)`);
+                }
+            }
+        }
 
         // 4. Create Booking
         const isQR = paymentMethod === 'QR';
@@ -342,9 +381,13 @@ serve(async (req) => {
             success: true,
             booking: {
                 id: booking.booking_id,
+                booking_id: booking.booking_id,
                 field_no: booking.field_no,
                 price: booking.price_total_thb,
-                customer_name: booking.display_name
+                original_price: originalPrice,
+                discount_amount: discountAmount,
+                customer_name: booking.display_name,
+                reward_item: campaign?.reward_item || null
             }
         }), {
             status: 200,
