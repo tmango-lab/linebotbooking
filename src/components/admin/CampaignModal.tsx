@@ -23,6 +23,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         discount_type: 'amount', // amount | percent | item
         discount_amount: 0,
         discount_percent: 0,
+        max_discount: 0, // Cap for percent discount
         reward_item: '', // New: For 'item' type
         is_stackable: false, // false = Main, true = On-Top
         is_public: true, // New: true = Public, false = Secret
@@ -61,6 +62,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     discount_type: campaign.reward_item ? 'item' : (campaign.discount_percent > 0 ? 'percent' : 'amount'),
                     discount_amount: campaign.discount_amount || 0,
                     discount_percent: campaign.discount_percent || 0,
+                    max_discount: campaign.max_discount || 0,
                     reward_item: campaign.reward_item || '',
                     is_stackable: campaign.is_stackable || false,
                     is_public: campaign.is_public ?? true,
@@ -90,6 +92,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     discount_type: 'amount',
                     discount_amount: 0,
                     discount_percent: 0,
+                    max_discount: 0,
                     reward_item: '',
                     is_stackable: false,
                     is_public: true,
@@ -164,6 +167,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                 // Benefit Logic
                 discount_amount: formData.discount_type === 'amount' ? Number(formData.discount_amount) : 0,
                 discount_percent: formData.discount_type === 'percent' ? Number(formData.discount_percent) : 0,
+                max_discount: formData.discount_type === 'percent' && formData.max_discount > 0 ? Number(formData.max_discount) : null,
                 reward_item: formData.discount_type === 'item' ? formData.reward_item : null,
                 is_stackable: formData.is_stackable,
                 coupon_type: formData.is_stackable ? 'ontop' : 'main',
@@ -355,15 +359,30 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                 </div>
                                             )}
                                             {formData.discount_type === 'percent' && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">เปอร์เซ็นต์ที่ลด (%)</label>
-                                                    <div className="relative rounded-md shadow-sm">
-                                                        <input type="number" min="0" max="100" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-12 sm:text-sm border-gray-300 rounded-md border p-2"
-                                                            value={formData.discount_percent}
-                                                            onChange={e => setFormData({ ...formData, discount_percent: parseFloat(e.target.value), discount_amount: 0 })} />
-                                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                            <span className="text-gray-500 sm:text-sm">%</span>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">เปอร์เซ็นต์ที่ลด (%)</label>
+                                                        <div className="relative rounded-md shadow-sm">
+                                                            <input type="number" min="0" max="100" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-12 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                                value={formData.discount_percent}
+                                                                onChange={e => setFormData({ ...formData, discount_percent: parseFloat(e.target.value), discount_amount: 0 })} />
+                                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                                <span className="text-gray-500 sm:text-sm">%</span>
+                                                            </div>
                                                         </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">เพดานส่วนลดสูงสุด (บาท)</label>
+                                                        <div className="relative rounded-md shadow-sm">
+                                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                <span className="text-gray-500 sm:text-sm">฿</span>
+                                                            </div>
+                                                            <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                                placeholder="0 = ไม่จำกัด"
+                                                                value={formData.max_discount}
+                                                                onChange={e => setFormData({ ...formData, max_discount: parseInt(e.target.value) || 0 })} />
+                                                        </div>
+                                                        <p className="mt-1 text-xs text-gray-500">เช่น ลด 50% สูงสุด 200 บาท (0 = ไม่มีเพดาน)</p>
                                                     </div>
                                                 </div>
                                             )}

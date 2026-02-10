@@ -48,6 +48,20 @@ serve(async (req) => {
 
         const now = new Date().toISOString();
 
+        // Fix #2: Lazy Expiry — mark expired coupons before querying
+        // This ensures Wallet displays accurate status without needing a cron job
+        const { error: expireError } = await supabase
+            .from('user_coupons')
+            .update({ status: 'EXPIRED' })
+            .eq('user_id', userId)
+            .eq('status', 'ACTIVE')
+            .lt('expires_at', now);
+
+        if (expireError) {
+            console.warn('[Lazy Expiry] Failed to mark expired coupons:', expireError.message);
+            // Non-blocking: continue with query even if update fails
+        }
+
         // Fetch User's Active Coupons + Campaign Details
         const { data: coupons, error } = await supabase
             .from('user_coupons')
@@ -64,6 +78,7 @@ serve(async (req) => {
                     benefit_value,
                     discount_amount,
                     discount_percent,
+                    max_discount,
                     reward_item,
                     min_spend,
                     conditions,

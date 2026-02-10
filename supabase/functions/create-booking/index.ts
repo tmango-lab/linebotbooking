@@ -92,6 +92,10 @@ serve(async (req) => {
         let adminNote = note || '';
 
         // 3. Process Coupon/Campaign (V2 Redemption Logic)
+        // [COUPON_TYPE_RULES] When upgrading to multi-coupon support:
+        //   - MAIN + MAIN = ❌ (cannot stack)
+        //   - ONTOP + ONTOP = ❌ (cannot stack)
+        //   - MAIN + ONTOP = ✅ (max 2 coupons per booking)
         let campaign: any = null;
 
         if (couponId) {
@@ -217,6 +221,11 @@ serve(async (req) => {
                     discountAmount = campaign.discount_amount;
                 } else if (campaign.discount_percent > 0) {
                     discountAmount = Math.floor((originalPrice * campaign.discount_percent) / 100);
+                    // Fix #1: Apply max_discount cap for percentage discounts
+                    if (campaign.max_discount && campaign.max_discount > 0 && discountAmount > campaign.max_discount) {
+                        console.log(`[Coupon Cap] Discount ${discountAmount} capped to max_discount ${campaign.max_discount}`);
+                        discountAmount = campaign.max_discount;
+                    }
                 }
 
                 if (discountAmount > 0) {

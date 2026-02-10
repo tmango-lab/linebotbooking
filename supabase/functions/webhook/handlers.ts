@@ -685,7 +685,8 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
             .from('user_coupons')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId)
-            .eq('campaign_id', campaignId);
+            .eq('campaign_id', campaignId)
+            .eq('status', 'ACTIVE'); // Refillable: only count coupons not yet used
 
         if (countError) throw countError;
 
