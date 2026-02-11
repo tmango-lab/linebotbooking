@@ -52,7 +52,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setEditTel(booking.tel || '');
             setEditPrice(booking.price?.toString() || '0');
             setEditNote(booking.admin_note || '');
-            setIsPaid(!!booking.paid_at || booking.payment_status === 'paid');
+            // Use paid_at as single source of truth (same as BookingCard)
+            // For Cash bookings: paid_at is null until admin confirms → shows "Unpaid"
+            // For QR bookings: paid_at is set by webhook when deposit confirmed → shows "Paid"
+            setIsPaid(!!booking.paid_at);
 
             setError(null);
             setIsConfirming(false);
