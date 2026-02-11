@@ -222,11 +222,9 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     };
 
     const getFinancials = () => {
-        // [LOGIC] Re-calculate based on what we know
-        // Price stored in DB is usually the "Final Price" after discount? 
-        // Or is it Base Price? The current logic seems to treat 'price' as 'netPrice'.
+        // Use edited price if in edit mode, otherwise use booking price
+        const netPrice = isEditingDetails && editPrice !== '' ? parseFloat(editPrice) : booking.price;
 
-        const netPrice = booking.price; // This is the amount TO PAY (or paid)
         let discount = 0;
 
         // Try to reverse engineer base price if discount exists
@@ -240,27 +238,21 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const basePrice = netPrice + discount;
 
         // Deposit Logic
-        // If payment_method is qr and it's paid (either confirmed status or has paid_at), 
-        // we consider the 200 THB deposit as completed.
         const isDepositPaid = (booking.payment_method === 'qr' && (!!booking.paid_at || booking.payment_status === 'paid'));
-
-        // If it was a 'qr' booking but full price is paid? 
-        // Usually QR booking is just deposit. But if paid_at exists, maybe it's just deposit paid?
-        // Let's assume standard logic: QR = 200 Deposit.
         const depositAmount = isDepositPaid ? 200 : 0;
 
-        // Balance is what's left to pay at the field
-        // If full price was paid (e.g. transfer), balance is 0.
-        // If QR deposit paid, balance is Net - 200.
-        // If not paid, balance is Net.
-
+        // Balance Logic
+        // If fully paid, balance is 0.
+        // If deposit paid, balance = netPrice - deposit.
+        // If unpaid, balance = netPrice.
         let balance = 0;
-        if (booking.payment_method === 'qr') {
+
+        if (isPaid) {
+            balance = 0;
+        } else if (isDepositPaid) {
             balance = Math.max(0, netPrice - depositAmount);
-        } else if (isPaid) {
-            balance = 0; // Fully paid
         } else {
-            balance = netPrice; // Not paid yet
+            balance = netPrice;
         }
 
         return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid };
@@ -449,7 +441,19 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
                                         <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
                                             <span className="font-bold text-gray-900">ยอดสุทธิ (Total)</span>
-                                            <span className="font-bold text-gray-900 text-lg">{netPrice.toLocaleString()} ฿</span>
+                                            {isEditingDetails ? (
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="number"
+                                                        value={editPrice}
+                                                        onChange={(e) => setEditPrice(e.target.value)}
+                                                        className="block w-32 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 text-right border font-bold"
+                                                    />
+                                                    <span className="ml-2 text-gray-900 font-bold">฿</span>
+                                                </div>
+                                            ) : (
+                                                <span className="font-bold text-gray-900 text-lg">{netPrice.toLocaleString()} ฿</span>
+                                            )}
                                         </div>
 
                                         {isDepositPaid && (
