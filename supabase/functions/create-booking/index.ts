@@ -293,7 +293,7 @@ serve(async (req) => {
                 booking_id: Date.now().toString(),
                 field_no: fieldNo,
                 status: isQR ? 'pending_payment' : 'confirmed',
-                payment_status: isQR ? 'pending' : 'paid',
+                payment_status: (isQR || paymentMethod === 'CASH') ? 'pending' : 'paid',
                 payment_method: paymentMethod || 'cash',
                 timeout_at: timeoutAt,
                 date: date,
