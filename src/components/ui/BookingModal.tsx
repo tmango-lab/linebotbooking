@@ -20,7 +20,7 @@ export default function BookingModal({ isOpen, onClose, onConfirm, bookingDetail
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [note, setNote] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('QR PromtPay');
+    const [paymentMethod, setPaymentMethod] = useState('field');
     const [campaignId, setCampaignId] = useState('');
     const [searchCode, setSearchCode] = useState(''); // For manual code entry
     const [isCampaignsOpen, setIsCampaignsOpen] = useState(false); // Toggle campaign list
@@ -38,7 +38,7 @@ export default function BookingModal({ isOpen, onClose, onConfirm, bookingDetail
             setName('');
             setPhone('');
             setNote('');
-            setPaymentMethod('QR PromtPay');
+            setPaymentMethod('field');
             setCampaignId('');
             setSearchCode('');
             setIsCampaignsOpen(false);
@@ -327,22 +327,14 @@ export default function BookingModal({ isOpen, onClose, onConfirm, bookingDetail
                                         )}
                                     </div>
 
-                                    {/* Payment Method */}
+                                    {/* Payment Method - Admin bookings are always cash */}
                                     <div>
-                                        <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                                             <CreditCard className="w-4 h-4 text-gray-400" /> วิธีชำระเงิน
                                         </label>
-                                        <select
-                                            id="paymentMethod"
-                                            name="paymentMethod"
-                                            className="block w-full pl-3 pr-10 py-2.5 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg border bg-white"
-                                            value={paymentMethod}
-                                            onChange={(e) => setPaymentMethod(e.target.value)}
-                                        >
-                                            <option value="QR PromtPay">Scan QR (PromptPay)</option>
-                                            <option value="เงินสด (หน้าสนาม)">เงินสด (Cash)</option>
-                                            <option value="โอนเงิน">โอนเงิน (Transfer)</option>
-                                        </select>
+                                        <div className="block w-full pl-3 pr-10 py-2.5 text-base border-gray-300 sm:text-sm rounded-lg border bg-gray-50 text-gray-700 font-medium">
+                                            💵 เงินสด / จ่ายหน้าสนาม
+                                        </div>
                                     </div>
 
                                     {/* Price Breakdown */}
