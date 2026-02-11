@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon } from 'lucide-react';
 
 interface BookingDetailModalProps {
