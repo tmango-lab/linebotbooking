@@ -1,11 +1,11 @@
 
 import React, { useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, Home, Copy } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { CheckCircle, Copy, X, AlertCircle } from 'lucide-react';
+import liff from '@line/liff';
 
 const BookingSuccessPage: React.FC = () => {
     const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
 
     const bookingId = searchParams.get('bookingId');
     const price = searchParams.get('price');
@@ -13,7 +13,6 @@ const BookingSuccessPage: React.FC = () => {
     const fieldName = searchParams.get('fieldName');
     const date = searchParams.get('date');
     const time = searchParams.get('time');
-    const userId = searchParams.get('userId');
 
     // Default to deposit 200 if QR, else full price or logic
     // Backend seems to strictly ask for 200 deposit for QR.
@@ -38,7 +37,9 @@ const BookingSuccessPage: React.FC = () => {
                     <CheckCircle className="w-10 h-10 text-green-600" />
                 </div>
 
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">จองสนามสำเร็จ!</h1>
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                    {isQR ? 'จองสำเร็จ! กรุณาชำระเงินมัดจำ' : 'จองสนามสำเร็จ!'}
+                </h1>
                 <p className="text-gray-500 text-sm mb-6">Booking ID: {bookingId}</p>
 
                 <div className="space-y-3 bg-gray-50 rounded-2xl p-5 mb-6 text-sm">
@@ -62,8 +63,15 @@ const BookingSuccessPage: React.FC = () => {
 
                 {isQR ? (
                     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 mb-6">
-                        <h3 className="text-blue-800 font-bold mb-1">ชำระเงินมัดจำ</h3>
-                        <p className="text-blue-600 text-xs mb-4">สแกน QR Code หรือโอนเงินภายใน 10 นาที</p>
+                        <h3 className="text-blue-800 font-bold mb-1 border-b border-blue-200 pb-2 flex items-center justify-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            ชำระเงินมัดจำ {amountToPay} บาท
+                        </h3>
+                        <div className="bg-red-50 text-red-600 text-[11px] font-bold p-2 rounded-lg mb-4 border border-red-100 flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span>การจองจะสำเร็จต้องชำระมัดจำภายใน 10 นาที มิฉะนั้นการจองจะถูกยกเลิกอัตโนมัติ</span>
+                        </div>
+                        <p className="text-blue-600 text-[10px] mb-4">สแกน QR Code หรือโอนเงินเพื่อยืนยันการจอง</p>
 
                         <div className="bg-white p-3 rounded-xl shadow-sm inline-block mb-4">
                             <img
@@ -86,12 +94,13 @@ const BookingSuccessPage: React.FC = () => {
                 )}
 
                 <button
-                    onClick={() => navigate(userId ? `/?userId=${userId}` : '/')}
-                    className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-95 transition-all"
+                    onClick={() => liff.closeWindow()}
+                    className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-95 transition-all shadow-lg"
                 >
-                    <Home className="w-5 h-5" />
-                    กลับหน้าหลัก
+                    <X className="w-5 h-5" />
+                    ปิดหน้าต่าง
                 </button>
+                <p className="text-xs text-gray-400 mt-4">กรุณากลับไปที่หน้าแชทเพื่อรอรับการยืนยัน</p>
             </div>
         </div>
     );
