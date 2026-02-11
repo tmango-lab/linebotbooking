@@ -761,7 +761,7 @@ export default function DashboardPage() {
 
             <BookingDetailModal
                 isOpen={!!viewingBooking}
-                booking={viewingBooking}
+                booking={viewingBooking ? { ...viewingBooking, court_name: COURTS.find(c => c.id === viewingBooking.court_id)?.name || 'ไม่ระบุ' } : null}
                 onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => { setViewingBooking(null); fetchBookings(selectedDate); }}
                 onBookingUpdated={() => fetchBookings(selectedDate, true)}
