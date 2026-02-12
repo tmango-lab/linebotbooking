@@ -147,7 +147,7 @@ export default function BookingSearchPage() {
             // 1. Text Search (Server-side OR)
             if (searchText.trim()) {
                 const term = searchText.trim();
-                query = query.or(`display_name.ilike.%${term}%,phone_number.ilike.%${term}%,admin_note.ilike.%${term}%,remark.ilike.%${term}%`);
+                query = query.or(`display_name.ilike.%${term}%,phone_number.ilike.%${term}%,admin_note.ilike.%${term}%`);
             }
 
             // 2. Court Filter
