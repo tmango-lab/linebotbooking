@@ -15,10 +15,12 @@ const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
 const CustomerPage = lazy(() => import('./pages/admin/CustomerPage'));
+const CustomerDetailPage = lazy(() => import('./pages/admin/CustomerDetailPage'));
 const ReportPage = lazy(() => import('./pages/admin/ReportPage'));
 const PromoCodePage = lazy(() => import('./pages/admin/PromoCodePage'));
 const CampaignPage = lazy(() => import('./pages/admin/CampaignPage'));
 const RefundPage = lazy(() => import('./pages/admin/RefundPage'));
+const BookingSearchPage = lazy(() => import('./pages/admin/BookingSearchPage'));
 
 // Branded Loader
 const PageLoader = ({ text = "Loading..." }) => (
@@ -185,7 +187,9 @@ function App() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="booking-search" element={<BookingSearchPage />} />
               <Route path="customers" element={<CustomerPage />} />
+              <Route path="customers/:id" element={<CustomerDetailPage />} />
               <Route path="campaigns" element={<CampaignPage />} />
               <Route path="reports" element={<ReportPage />} />
               <Route path="promo-codes" element={<PromoCodePage />} />

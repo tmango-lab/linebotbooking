@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
-import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus } from 'lucide-react';
+import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus, Eye } from 'lucide-react';
 
 interface Profile {
     user_id: string;
@@ -12,6 +13,7 @@ interface Profile {
 }
 
 export default function CustomerPage() {
+    const navigate = useNavigate();
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -229,7 +231,11 @@ export default function CustomerPage() {
                                                             <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs ring-1 ring-white">
                                                                 {p.team_name?.charAt(0) || '?'}
                                                             </div>
-                                                            <span className="text-sm font-medium text-gray-900 truncate" title={p.user_id}>
+                                                            <span
+                                                                className="text-sm font-medium text-gray-900 truncate hover:text-indigo-600 cursor-pointer"
+                                                                title={p.user_id}
+                                                                onClick={() => navigate(`/admin/customers/${p.user_id}`)}
+                                                            >
                                                                 {p.team_name || 'Unknown Team'}
                                                             </span>
                                                         </div>
@@ -285,9 +291,14 @@ export default function CustomerPage() {
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <button onClick={() => handleEditClick(p)} className="p-1 rounded-full text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Edit">
-                                                        <Edit2 className="h-4 w-4" />
-                                                    </button>
+                                                    <>
+                                                        <button onClick={() => navigate(`/admin/customers/${p.user_id}`)} className="p-1 rounded-full text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="View Details">
+                                                            <Eye className="h-4 w-4" />
+                                                        </button>
+                                                        <button onClick={() => handleEditClick(p)} className="p-1 rounded-full text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Edit">
+                                                            <Edit2 className="h-4 w-4" />
+                                                        </button>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>

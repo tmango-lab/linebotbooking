@@ -16,7 +16,7 @@ serve(async (req) => {
     }
 
     try {
-        const { matchId, reason, isRefunded } = await req.json();
+        const { matchId, reason, isRefunded, shouldReturnCoupon } = await req.json();
 
         if (!matchId) {
             return new Response(JSON.stringify({ error: 'Missing matchId' }), {
@@ -25,7 +25,7 @@ serve(async (req) => {
             });
         }
 
-        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}, Refunded: ${isRefunded}`);
+        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}, Refunded: ${isRefunded}, ReturnCoupon: ${shouldReturnCoupon}`);
 
         // Fetch booking first to check for promo/campaign
         const { data: booking, error: fetchError } = await supabase
@@ -60,10 +60,11 @@ serve(async (req) => {
         // 1. Release Coupon Logic
         // Rule:
         // - If status was 'pending_payment' (Timeout/System): Release Coupon (Back to ACTIVE).
-        // - If status was 'confirmed' (Admin Manual Cancel): DO NOT Release Coupon (Burned), but decrement Campaign Count.
+        // - If shouldReturnCoupon is TRUE: Release Coupon (Back to ACTIVE).
+        // - If status was 'confirmed' AND !shouldReturnCoupon: DO NOT Release Coupon (Burned), but decrement Campaign Count.
 
         let coupons = null;
-        if (booking.status !== 'confirmed') {
+        if (booking.status !== 'confirmed' || shouldReturnCoupon) {
             // Case: Pending/Timeout -> Release back to user
             const { data: releasedCoupons, error: couponError } = await supabase
                 .from('user_coupons')

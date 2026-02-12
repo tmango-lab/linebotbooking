@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/api';
-import { LogOut, LayoutDashboard, Ticket, User, BarChart3, Receipt } from 'lucide-react';
+import { LogOut, LayoutDashboard, Ticket, User, BarChart3, Receipt, Search } from 'lucide-react';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
@@ -43,6 +43,7 @@ export default function AdminLayout() {
 
     const navigation = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+        { name: 'Booking Search', href: '/admin/booking-search', icon: Search },
         { name: 'Campaigns', href: '/admin/campaigns', icon: Ticket }, // New V2
         { name: 'Customers', href: '/admin/customers', icon: User },
         { name: 'Reports', href: '/admin/reports', icon: BarChart3 },

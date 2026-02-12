@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon } from 'lucide-react';
+import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft } from 'lucide-react';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
@@ -27,9 +27,10 @@ interface BookingDetailModalProps {
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void;
+    onReschedule?: (date: string) => void;
 }
 
-export default function BookingDetailModal({ isOpen, onClose, booking, onBookingCancelled, onBookingUpdated }: BookingDetailModalProps) {
+export default function BookingDetailModal({ isOpen, onClose, booking, onBookingCancelled, onBookingUpdated, onReschedule }: BookingDetailModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -606,6 +607,17 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                 >
                                     ยกเลิกการจอง
                                 </button>
+
+                                {onReschedule && (
+                                    <button
+                                        type="button"
+                                        className="inline-flex justify-center items-center px-4 py-2 border border-indigo-200 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                                        onClick={() => onReschedule(booking.time_start)}
+                                    >
+                                        <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                        ย้ายจอง
+                                    </button>
+                                )}
 
                                 <div className="flex gap-3">
                                     <button

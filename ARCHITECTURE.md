@@ -148,8 +148,8 @@ for (let t = Open; t + Duration <= Close; t += STEP) {
 
 **Steps**:
 1.  **Validate Input**:
-    - **Admin Mode**: `userId` is optional (Walk-in customers).
-    - **Line Mode**: `userId` is required for notifications.
+    - **Admin Mode**: `userId` is optional (Walk-in customers). **Payment method is restricted to 'Cash' (field)**.
+    - **Line Mode**: `userId` is required for notifications. Supports 'QR' and 'Cash'.
     - `source` defaults to `'line'` if unspecified, but Dashboard sends `'admin'`.
 2.  **Calculate Price**:
     - Uses local `PRICING` config.
@@ -159,7 +159,7 @@ for (let t = Open; t + Duration <= Close; t += STEP) {
     - Though `create-booking` currently trusts the admin, best practice is to check overlaps.
 4.  **Insert into Database**:
     - Direct `INSERT` into `bookings` table.
-    - Sets `status: 'confirmed'`.
+    - Sets `status: 'confirmed'` and **`payment_status: 'pending'`** (for Cash).
     - `user_id`: Can be `NULL` for admin walk-ins.
     - `source`: Recorded as `'admin'` (if from dashboard) or `'line'`.
     - Generates numeric `booking_id` (timestamp-based) for compatibility.
@@ -299,7 +299,8 @@ graph LR
 The Admin Dashboard provides an interactive interface for managing bookings through drag-and-drop actions. This allows admins to:
 1.  **Move Bookings**: Change time or court by dragging.
 2.  **Resize Bookings**: Extend or shorten duration by dragging the edges.
-3.  **Edit Details**: Click to edit price, name, or phone number.
+3.  **Edit Details**: Click to edit price, name, phone number, and manually confirm payment.
+4.  **Cash-Only Policy**: For admin-created bookings via `BookingModal`, the payment method is locked to **"Cash / Pay at Field"**. QR Payment flows are reserved for automated customer-facing LIFF app only.
 
 ### Drag & Drop Logic
 
@@ -328,11 +329,14 @@ The Admin Dashboard provides an interactive interface for managing bookings thro
 - **Fields Updated**: `field_no`, `time_from`, `time_to`, `price_total_thb`.
 - **Preservation**: `booking_id`, `customer_id`, and `payment_status` are preserved unchanged.
 
-### Data Synchronization
+### Data Synchronization & Status Logic
 
-Since the system is now **Standalone**, there is no external synchronization.
-- **Single Source of Truth**: The local `bookings` table.
-- **Real-time**: All updates are immediate.
+1. **Single Source of Truth**: The local `bookings` table. All updates are real-time.
+2. **Payment Status Logic**:
+    - **Unpaid (Blue/Amber)**: `paid_at` is `NULL`.
+    - **Paid (Green)**: `paid_at` is NOT `NULL`.
+    - **Note**: `payment_status` column is used for backend workflow, but the UI (Card/Modal) relies on `paid_at` to determine if the booking is fully settled.
+3. **Price Editing**: Admins can manually override the calculated `price_total_thb` in the `BookingDetailModal`. The system will automatically recalculate the **Balance** (Total - 200 Deposit if applicable).
 
 ---
 
