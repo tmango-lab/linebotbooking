@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
 import {
-    User, Phone, Calendar, ArrowLeft, Tag
+    User, Phone, Calendar, ArrowLeft, Tag, X
 } from 'lucide-react';
 
 // Types
@@ -84,6 +84,40 @@ export default function CustomerDetailPage() {
             setLoading(false);
         }
     }
+
+    // Tag Management
+    const handleAddTag = async (tag: string) => {
+        if (!tag || !profile) return;
+        const currentTags = profile.tags || [];
+        if (currentTags.includes(tag)) return;
+
+        const newTags = [...currentTags, tag];
+        await updateTags(newTags);
+    };
+
+    const handleRemoveTag = async (tagToRemove: string) => {
+        if (!profile) return;
+        const currentTags = profile.tags || [];
+        const newTags = currentTags.filter(t => t !== tagToRemove);
+        await updateTags(newTags);
+    };
+
+    const updateTags = async (newTags: string[]) => {
+        if (!profile) return;
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ tags: newTags })
+                .eq('user_id', profile.user_id);
+
+            if (error) throw error;
+
+            // Optimistic update
+            setProfile({ ...profile, tags: newTags });
+        } catch (err: any) {
+            alert('Error updating tags: ' + err.message);
+        }
+    };
 
     // Stats Calculation
     const stats = useMemo(() => {
@@ -213,11 +247,35 @@ export default function CustomerDetailPage() {
                         <div>
                             <div className="flex items-center gap-3 mb-1">
                                 <h1 className="text-2xl font-bold text-gray-900">{profile.team_name}</h1>
+                            </div>
+
+                            {/* Tags Management */}
+                            <div className="flex flex-wrap gap-2 items-center mb-2">
                                 {profile.tags?.map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                    <span key={tag} className={`px-2 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${tag === 'vip' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                        tag === 'inactive' ? 'bg-red-100 text-red-800 border-red-200' :
+                                            'bg-gray-100 text-gray-700 border-gray-200'
+                                        }`}>
                                         {tag}
+                                        <button
+                                            onClick={() => handleRemoveTag(tag)}
+                                            className="hover:text-red-600 ml-1 p-0.5 rounded-full hover:bg-black/5 transaction-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
                                     </span>
                                 ))}
+                                <input
+                                    type="text"
+                                    placeholder="+ tag"
+                                    className="w-20 text-xs border border-gray-300 rounded-full px-2 py-0.5 focus:w-28 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            handleAddTag(e.currentTarget.value);
+                                            e.currentTarget.value = '';
+                                        }
+                                    }}
+                                />
                             </div>
                             <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
                                 <div className="flex items-center gap-1">
