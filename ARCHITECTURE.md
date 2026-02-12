@@ -555,9 +555,59 @@ The system has fully migrated from a hardcoded `role` column to a flexible `tags
     - Sends multicast messages to batches of up to 500 users at a time.
 
 ### 14.2 VIP Logic
-VIP status is now defined as the presence of the `'vip'` string within the `tags` array. This is used by the LINE Bot to gate access to "Regular Booking" features.
+### 14.3 Tag Management UI (Admin)
+Admins can manage tags directly from the **Customer Detail Page**:
+1.  **View Tags**: Displays current tags as colored chips (Yellow for `vip`, Red for `inactive`, Gray for others).
+2.  **Add Tag**: Users can type a new tag name and press Enter to add it.
+3.  **Remove Tag**: Clicking the "X" on a tag chip removes it immediately.
+4.  **Sync**: Changes are synced to the `profiles` table in real-time via Supabase.
 
 ---
+
+## 16. VIP Booking System (Phase 3)
+### Overview
+The VIP Booking System allows privileged users ("Regulars") to book multiple slots in advance, a feature not available to standard users.
+
+### key Components:
+1.  **Tag-Based Access**:
+    - Users must have the `vip` tag in their profile to access the "Regular Booking" menu in the LINE Bot.
+    - If a non-VIP user tries to access it, they receive a restricted access message.
+
+2.  **Secret Code (Manual Promo Codes)**:
+    - VIPs use special codes (managed in `PromoCodePage` -> `VIPCodeTab`) to get discounts on bulk bookings.
+    - These codes are stored in the `manual_promo_codes` table and are separate from the V1/V2 coupon system.
+
+3.  **Booking Logic**:
+    - The bot allows selecting a day of the week, time range, and duration for multiple weeks.
+    - It generates multiple booking records (one for each week) in a single transaction.
+
+---
+
+## 17. Admin Booking Search & Bulk Operations (2026-02)
+
+### Overview
+A powerful interface for Admins to find specific bookings and perform mass updates. Located at `/admin/search`.
+
+### 17.1 Search & Filter Strategy
+The page uses a **Supabase-First** approach for high performance:
+1.  **Text Search**: Uses PostgreSQL `ilike` to search against `display_name`, `phone_number`, and `admin_note` simultaneously.
+2.  **Multi-Filters**:
+    - **Status**: Confirmed, Cancelled, Pending.
+    - **Payment**: Paid, Unpaid (QR/Cash).
+    - **Promo**: Show only discounted bookings.
+    - **Date Range**: Support for custom ranges (Start -> End).
+
+### 17.2 Bulk Actions
+To streamline operations, Admins can toggle "Select Mode" to perform actions on multiple items:
+1.  **Bulk Cancel**: 
+    - Change status to `cancelled`.
+    - **Coupon Refund Logic**: If a booking used a coupon, the admin is prompted to "Return Coupon" (restore quota) or "Burn Coupon" (mark as used).
+
+### 17.3 UX Optimizations
+- **Debounced Search**: Text input waits 500ms before querying to reduce DB load.
+- **Thai Date Support**: All date pickers and display columns use `th-TH` locale and Buddhist Year (BE) formatting.
+
+
 
 
 ---

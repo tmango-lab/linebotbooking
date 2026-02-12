@@ -142,8 +142,51 @@ export default function BookingSearchPage() {
                 .from('bookings')
                 .select('*')
                 .gte('date', dateStart)
-                .lte('date', dateEnd)
-                .order('date', { ascending: false })
+                .lte('date', dateEnd);
+
+            // 1. Text Search (Server-side OR)
+            if (searchText.trim()) {
+                const term = searchText.trim();
+                query = query.or(`display_name.ilike.%${term}%,phone_number.ilike.%${term}%,admin_note.ilike.%${term}%,remark.ilike.%${term}%`);
+            }
+
+            // 2. Court Filter
+            if (filterCourt !== 'all') {
+                query = query.eq('field_no', parseInt(filterCourt));
+            }
+
+            // 3. Status Filter
+            if (filterStatus !== 'all') {
+                query = query.eq('status', filterStatus);
+            }
+
+            // 4. Payment Method Filter
+            if (filterPayment !== 'all') {
+                if (filterPayment === 'cash') {
+                    query = query.or('payment_method.eq.cash,payment_method.is.null');
+                } else {
+                    query = query.eq('payment_method', filterPayment);
+                }
+            }
+
+            // 5. Source Filter
+            if (filterSource !== 'all') {
+                if (filterSource === 'admin') {
+                    query = query.or('source.eq.admin,booking_source.eq.admin,source.is.null');
+                } else {
+                    query = query.or(`source.eq.${filterSource},booking_source.eq.${filterSource}`);
+                }
+            }
+
+            // 6. Promo Filter
+            if (filterPromo === 'promo') {
+                query = query.eq('is_promo', true);
+            } else if (filterPromo === 'no_promo') {
+                query = query.eq('is_promo', false);
+            }
+
+            // Order by (default date desc)
+            query = query.order('date', { ascending: false })
                 .order('time_from', { ascending: true });
 
             const { data, error: queryError } = await query;
@@ -160,54 +203,9 @@ export default function BookingSearchPage() {
         }
     }
 
-    // Client-side filtering
-    const filtered = useMemo(() => {
-        let result = [...bookings];
-
-        // Text search
-        if (searchText.trim()) {
-            const q = searchText.trim().toLowerCase();
-            result = result.filter(b =>
-                (b.display_name || '').toLowerCase().includes(q) ||
-                (b.phone_number || '').toLowerCase().includes(q) ||
-                (b.admin_note || '').toLowerCase().includes(q) ||
-                (b.remark || '').toLowerCase().includes(q)
-            );
-        }
-
-        // Court filter
-        if (filterCourt !== 'all') {
-            result = result.filter(b => b.field_no === parseInt(filterCourt));
-        }
-
-        // Status filter
-        if (filterStatus !== 'all') {
-            result = result.filter(b => b.status === filterStatus);
-        }
-
-        // Payment method filter
-        if (filterPayment !== 'all') {
-            result = result.filter(b => (b.payment_method || 'cash') === filterPayment);
-        }
-
-        // Source filter
-        if (filterSource !== 'all') {
-            result = result.filter(b => (b.source || b.booking_source || 'admin') === filterSource);
-        }
-
-        // Promo filter
-        if (filterPromo === 'promo') {
-            result = result.filter(b => b.is_promo);
-        } else if (filterPromo === 'no_promo') {
-            result = result.filter(b => !b.is_promo);
-        }
-
-        return result;
-    }, [bookings, searchText, filterCourt, filterStatus, filterPayment, filterSource, filterPromo]);
-
-    // Sorting
+    // Client-side Sorting (on server-filtered results)
     const sorted = useMemo(() => {
-        const arr = [...filtered];
+        const arr = [...bookings];
         arr.sort((a, b) => {
             let va: any = a[sortKey];
             let vb: any = b[sortKey];
@@ -218,7 +216,28 @@ export default function BookingSearchPage() {
             return 0;
         });
         return arr;
-    }, [filtered, sortKey, sortDir]);
+    }, [bookings, sortKey, sortDir]);
+
+    // Summary stats
+    const summary = useMemo(() => {
+        const confirmed = bookings.filter(b => b.status === 'confirmed');
+        const cancelled = bookings.filter(b => b.status === 'cancelled');
+        const revenue = confirmed.reduce((sum, b) => sum + (b.price_total_thb || 0), 0);
+        let discounts = 0;
+        bookings.forEach(b => {
+            if (b.admin_note) {
+                const match = b.admin_note.match(/\(-(\d+)\)/);
+                if (match) discounts += parseInt(match[1], 10);
+            }
+        });
+        return {
+            total: bookings.length,
+            confirmed: confirmed.length,
+            cancelled: cancelled.length,
+            revenue,
+            discounts,
+        };
+    }, [bookings]);
 
     // Paging
     const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -238,27 +257,6 @@ export default function BookingSearchPage() {
         }
         setSelectedIds(newSet);
     };
-
-    // Summary stats
-    const summary = useMemo(() => {
-        const confirmed = filtered.filter(b => b.status === 'confirmed');
-        const cancelled = filtered.filter(b => b.status === 'cancelled');
-        const revenue = confirmed.reduce((sum, b) => sum + (b.price_total_thb || 0), 0);
-        let discounts = 0;
-        filtered.forEach(b => {
-            if (b.admin_note) {
-                const match = b.admin_note.match(/\(-(\d+)\)/);
-                if (match) discounts += parseInt(match[1], 10);
-            }
-        });
-        return {
-            total: filtered.length,
-            confirmed: confirmed.length,
-            cancelled: cancelled.length,
-            revenue,
-            discounts,
-        };
-    }, [filtered]);
 
     function handleSort(key: SortKey) {
         if (sortKey === key) {
@@ -414,7 +412,7 @@ export default function BookingSearchPage() {
                         ค้นหา
                     </button>
                     {hasSearched && (
-                        <span className="text-xs text-gray-400 whitespace-nowrap">พบ {filtered.length} รายการ</span>
+                        <span className="text-xs text-gray-400 whitespace-nowrap">พบ {bookings.length} รายการ</span>
                     )}
                 </div>
 
