@@ -330,36 +330,38 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                 <div className="space-y-4">
                                     <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-2 border-b pb-1">ข้อมูลลูกค้า</h4>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                                <User className="w-4 h-4 text-gray-400" /> ชื่อผู้จอง
+                                    <div className="space-y-3">
+                                        {/* Name Row */}
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                                                <User className="w-4 h-4" /> ชื่อผู้จอง
                                             </label>
                                             {isEditingDetails ? (
                                                 <input
                                                     type="text"
                                                     value={editName}
                                                     onChange={(e) => setEditName(e.target.value)}
-                                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2.5 border"
+                                                    className="block w-48 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-1.5 border text-right"
                                                 />
                                             ) : (
-                                                <div className="text-gray-900 font-medium text-base pl-1">{editName}</div>
+                                                <div className="text-gray-900 font-bold text-base">{editName}</div>
                                             )}
                                         </div>
 
-                                        <div className="text-right">
-                                            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-end gap-1">
-                                                <Phone className="w-4 h-4 text-gray-400" /> เบอร์โทรศัพท์
+                                        {/* Phone Row */}
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                                                <Phone className="w-4 h-4" /> เบอร์โทรศัพท์
                                             </label>
                                             {isEditingDetails ? (
                                                 <input
                                                     type="tel"
                                                     value={editTel}
                                                     onChange={(e) => setEditTel(e.target.value)}
-                                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2.5 border text-right"
+                                                    className="block w-48 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-1.5 border text-right"
                                                 />
                                             ) : (
-                                                <div className="text-gray-900 font-medium text-base pr-1">{editTel || '-'}</div>
+                                                <div className="text-gray-900 font-bold text-base">{editTel || '-'}</div>
                                             )}
                                         </div>
                                     </div>
