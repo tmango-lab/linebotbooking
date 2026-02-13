@@ -67,18 +67,32 @@ serve(async (req) => {
         // Fetch Promo Codes for these bookings
         const bookingIds = (localBookings || []).map(b => b.booking_id);
         let promoMap: Record<string, number> = {};
+        let couponsMap: Record<string, any[]> = {}; // [NEW] Map booking_id -> Array of coupons
 
         if (bookingIds.length > 0) {
             // 1. Fetch V1 Promo Codes
             const { data: promos } = await supabase
                 .from('promo_codes')
-                .select('booking_id, discount_amount')
+                .select('booking_id, code, discount_amount')
                 .in('booking_id', bookingIds)
                 .eq('status', 'used');
 
             if (promos) {
                 promos.forEach((p: any) => {
-                    promoMap[p.booking_id] = Number(p.discount_amount) || 0;
+                    const amount = Number(p.discount_amount) || 0;
+                    if (amount > 0) {
+                        // Add to total discount
+                        promoMap[p.booking_id] = (promoMap[p.booking_id] || 0) + amount;
+
+                        // Add to coupons list
+                        if (!couponsMap[p.booking_id]) couponsMap[p.booking_id] = [];
+                        couponsMap[p.booking_id].push({
+                            code: p.code,
+                            name: `Promo Code (${p.code})`,
+                            amount: amount,
+                            type: 'main' // V1 always treated as main/base
+                        });
+                    }
                 });
             }
 
@@ -87,10 +101,13 @@ serve(async (req) => {
                 .from('user_coupons')
                 .select(`
                     booking_id,
+                    coupon_code,
                     campaigns (
+                        name,
                         discount_amount,
                         discount_percent,
-                        reward_item
+                        reward_item,
+                        campaign_type 
                     )
                 `)
                 .in('booking_id', bookingIds)
@@ -100,33 +117,45 @@ serve(async (req) => {
                 coupons.forEach((c: any) => {
                     const bookingId = c.booking_id;
                     const camp = c.campaigns;
-                    // If V1 discount exists, skip (V1 priority or impossible to have both)
-                    if (promoMap[bookingId]) return;
+
+                    if (!camp) return;
 
                     let discount = 0;
-                    if (camp) {
-                        if (camp.discount_amount > 0) {
-                            discount = camp.discount_amount;
-                        } else if (camp.discount_percent > 0) {
-                            // Need base price to calc percent. 
-                            // Fortunately we have localBookings!
-                            const b = localBookings.find((lb: any) => lb.booking_id === bookingId);
-                            if (b) {
-                                // Original Price must be inferred or we assume price_total_thb is net.
-                                // Formula: Net = Base - Discount
-                                // Net = Base - (Base * P/100) = Base * (1 - P/100)
-                                // Base = Net / (1 - P/100)
-                                // Discount = Base * P/100
-                                const netPrice = b.price_total_thb;
-                                const p = camp.discount_percent;
-                                const basePrice = Math.round(netPrice / (1 - p / 100));
-                                discount = basePrice - netPrice;
-                            }
+                    let itemName = camp.reward_item;
+
+                    if (camp.discount_amount > 0) {
+                        discount = camp.discount_amount;
+                    } else if (camp.discount_percent > 0) {
+                        // Need base price to calc percent. 
+                        const b = localBookings.find((lb: any) => lb.booking_id === bookingId);
+                        if (b) {
+                            // Original Price must be inferred or we assume price_total_thb is net.
+                            // If we have multiple coupons, this calculation gets tricky. 
+                            // Ideal: store original_price in bookings.
+                            // Fallback: Use current price_total_thb as base (approximate if multiple)
+                            // or better, if we have standard prices, recalculate.
+                            // For now, simple reverse logic (assuming single coupon or sequential)
+                            const netPrice = b.price_total_thb;
+                            const p = camp.discount_percent;
+                            const basePrice = Math.round(netPrice / (1 - p / 100));
+                            discount = basePrice - netPrice;
                         }
                     }
+
+                    // Add to total discount (if it's monetary)
                     if (discount > 0) {
-                        promoMap[bookingId] = discount;
+                        promoMap[bookingId] = (promoMap[bookingId] || 0) + discount;
                     }
+
+                    // Add to coupons list
+                    if (!couponsMap[bookingId]) couponsMap[bookingId] = [];
+                    couponsMap[bookingId].push({
+                        code: c.coupon_code || 'COUPON',
+                        name: camp.name || (itemName ? `Reward: ${itemName}` : 'Coupon'),
+                        amount: discount,
+                        item: itemName,
+                        type: camp.campaign_type || 'main' // 'main' or 'ontop'
+                    });
                 });
             }
         }
@@ -150,6 +179,8 @@ serve(async (req) => {
             is_promo: b.is_promo || false,
             // Attach discount if exists
             discount: promoMap[b.booking_id] || 0,
+            // [NEW] Detailed Coupons List
+            coupons: couponsMap[b.booking_id] || [],
             // QR Deposit specific fields
             payment_method: b.payment_method || 'cash',
             payment_status: b.payment_status || 'unpaid',

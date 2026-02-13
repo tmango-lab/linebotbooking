@@ -24,6 +24,12 @@ interface BookingDetailModalProps {
         payment_status?: string;
         payment_slip_url?: string | null;
         timeout_at?: string | null;
+        coupons?: {
+            code: string;
+            name: string;
+            amount: number;
+            type: 'main' | 'ontop';
+        }[];
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void;
@@ -230,25 +236,32 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const netPrice = isEditingDetails && editPrice !== '' ? parseFloat(editPrice) : booking.price;
 
         let discount = 0;
+        let coupons: any[] = booking.coupons || [];
 
-        // Try to reverse engineer base price if discount exists
-        const noteMatch = (booking.admin_note || '').match(/\(-(\d+)\)/);
-        if (noteMatch) {
-            discount = parseInt(noteMatch[1], 10);
-        } else if (booking.discount) {
-            discount = booking.discount;
+        // If no coupons array (backward compatibility), try to reverse engineer
+        if (coupons.length === 0) {
+            const noteMatch = (booking.admin_note || '').match(/\(-(\d+)\)/);
+            if (noteMatch) {
+                discount = parseInt(noteMatch[1], 10);
+                coupons.push({ name: 'ส่วนลด (Legacy)', amount: discount, type: 'main' });
+            } else if (booking.discount) {
+                discount = booking.discount;
+                coupons.push({ name: 'ส่วนลด (Discount)', amount: discount, type: 'main' });
+            }
+        } else {
+            discount = coupons.reduce((sum, c) => sum + (c.amount || 0), 0);
         }
 
         const basePrice = netPrice + discount;
 
-        // Deposit Logic
-        const isDepositPaid = (booking.payment_method === 'qr' && (!!booking.paid_at || booking.payment_status === 'paid'));
+        // Deposit Logic (Case-insensitive check)
+        const pm = booking.payment_method?.toLowerCase();
+        const isQr = pm === 'qr' || pm?.includes('qr') || pm?.includes('transfer');
+
+        const isDepositPaid = (isQr && (!!booking.paid_at || booking.payment_status === 'paid'));
         const depositAmount = isDepositPaid ? 200 : 0;
 
         // Balance Logic
-        // If fully paid, balance is 0.
-        // If deposit paid, balance = netPrice - deposit.
-        // If unpaid, balance = netPrice.
         let balance = 0;
 
         if (isPaid) {
@@ -259,10 +272,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             balance = netPrice;
         }
 
-        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid };
+        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons };
     };
 
-    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid } = getFinancials();
+    const { basePrice, netPrice, depositAmount, balance, isDepositPaid, coupons } = getFinancials();
 
     const isPendingPayment = booking.status === 'pending_payment';
 
@@ -355,15 +368,17 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                     <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">การชำระเงิน</h4>
 
                                     <div className="flex items-center gap-3 mb-4">
-                                        <div className={`p-3 rounded-lg ${booking.payment_method === 'qr' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                                            {booking.payment_method === 'qr' ? <QrCode className="w-6 h-6" /> : <Banknote className="w-6 h-6" />}
+                                        <div className={`p-3 rounded-lg ${['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                            {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? <QrCode className="w-6 h-6" /> : <Banknote className="w-6 h-6" />}
                                         </div>
                                         <div>
                                             <div className="font-bold text-gray-900">
-                                                {booking.payment_method === 'qr' ? 'โอนจ่าย (QR PromptPay)' : 'เงินสด / จ่ายหน้าสนาม'}
+                                                {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'โอนจ่าย (QR PromptPay)' : 'เงินสด / จ่ายหน้าสนาม'}
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                {booking.payment_method === 'qr' ? 'มัดจำ 200 บาท' : 'ชำระเต็มจำนวนหน้าสนาม'}
+                                                <div className="text-xs text-gray-500">
+                                                    {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'มัดจำ 200 บาท' : 'ชำระเต็มจำนวนหน้าสนาม'}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -436,10 +451,18 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             <span>{basePrice.toLocaleString()} ฿</span>
                                         </div>
 
-                                        {discount > 0 && (
-                                            <div className="flex justify-between text-sm text-red-600 font-medium">
-                                                <span className="flex items-center"><Tag className="w-3 h-3 mr-1" /> ส่วนลด (Discount)</span>
-                                                <span>- {discount.toLocaleString()} ฿</span>
+                                        {coupons.length > 0 && (
+                                            <div className="space-y-1">
+                                                {coupons.map((c, idx) => (
+                                                    <div key={idx} className="flex justify-between text-sm text-red-600 font-medium">
+                                                        <span className="flex items-center">
+                                                            <Tag className="w-3 h-3 mr-1" />
+                                                            {c.name}
+                                                            {c.type === 'ontop' && <span className="ml-1 text-[10px] bg-red-100 px-1 rounded">On-top</span>}
+                                                        </span>
+                                                        <span>- {c.amount.toLocaleString()} ฿</span>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
 
