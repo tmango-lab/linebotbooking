@@ -10,7 +10,8 @@ export default function CouponDetailModal({ isOpen, onClose, coupon }: CouponDet
     if (!isOpen || !coupon) return null;
 
     // Normalize data structure (handle both user_coupons and campaigns)
-    const isUserCoupon = !!coupon.coupon_id;
+    // const isUserCoupon = !!coupon.coupon_id; // Unused
+
     const name = coupon.name || coupon.campaign?.name;
     const description = coupon.description || coupon.campaign?.description;
     const expiry = coupon.expiry || coupon.expires_at || coupon.end_date;

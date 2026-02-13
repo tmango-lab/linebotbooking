@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Gift, Lock, Clock, History, AlertCircle, Search } from 'lucide-react';
+import { Loader2, Ticket, Lock, Clock, History, AlertCircle } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 
 interface Coupon {
