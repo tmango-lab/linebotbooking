@@ -368,7 +368,7 @@ export const useBookingLogic = () => {
                     endTime: selection!.endTime,
                     customerName: team,
                     phoneNumber: phone,
-                    couponId: appliedCoupon?.id,
+                    couponIds: [appliedMain?.id, appliedOntop?.id].filter(id => id !== undefined && id !== null),
                     paymentMethod: payment
                 })
             });
