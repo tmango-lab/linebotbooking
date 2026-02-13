@@ -106,7 +106,7 @@ serve(async (req) => {
                         discount_amount,
                         discount_percent,
                         reward_item,
-                        campaign_type 
+                        coupon_type 
                     )
                 `)
                 .in('booking_id', bookingIds)
@@ -157,7 +157,7 @@ serve(async (req) => {
                         name: camp.name || (itemName ? `Reward: ${itemName}` : 'Coupon'),
                         amount: discount,
                         item: itemName,
-                        type: camp.campaign_type || 'main' // 'main' or 'ontop'
+                        type: camp.coupon_type || 'main' // 'main' or 'ontop'
                     });
                 });
             }
