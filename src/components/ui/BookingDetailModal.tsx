@@ -369,7 +369,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                 <Gift className="w-4 h-4 mr-1" /> โปรโมชั่นที่ใช้ (Applied Promotions)
                                             </h4>
                                             <div className="space-y-2">
-                                                {coupons.sort((a, b) => (a.type === 'main' ? -1 : 1)).map((c, idx) => (
+                                                {coupons.sort((a, b) => {
+                                                    if (a.type === 'main' && b.type !== 'main') return -1;
+                                                    if (a.type !== 'main' && b.type === 'main') return 1;
+                                                    return 0;
+                                                }).map((c, idx) => (
                                                     <div key={idx} className="bg-pink-50 p-3 rounded-lg border border-pink-100 flex justify-between items-center">
                                                         <div className="flex items-start gap-3">
                                                             <div className="bg-white p-1.5 rounded-full border border-pink-100 text-pink-500 mt-0.5">
