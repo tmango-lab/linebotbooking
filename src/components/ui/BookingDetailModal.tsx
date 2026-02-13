@@ -369,7 +369,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                 <Gift className="w-4 h-4 mr-1" /> โปรโมชั่นที่ใช้ (Applied Promotions)
                                             </h4>
                                             <div className="space-y-2">
-                                                {coupons.map((c, idx) => (
+                                                {coupons.sort((a, b) => (a.type === 'main' ? -1 : 1)).map((c, idx) => (
                                                     <div key={idx} className="bg-pink-50 p-3 rounded-lg border border-pink-100 flex justify-between items-center">
                                                         <div className="flex items-start gap-3">
                                                             <div className="bg-white p-1.5 rounded-full border border-pink-100 text-pink-500 mt-0.5">
@@ -417,25 +417,24 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                         </div>
 
                                         {/* Slip Preview if available */}
+                                        {/* Slip Preview if available */}
                                         {booking.payment_slip_url && (
-                                            <div className="mt-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <div className="flex items-center text-xs font-semibold text-gray-700">
-                                                        <ImageIcon className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
-                                                        หลักฐานการโอน (Slip)
+                                            <div className="mt-3 flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                                                <div className="flex items-center text-sm font-semibold text-gray-700">
+                                                    <div className="bg-indigo-100 p-2 rounded-lg mr-3">
+                                                        <ImageIcon className="w-5 h-5 text-indigo-600" />
                                                     </div>
-                                                    <a href={booking.payment_slip_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center">
-                                                        เปิดรูปเต็ม <ExternalLink className="w-3 h-3 ml-1" />
-                                                    </a>
+                                                    <div>
+                                                        <div>หลักฐานการโอน</div>
+                                                        <div className="text-xs text-gray-500 font-normal">แนบเมื่อ: {booking.paid_at ? formatFullDateTime(booking.paid_at) : '-'}</div>
+                                                    </div>
                                                 </div>
-                                                <div className="relative group cursor-pointer overflow-hidden rounded-lg aspect-[3/4] bg-gray-100 flex items-center justify-center border border-gray-100">
-                                                    <img
-                                                        src={booking.payment_slip_url}
-                                                        alt="Payment Slip"
-                                                        className="w-full h-full object-contain"
-                                                        onClick={() => window.open(booking.payment_slip_url!, '_blank')}
-                                                    />
-                                                </div>
+                                                <button
+                                                    onClick={() => window.open(booking.payment_slip_url!, '_blank')}
+                                                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors flex items-center"
+                                                >
+                                                    <ExternalLink className="w-3 h-3 mr-1.5" /> ดูรูปสลิป
+                                                </button>
                                             </div>
                                         )}
 
