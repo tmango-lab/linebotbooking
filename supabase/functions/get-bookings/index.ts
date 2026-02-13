@@ -101,7 +101,6 @@ serve(async (req) => {
                 .from('user_coupons')
                 .select(`
                     booking_id,
-                    coupon_code,
                     campaigns (
                         name,
                         discount_amount,
@@ -113,7 +112,11 @@ serve(async (req) => {
                 .in('booking_id', bookingIds)
                 .eq('status', 'USED');
 
+            console.log(`[Debug] Checking coupons for ${bookingIds.length} bookings. IDs: ${bookingIds.slice(0, 3)}...`);
+
             if (coupons) {
+                console.log(`[Debug] Found ${coupons.length} coupons.`);
+
                 coupons.forEach((c: any) => {
                     const bookingId = c.booking_id;
                     const camp = c.campaigns;
@@ -150,7 +153,7 @@ serve(async (req) => {
                     // Add to coupons list
                     if (!couponsMap[bookingId]) couponsMap[bookingId] = [];
                     couponsMap[bookingId].push({
-                        code: c.coupon_code || 'COUPON',
+                        code: 'COUPON',
                         name: camp.name || (itemName ? `Reward: ${itemName}` : 'Coupon'),
                         amount: discount,
                         item: itemName,
@@ -188,6 +191,12 @@ serve(async (req) => {
             timeout_at: b.timeout_at || null,
             attendance_status: b.attendance_status || null // [NEW] Pass attendance status
         }));
+
+        console.log(`[Response] Returning ${bookings.length} bookings. Sample Coupon Count: ${bookings[0]?.coupons?.length || 0}`);
+        if (bookings.length > 0 && bookings[0].coupons.length > 0) {
+            console.log(`[Response Sample] Coupon 0:`, bookings[0].coupons[0]);
+        }
+
 
         return new Response(JSON.stringify({ bookings }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
