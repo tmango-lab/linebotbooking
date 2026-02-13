@@ -179,28 +179,33 @@ serve(async (req) => {
                     if (!paymentMethod || !campaign.payment_methods.includes(paymentMethod)) throw new Error(`Invalid payment method for coupon ${campaign.name}`);
                 }
 
-                // Apply Benefit
+                // C. Apply Benefit
                 if (campaign.reward_item) {
+                    // Item Reward
                     isPromo = true;
-                    adminNote += ` | [REWARD: ${campaign.reward_item}]`;
+                    // adminNote += ` | [REWARD: ${campaign.reward_item}]`; // [MOD] Keep admin_note clean
+                    console.log(`[Coupon Applied] Reward: ${campaign.reward_item}`);
+                    // No price reduction
                 } else {
-                    let amount = 0;
+                    // Money Discount
                     if (campaign.discount_amount > 0) {
-                        amount = campaign.discount_amount;
+                        discountAmount = campaign.discount_amount;
                     } else if (campaign.discount_percent > 0) {
-                        // Note: If multiple percent coupons, this applies to ORIGINAL price base (not compounding)
-                        // This is usually safer/standard for simple systems.
-                        amount = Math.floor((originalPrice * campaign.discount_percent) / 100);
-                        if (campaign.max_discount && amount > campaign.max_discount) amount = campaign.max_discount;
+                        discountAmount = Math.floor((originalPrice * campaign.discount_percent) / 100);
+                        // Fix #1: Apply max_discount cap for percentage discounts
+                        if (campaign.max_discount && campaign.max_discount > 0 && discountAmount > campaign.max_discount) {
+                            console.log(`[Coupon Cap] Discount ${discountAmount} capped to max_discount ${campaign.max_discount}`);
+                            discountAmount = campaign.max_discount;
+                        }
                     }
 
-                    if (amount > 0) {
-                        discountAmount += amount;
+                    if (discountAmount > 0) {
+                        finalPrice = Math.max(0, originalPrice - discountAmount);
                         isPromo = true;
-                        adminNote += ` | [Coupon: ${campaign.name} -${amount}฿]`;
+                        // adminNote += ` | [Coupon: ${campaign.name} -${discountAmount}฿]`; // [MOD] Keep admin_note clean
+                        console.log(`[Coupon Applied] Discount: ${discountAmount}, Final: ${finalPrice}`);
                     }
                 }
-
                 campaignsToIncrement.push(campaign);
                 usedCouponIds.push(coupon.id);
             }

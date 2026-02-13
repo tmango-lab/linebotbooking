@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft } from 'lucide-react';
+import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift } from 'lucide-react';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
@@ -275,7 +275,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons };
     };
 
-    const { basePrice, netPrice, depositAmount, balance, isDepositPaid, coupons } = getFinancials();
+    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons } = getFinancials();
 
     const isPendingPayment = booking.status === 'pending_payment';
 
@@ -361,61 +361,95 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             <div className="text-gray-900 font-medium text-base pl-1">{editTel || '-'}</div>
                                         )}
                                     </div>
-                                </div>
 
-                                {/* Payment Method Info */}
-                                <div className="pt-4 border-t border-gray-100">
-                                    <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">การชำระเงิน</h4>
-
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className={`p-3 rounded-lg ${['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                                            {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? <QrCode className="w-6 h-6" /> : <Banknote className="w-6 h-6" />}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-gray-900">
-                                                {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'โอนจ่าย (QR PromptPay)' : 'เงินสด / จ่ายหน้าสนาม'}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                <div className="text-xs text-gray-500">
-                                                    {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'มัดจำ 200 บาท' : 'ชำระเต็มจำนวนหน้าสนาม'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Slip Preview if available */}
-                                    {booking.payment_slip_url && (
-                                        <div className="mt-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <div className="flex items-center text-xs font-semibold text-gray-700">
-                                                    <ImageIcon className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
-                                                    หลักฐานการโอน (Slip)
-                                                </div>
-                                                <a href={booking.payment_slip_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center">
-                                                    เปิดรูปเต็ม <ExternalLink className="w-3 h-3 ml-1" />
-                                                </a>
-                                            </div>
-                                            <div className="relative group cursor-pointer overflow-hidden rounded-lg aspect-[3/4] bg-gray-100 flex items-center justify-center border border-gray-100">
-                                                <img
-                                                    src={booking.payment_slip_url}
-                                                    alt="Payment Slip"
-                                                    className="w-full h-full object-contain"
-                                                    onClick={() => window.open(booking.payment_slip_url!, '_blank')}
-                                                />
+                                    {/* [NEW] Applied Promotions Section */}
+                                    {coupons.length > 0 && (
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <h4 className="text-sm uppercase tracking-wide text-pink-600 font-semibold mb-3 border-b border-pink-100 pb-1 flex items-center">
+                                                <Gift className="w-4 h-4 mr-1" /> โปรโมชั่นที่ใช้ (Applied Promotions)
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {coupons.map((c, idx) => (
+                                                    <div key={idx} className="bg-pink-50 p-3 rounded-lg border border-pink-100 flex justify-between items-center">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="bg-white p-1.5 rounded-full border border-pink-100 text-pink-500 mt-0.5">
+                                                                {c.amount > 0 ? <Tag className="w-4 h-4" /> : <Gift className="w-4 h-4" />}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-gray-900 text-sm">{c.name}</div>
+                                                                <div className="text-xs text-pink-600 font-medium">
+                                                                    {c.code !== 'COUPON' && <span className="mr-2">Code: {c.code}</span>}
+                                                                    {c.type === 'ontop' && <span className="bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded text-[10px]">On-top</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {c.amount > 0 ? (
+                                                                <span className="font-bold text-red-600">- {c.amount.toLocaleString()} ฿</span>
+                                                            ) : (
+                                                                <span className="font-bold text-green-600 bg-green-100 px-2 py-1 rounded text-xs">FREE</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Timeout Warning */}
-                                    {isPendingPayment && booking.timeout_at && (
-                                        <div className="mt-4 flex items-center bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs text-amber-800">
-                                            <AlertTriangle className="w-4 h-4 mr-2 text-amber-600 flex-shrink-0" />
+                                    {/* Payment Method Info */}
+                                    <div className="pt-4 border-t border-gray-100">
+                                        <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">การชำระเงิน</h4>
+
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className={`p-3 rounded-lg ${['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                                {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? <QrCode className="w-6 h-6" /> : <Banknote className="w-6 h-6" />}
+                                            </div>
                                             <div>
-                                                <span>จะถูกยกเลิกอัตโนมัติเมื่อ: </span>
-                                                <span className="font-bold block sm:inline sm:ml-1">{formatFullDateTime(booking.timeout_at)}</span>
+                                                <div className="font-bold text-gray-900">
+                                                    {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'โอนจ่าย (QR PromptPay)' : 'เงินสด / จ่ายหน้าสนาม'}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    <div className="text-xs text-gray-500">
+                                                        {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'มัดจำ 200 บาท' : 'ชำระเต็มจำนวนหน้าสนาม'}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    )}
+
+                                        {/* Slip Preview if available */}
+                                        {booking.payment_slip_url && (
+                                            <div className="mt-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <div className="flex items-center text-xs font-semibold text-gray-700">
+                                                        <ImageIcon className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
+                                                        หลักฐานการโอน (Slip)
+                                                    </div>
+                                                    <a href={booking.payment_slip_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center">
+                                                        เปิดรูปเต็ม <ExternalLink className="w-3 h-3 ml-1" />
+                                                    </a>
+                                                </div>
+                                                <div className="relative group cursor-pointer overflow-hidden rounded-lg aspect-[3/4] bg-gray-100 flex items-center justify-center border border-gray-100">
+                                                    <img
+                                                        src={booking.payment_slip_url}
+                                                        alt="Payment Slip"
+                                                        className="w-full h-full object-contain"
+                                                        onClick={() => window.open(booking.payment_slip_url!, '_blank')}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Timeout Warning */}
+                                        {isPendingPayment && booking.timeout_at && (
+                                            <div className="mt-4 flex items-center bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs text-amber-800">
+                                                <AlertTriangle className="w-4 h-4 mr-2 text-amber-600 flex-shrink-0" />
+                                                <div>
+                                                    <span>จะถูกยกเลิกอัตโนมัติเมื่อ: </span>
+                                                    <span className="font-bold block sm:inline sm:ml-1">{formatFullDateTime(booking.timeout_at)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -451,18 +485,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             <span>{basePrice.toLocaleString()} ฿</span>
                                         </div>
 
-                                        {coupons.length > 0 && (
-                                            <div className="space-y-1">
-                                                {coupons.map((c, idx) => (
-                                                    <div key={idx} className="flex justify-between text-sm text-red-600 font-medium">
-                                                        <span className="flex items-center">
-                                                            <Tag className="w-3 h-3 mr-1" />
-                                                            {c.name}
-                                                            {c.type === 'ontop' && <span className="ml-1 text-[10px] bg-red-100 px-1 rounded">On-top</span>}
-                                                        </span>
-                                                        <span>- {c.amount.toLocaleString()} ฿</span>
-                                                    </div>
-                                                ))}
+                                        {coupons.length > 0 && discount > 0 && (
+                                            <div className="flex justify-between text-sm text-red-600 font-medium">
+                                                <span className="flex items-center"><Tag className="w-3 h-3 mr-1" /> ส่วนลดรวม (Total Discount)</span>
+                                                <span>- {discount.toLocaleString()} ฿</span>
                                             </div>
                                         )}
 
@@ -665,6 +691,6 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
