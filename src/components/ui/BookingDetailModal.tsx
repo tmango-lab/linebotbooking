@@ -385,9 +385,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                             </div>
                                                             <div>
                                                                 <div className="font-bold text-gray-900 text-sm">{c.name}</div>
-                                                                <div className="text-xs text-pink-600 font-medium">
-                                                                    {c.code !== 'COUPON' && <span className="mr-2">Code: {c.code}</span>}
+                                                                <div className="text-xs text-pink-600 font-medium flex gap-2">
+                                                                    {c.code !== 'COUPON' && <span>Code: {c.code}</span>}
                                                                     {c.type === 'ontop' && <span className="bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded text-[10px]">On-top</span>}
+                                                                    {c.type === 'main' && <span className="bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded text-[10px]">Main</span>}
                                                                 </div>
                                                             </div>
                                                         </div>
