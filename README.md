@@ -7,6 +7,7 @@
 ### 1. LINE Bot Integration
 - ค้นหาเวลาว่าง (ทีละสนาม / ทั้งหมด)
 - จองสนามผ่าน LINE
+- **Stripe PromptPay QR**: ระบบชำระเงินมัดจำ 200 บาทอัตโนมัติ (ไม่ต้องแนบสลิป)
 - สร้างโค้ดโปรโมชั่นอัตโนมัติ (ส่วนลด 10%)
 - แสดงราคาตามช่วงเวลา (ก่อน/หลัง 18:00)
 
@@ -60,6 +61,8 @@
 │
 ├── supabase/functions/           # Edge Functions
 │   ├── webhook/                  # LINE Bot webhook
+│   ├── stripe-webhook/           # [NEW] Stripe payment confirmation
+│   ├── create-payment-intent/    # [NEW] Create Stripe PromptPay session
 │   ├── create-booking/           # สร้างการจอง
 │   ├── use-promo-code-and-book/  # จองด้วยโค้ดโปรโมชั่น
 │   ├── validate-promo-code/      # ตรวจสอบโค้ด

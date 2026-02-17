@@ -699,3 +699,42 @@ To ensure instantaneous page loads for customers:
 2.  **Parallel Data Fetching**:
     *   `useBookingLogic` fetches **Fields**, **Bookings**, and **Coupons** simultaneously using `Promise.all`.
     *   Reduces initial data wait time by ~40-50%.
+
+---
+
+## 18. Stripe Direct Payment (PromptPay) Integration (2026-02)
+
+### 18.1 Overview
+The system uses Stripe to handle automated PromptPay QR payments. This replaces the manual slip upload process with a secure, real-time transaction verified via webhooks.
+
+### 18.2 QR Deposit Workflow (Standard)
+1. **Frontend**: The user reaches `BookingSuccessPage.tsx`. It calls the `create-payment-intent` edge function.
+2. **Backend (`create-payment-intent`)**:
+    - Calculates a **Fixed 200 THB Deposit** (or full price if lower).
+    - Creates a Stripe PaymentIntent with `payment_method_types: ['promptpay']`.
+    - Returns the `clientSecret` to the frontend.
+3. **Frontend**: Stripe.js opens the PromptPay QR modal automatically.
+4. **Stripe Webhook**:
+    - Receives `payment_intent.succeeded`.
+    - Updates local DB booking to `payment_status: 'deposit_paid'`.
+    - Sends LINE Flex Message showing the deposit paid and the **Remaining Balance** to be collected at the field.
+
+### 18.3 Technical Details (Edge Functions)
+
+#### `create-payment-intent`
+- **Purpose**: Bridge between our system and Stripe API.
+- **Metadata**: Stores `booking_id`, `field_no`, `deposit_amount`, and `total_price` inside the Stripe object for reconciliation.
+- **Concurrency**: Updates `bookings.stripe_payment_intent_id` immediately so we have a reference.
+
+#### `stripe-webhook`
+- **Verification**: Uses `stripe.webhooks.constructEvent` with `STRIPE_WEBHOOK_SECRET` for security.
+- **Processing**:
+    - Extracts `deposit_amount` and `total_price` from metadata.
+    - Updates `payment_status` to `'deposit_paid'`.
+    - Sends confirmation via LINE Messaging API.
+
+### 18.4 Admin UI Logic
+- **Balance Calculation**: `BookingDetailModal` checks for `deposit_paid` status.
+- **Formula**: `Balance = (Grand Total + Discount) - 200`.
+- **Visibility**: Shows a "✅ จ่ายมัดจำแล้ว -200 ฿" row in the financial breakdown.
+
