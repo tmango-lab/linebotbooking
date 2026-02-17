@@ -18,6 +18,7 @@ const BookingSuccessPage: React.FC = () => {
     const fieldName = searchParams.get('fieldName');
     const date = searchParams.get('date');
     const time = searchParams.get('time');
+    const userId = searchParams.get('userId');
 
     const isQR = paymentMethod === 'qr';
 
@@ -34,6 +35,13 @@ const BookingSuccessPage: React.FC = () => {
     useEffect(() => {
         document.title = "Booking Success";
     }, []);
+
+    // Auto-trigger Stripe payment when QR is selected
+    useEffect(() => {
+        if (isQR && bookingId && !paymentStarted && !paymentSuccess) {
+            handleStripePayment();
+        }
+    }, [isQR, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleCopy = () => {
         navigator.clipboard.writeText(promptPayId);
@@ -83,7 +91,11 @@ const BookingSuccessPage: React.FC = () => {
             setStripeLoading(false);
 
             const result = await stripe.confirmPromptPayPayment(clientSecret, {
-                payment_method: {},
+                payment_method: {
+                    billing_details: {
+                        email: `${userId || bookingId}@booking.local`,
+                    },
+                },
             });
 
             if (result.error) {
