@@ -61,8 +61,9 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setEditNote(booking.admin_note || '');
             // Use paid_at as single source of truth (same as BookingCard)
             // For Cash bookings: paid_at is null until admin confirms → shows "Unpaid"
-            // For QR bookings: paid_at is set by webhook when deposit confirmed → shows "Paid"
-            setIsPaid(!!booking.paid_at);
+            // For QR bookings: deposit_paid means deposit received, not fully paid
+            const ps = booking.payment_status;
+            setIsPaid(ps === 'paid' || !!booking.paid_at);
 
             setError(null);
             setIsConfirming(false);
@@ -258,7 +259,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const pm = booking.payment_method?.toLowerCase();
         const isQr = pm === 'qr' || pm?.includes('qr') || pm?.includes('transfer');
 
-        const isDepositPaid = (isQr && (!!booking.paid_at || booking.payment_status === 'paid'));
+        const isDepositPaid = (isQr && (!!booking.paid_at || booking.payment_status === 'paid' || booking.payment_status === 'deposit_paid'));
         const depositAmount = isDepositPaid ? 200 : 0;
 
         // Balance Logic
