@@ -108,13 +108,17 @@ serve(async (req) => {
                 return new Response('No booking_id', { status: 400 });
             }
 
-            console.log(`[Stripe Webhook] Payment succeeded for booking: ${bookingId} | Amount: ${paymentIntent.amount / 100} THB`);
+            const depositAmount = paymentIntent.amount / 100;
+            const totalPrice = parseFloat(paymentIntent.metadata?.total_price || '0');
+            const remainingBalance = Math.max(0, totalPrice - depositAmount);
 
-            // 4. Update booking status
+            console.log(`[Stripe Webhook] Payment succeeded for booking: ${bookingId} | Deposit: ${depositAmount} THB | Total: ${totalPrice} THB | Remaining: ${remainingBalance} THB`);
+
+            // 4. Update booking status (deposit_paid = deposit received, remaining paid at field)
             const { data: booking, error: updateError } = await supabase
                 .from('bookings')
                 .update({
-                    payment_status: 'paid',
+                    payment_status: 'deposit_paid',
                     status: 'confirmed',
                     updated_at: new Date().toISOString(),
                 })
@@ -127,7 +131,7 @@ serve(async (req) => {
                 return new Response('DB update failed', { status: 500 });
             }
 
-            console.log(`[Stripe Webhook] Booking ${bookingId} updated to paid/confirmed`);
+            console.log(`[Stripe Webhook] Booking ${bookingId} updated to deposit_paid/confirmed`);
 
             // 5. Increment campaign redemption counts (if applicable)
             if (booking) {
@@ -211,13 +215,13 @@ serve(async (req) => {
                                         contents: [
                                             {
                                                 type: 'text',
-                                                text: 'ยอดชำระ',
+                                                text: 'ค่ามัดจำ (Stripe)',
                                                 size: 'sm',
                                                 color: '#555555',
                                             },
                                             {
                                                 type: 'text',
-                                                text: `฿${booking.price_total_thb}`,
+                                                text: `฿${depositAmount}`,
                                                 size: 'sm',
                                                 color: '#1DB446',
                                                 weight: 'bold',
@@ -227,8 +231,29 @@ serve(async (req) => {
                                         margin: 'lg',
                                     },
                                     {
+                                        type: 'box',
+                                        layout: 'horizontal',
+                                        contents: [
+                                            {
+                                                type: 'text',
+                                                text: 'ยอดคงเหลือ (หน้าสนาม)',
+                                                size: 'sm',
+                                                color: '#555555',
+                                            },
+                                            {
+                                                type: 'text',
+                                                text: `฿${remainingBalance}`,
+                                                size: 'sm',
+                                                color: '#FF6B35',
+                                                weight: 'bold',
+                                                align: 'end',
+                                            },
+                                        ],
+                                        margin: 'sm',
+                                    },
+                                    {
                                         type: 'text',
-                                        text: 'ชำระผ่าน Stripe PromptPay',
+                                        text: 'ชำระมัดจำผ่าน Stripe PromptPay',
                                         size: 'xs',
                                         color: '#AAAAAA',
                                         margin: 'md',

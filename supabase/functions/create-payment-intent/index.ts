@@ -38,14 +38,19 @@ serve(async (req) => {
             throw new Error('Booking already paid');
         }
 
-        const amount = booking.price_total_thb;
-        if (!amount || amount <= 0) {
+        const totalPrice = booking.price_total_thb;
+        if (!totalPrice || totalPrice <= 0) {
             throw new Error('Invalid amount');
         }
 
+        // Fixed deposit amount: 200 THB
+        // The remaining balance is paid in cash at the field
+        const DEPOSIT_AMOUNT = 200;
+        const depositAmount = Math.min(DEPOSIT_AMOUNT, totalPrice); // Don't charge more than total
+
         // 2. Create PaymentIntent via Stripe REST API
         // Amount is in smallest currency unit (satang for THB), so multiply by 100
-        const amountInSatang = Math.round(amount * 100);
+        const amountInSatang = Math.round(depositAmount * 100);
 
         const stripeResponse = await fetch('https://api.stripe.com/v1/payment_intents', {
             method: 'POST',
@@ -61,6 +66,8 @@ serve(async (req) => {
                 'metadata[field_no]': booking.field_no?.toString() || '',
                 'metadata[customer_name]': booking.display_name || '',
                 'metadata[date]': booking.date || '',
+                'metadata[deposit_amount]': depositAmount.toString(),
+                'metadata[total_price]': totalPrice.toString(),
             }).toString(),
         });
 
@@ -72,7 +79,7 @@ serve(async (req) => {
 
         const paymentIntent = await stripeResponse.json();
 
-        console.log(`[PaymentIntent Created] ID: ${paymentIntent.id} | Amount: ${amount} THB | Booking: ${bookingId}`);
+        console.log(`[PaymentIntent Created] ID: ${paymentIntent.id} | Deposit: ${depositAmount} THB (Total: ${totalPrice} THB) | Booking: ${bookingId}`);
 
         // 3. Store the PaymentIntent ID in the booking for reference
         await supabase
@@ -88,7 +95,7 @@ serve(async (req) => {
             success: true,
             clientSecret: paymentIntent.client_secret,
             paymentIntentId: paymentIntent.id,
-            amount: amount,
+            amount: depositAmount,
             publicKey: Deno.env.get('STRIPE_PUBLIC_KEY') || '',
         }), {
             status: 200,
