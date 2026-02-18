@@ -79,19 +79,7 @@ serve(async (req) => {
                 );
             }
 
-            // Check if has paid bookings
-            const { count: bookingCount } = await supabase
-                .from('bookings')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId)
-                .in('status', ['PAID', 'COMPLETED', 'paid', 'completed']); // Cover variants
-
-            if (bookingCount && bookingCount > 0) {
-                return new Response(
-                    JSON.stringify({ valid: false, error: 'สงวนสิทธิ์สำหรับลูกค้าใหม่เท่านั้น (คุณเคยมีประวัติการจองแล้ว)' }),
-                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                );
-            }
+            // [MODIFIED] Booking check removed - allow existing users who never referred before
         }
 
         // 5. Check active referral program
