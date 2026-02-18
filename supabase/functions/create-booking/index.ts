@@ -141,6 +141,7 @@ serve(async (req) => {
                         finalPrice = Math.max(0, originalPrice - discountAmount);
                         isPromo = true;
                         console.log(`[Referral] Applied ${referralData.discountPercent}% discount: -${refDiscount} THB. Final: ${finalPrice}`);
+                        adminNote = (adminNote || '') + ` [Referral] (-${refDiscount})`;
                     } else {
                         console.log(`[Referral] User ${userId} already referred. Skipping discount.`);
                     }
@@ -235,7 +236,7 @@ serve(async (req) => {
                 if (campaign.reward_item) {
                     // Item Reward
                     isPromo = true;
-                    // adminNote += ` | [REWARD: ${campaign.reward_item}]`; // [MOD] Keep admin_note clean
+                    adminNote = (adminNote || '') + ` [REWARD: ${campaign.reward_item}]`;
                     console.log(`[Coupon Applied] Reward: ${campaign.reward_item}`);
                     // No price reduction
                 } else {
@@ -254,7 +255,7 @@ serve(async (req) => {
                     if (discountAmount > 0) {
                         finalPrice = Math.max(0, originalPrice - discountAmount);
                         isPromo = true;
-                        // adminNote += ` | [Coupon: ${campaign.name} -${discountAmount}฿]`; // [MOD] Keep admin_note clean
+                        adminNote = (adminNote || '') + ` [Coupon: ${campaign.name}] (-${discountAmount})`;
                         console.log(`[Coupon Applied] Discount: ${discountAmount}, Final: ${finalPrice}`);
                     }
                 }

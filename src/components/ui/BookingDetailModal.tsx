@@ -237,7 +237,14 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const netPrice = isEditingDetails && editPrice !== '' ? parseFloat(editPrice) : booking.price;
 
         let discount = 0;
-        let coupons: any[] = booking.coupons || [];
+        let coupons: any[] = [...(booking.coupons || [])];
+
+        // [NEW] Check for Referral Discount in Note (Format: [Referral] (-100))
+        const referralMatch = (booking.admin_note || '').match(/\[Referral\] \(-(\d+)\)/);
+        if (referralMatch) {
+            const amount = parseInt(referralMatch[1], 10);
+            coupons.push({ name: 'ส่วนลดแนะนำเพื่อน (Referral)', amount: amount, type: 'main', code: 'REF' });
+        }
 
         // If no coupons array (backward compatibility), try to reverse engineer
         if (coupons.length === 0) {
