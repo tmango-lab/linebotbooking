@@ -128,7 +128,6 @@ function StatusPage() {
 function RootRedirect() {
   const params = new URLSearchParams(window.location.search);
   const redirect = params.get('redirect');
-  const userId = params.get('userId');
 
   const liffState = params.get('liff.state');
   const code = params.get('code');
@@ -136,6 +135,7 @@ function RootRedirect() {
 
   // [NEW] Check App Mode from Environment
   const appMode = import.meta.env.VITE_APP_MODE; // 'admin', 'booking', 'wallet'
+  const searchStr = window.location.search; // Preserve all params (ref, userId, etc.)
 
   if (liffState || code || state) {
     return <PageLoader text="Verifying Secure Login..." />;
@@ -143,23 +143,21 @@ function RootRedirect() {
 
   // 1. Priority: Explicit Redirect Param (Deep Links)
   if (redirect === 'wallet') {
-    const target = userId ? `/wallet?userId=${userId}` : '/wallet';
-    return <Navigate to={target} replace />;
+    return <Navigate to={`/wallet${searchStr}`} replace />;
   }
   if (redirect === 'booking-v2') {
-    return <Navigate to="/booking-v2" replace />;
+    return <Navigate to={`/booking-v2${searchStr}`} replace />;
   }
   if (redirect === 'booking-v3') {
-    return <Navigate to="/booking-v3" replace />;
+    return <Navigate to={`/booking-v3${searchStr}`} replace />;
   }
 
   // 2. Secondary Priority: App Mode Default
   if (appMode === 'booking') {
-    return <Navigate to="/booking-v2" replace />;
+    return <Navigate to={`/booking-v2${searchStr}`} replace />;
   }
   if (appMode === 'wallet') {
-    const target = userId ? `/wallet?userId=${userId}` : '/wallet';
-    return <Navigate to={target} replace />;
+    return <Navigate to={`/wallet${searchStr}`} replace />;
   }
 
   // 3. Default: Admin Dashboard
