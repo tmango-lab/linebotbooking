@@ -1,0 +1,235 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/api';
+import { Loader2, Save, ToggleLeft, ToggleRight } from 'lucide-react';
+
+interface ReferralProgram {
+    id: string;
+    name: string;
+    is_active: boolean;
+    start_date: string;
+    end_date: string;
+    discount_percent: number;
+    reward_amount: number;
+    created_at: string;
+}
+
+export default function ReferralSettingsPage() {
+    const [program, setProgram] = useState<ReferralProgram | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [stats, setStats] = useState({ totalAffiliates: 0, pendingApprovals: 0, totalReferrals: 0, totalRewards: 0 });
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // 1. Get active referral program
+            const { data: programs } = await supabase
+                .from('referral_programs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (programs && programs.length > 0) {
+                setProgram(programs[0]);
+            }
+
+            // 2. Get stats
+            const [affResult, pendResult, refResult] = await Promise.all([
+                supabase.from('affiliates').select('*', { count: 'exact', head: true }),
+                supabase.from('affiliates').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
+                supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('status', 'COMPLETED'),
+            ]);
+
+            // Total rewards
+            const { data: rewardData } = await supabase
+                .from('affiliates')
+                .select('total_earnings');
+
+            const totalRewards = (rewardData || []).reduce((sum, a) => sum + (a.total_earnings || 0), 0);
+
+            setStats({
+                totalAffiliates: affResult.count || 0,
+                pendingApprovals: pendResult.count || 0,
+                totalReferrals: refResult.count || 0,
+                totalRewards
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleToggle = async () => {
+        if (!program) return;
+        const newVal = !program.is_active;
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('referral_programs')
+                .update({ is_active: newVal })
+                .eq('id', program.id);
+            if (error) throw error;
+            setProgram({ ...program, is_active: newVal });
+        } catch (err: any) {
+            alert('Error: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!program) return;
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('referral_programs')
+                .update({
+                    name: program.name,
+                    end_date: program.end_date,
+                    discount_percent: program.discount_percent,
+                    reward_amount: program.reward_amount
+                })
+                .eq('id', program.id);
+            if (error) throw error;
+            alert('บันทึกเรียบร้อยแล้ว ✅');
+        } catch (err: any) {
+            alert('Error: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-6 max-w-4xl mx-auto">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-gray-900">Referral Settings</h1>
+                <p className="text-gray-500 text-sm mt-1">จัดการโปรแกรมแนะนำเพื่อน</p>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 text-center">
+                    <div className="text-xs text-gray-500 mb-1">ผู้แนะนำทั้งหมด</div>
+                    <div className="text-2xl font-bold text-gray-900">{stats.totalAffiliates}</div>
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-yellow-200 text-center">
+                    <div className="text-xs text-yellow-600 mb-1">รออนุมัติ</div>
+                    <div className="text-2xl font-bold text-yellow-600">{stats.pendingApprovals}</div>
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-green-200 text-center">
+                    <div className="text-xs text-green-600 mb-1">แนะนำสำเร็จ</div>
+                    <div className="text-2xl font-bold text-green-600">{stats.totalReferrals}</div>
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-purple-200 text-center">
+                    <div className="text-xs text-purple-600 mb-1">รางวัลรวม</div>
+                    <div className="text-2xl font-bold text-purple-600">฿{stats.totalRewards.toLocaleString()}</div>
+                </div>
+            </div>
+
+            {!program ? (
+                <div className="bg-white rounded-xl p-8 text-center shadow-sm border border-gray-200">
+                    <p className="text-gray-500">ไม่พบ Referral Program</p>
+                    <p className="text-gray-400 text-sm mt-1">กรุณาสร้างผ่าน Database Migration</p>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* Toggle */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="font-bold text-gray-900">สถานะโปรแกรม</h2>
+                                <p className="text-sm text-gray-500">เปิด/ปิดโปรแกรมแนะนำเพื่อน</p>
+                            </div>
+                            <button
+                                onClick={handleToggle}
+                                disabled={saving}
+                                className="transition-colors"
+                            >
+                                {program.is_active ? (
+                                    <ToggleRight className="w-12 h-12 text-green-500" />
+                                ) : (
+                                    <ToggleLeft className="w-12 h-12 text-gray-300" />
+                                )}
+                            </button>
+                        </div>
+                        <div className={`mt-3 px-3 py-1.5 rounded-lg text-sm font-medium inline-block ${program.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {program.is_active ? '🟢 กำลังใช้งาน' : '⚪ ปิดอยู่'}
+                        </div>
+                    </div>
+
+                    {/* Settings */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 space-y-5">
+                        <h2 className="font-bold text-gray-900">ตั้งค่าโปรแกรม</h2>
+
+                        <div>
+                            <label className="text-sm font-medium text-gray-700">ชื่อโปรแกรม</label>
+                            <input
+                                type="text"
+                                value={program.name}
+                                onChange={(e) => setProgram({ ...program, name: e.target.value })}
+                                className="w-full mt-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">วันสิ้นสุด</label>
+                                <input
+                                    type="date"
+                                    value={program.end_date?.split('T')[0] || ''}
+                                    onChange={(e) => setProgram({ ...program, end_date: e.target.value })}
+                                    className="w-full mt-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">ส่วนลดผู้ถูกแนะนำ (%)</label>
+                                <input
+                                    type="number"
+                                    value={program.discount_percent}
+                                    onChange={(e) => setProgram({ ...program, discount_percent: Number(e.target.value) })}
+                                    min={0} max={100}
+                                    className="w-full mt-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">รางวัลผู้แนะนำ (฿)</label>
+                                <input
+                                    type="number"
+                                    value={program.reward_amount}
+                                    onChange={(e) => setProgram({ ...program, reward_amount: Number(e.target.value) })}
+                                    min={0}
+                                    className="w-full mt-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            บันทึก
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

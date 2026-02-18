@@ -394,9 +394,52 @@ export default function WalletPage() {
 
                                 {!showHistory && (
                                     <>
-                                        {wallet.main.map(c => <CouponCard key={c.coupon_id} coupon={c} type="Main" />)}
-                                        {wallet.on_top.map(c => <CouponCard key={c.coupon_id} coupon={c} type="On-top" />)}
-
+                                        {(() => {
+                                            // Group main coupons by campaign_id
+                                            const mainGroups = new Map<string, { coupon: Coupon; count: number }>();
+                                            wallet.main.forEach(c => {
+                                                const key = c.campaign_id;
+                                                if (mainGroups.has(key)) {
+                                                    mainGroups.get(key)!.count++;
+                                                } else {
+                                                    mainGroups.set(key, { coupon: c, count: 1 });
+                                                }
+                                            });
+                                            // Group on_top coupons by campaign_id
+                                            const ontopGroups = new Map<string, { coupon: Coupon; count: number }>();
+                                            wallet.on_top.forEach(c => {
+                                                const key = c.campaign_id;
+                                                if (ontopGroups.has(key)) {
+                                                    ontopGroups.get(key)!.count++;
+                                                } else {
+                                                    ontopGroups.set(key, { coupon: c, count: 1 });
+                                                }
+                                            });
+                                            return (
+                                                <>
+                                                    {Array.from(mainGroups.values()).map(({ coupon, count }) => (
+                                                        <div key={coupon.coupon_id} className="relative">
+                                                            {count > 1 && (
+                                                                <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                    x{count}
+                                                                </div>
+                                                            )}
+                                                            <CouponCard coupon={coupon} type="Main" />
+                                                        </div>
+                                                    ))}
+                                                    {Array.from(ontopGroups.values()).map(({ coupon, count }) => (
+                                                        <div key={coupon.coupon_id} className="relative">
+                                                            {count > 1 && (
+                                                                <div className="absolute -top-2 -right-2 z-20 bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                    x{count}
+                                                                </div>
+                                                            )}
+                                                            <CouponCard coupon={coupon} type="On-top" />
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            );
+                                        })()}
                                         {wallet.main.length === 0 && wallet.on_top.length === 0 && (
                                             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
                                                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
