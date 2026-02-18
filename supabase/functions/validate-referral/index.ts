@@ -19,9 +19,9 @@ serve(async (req) => {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         // 3. Parse Input
-        const { referralCode } = await req.json();
+        const { referralCode, userId } = await req.json();
 
-        console.log(`[Validate Referral] code: ${referralCode}`);
+        console.log(`[Validate Referral] code: ${referralCode}, userId: ${userId}`);
 
         if (!referralCode) {
             return new Response(
@@ -49,11 +49,49 @@ serve(async (req) => {
             );
         }
 
+        // [New] Self-Referral Check
+        if (userId && affiliate.user_id === userId) {
+            return new Response(
+                JSON.stringify({ valid: false, error: 'ไม่สามารถใช้รหัสแนะนำของตัวเองได้' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
         if (affiliate.status !== 'APPROVED') {
             return new Response(
                 JSON.stringify({ valid: false, error: 'รหัสแนะนำนี้ยังไม่ได้รับการอนุมัติ' }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
+        }
+
+        // [New] Existing User Check (New Users Only)
+        if (userId) {
+            // Check if already referred
+            const { count: refCount } = await supabase
+                .from('referrals')
+                .select('*', { count: 'exact', head: true })
+                .eq('referee_id', userId);
+
+            if (refCount && refCount > 0) {
+                return new Response(
+                    JSON.stringify({ valid: false, error: 'คุณเคยใช้สิทธิ์แนะนำเพื่อนไปแล้ว' }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+            }
+
+            // Check if has paid bookings
+            const { count: bookingCount } = await supabase
+                .from('bookings')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .in('status', ['PAID', 'COMPLETED', 'paid', 'completed']); // Cover variants
+
+            if (bookingCount && bookingCount > 0) {
+                return new Response(
+                    JSON.stringify({ valid: false, error: 'สงวนสิทธิ์สำหรับลูกค้าใหม่เท่านั้น (คุณเคยมีประวัติการจองแล้ว)' }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+            }
         }
 
         // 5. Check active referral program

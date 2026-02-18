@@ -40,7 +40,8 @@ const BookingV3Page: React.FC = () => {
         allowedPaymentMethods, // [NEW] From hook
         referralCode,
         referralDiscount,
-        referralValid
+        referralValid,
+        referralError
     } = useBookingLogic();
 
     if (!isReady) {
@@ -92,6 +93,17 @@ const BookingV3Page: React.FC = () => {
                 {errorMsg && (
                     <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center mx-4 mt-4">
                         <span className="mr-3">⚠️</span> {errorMsg}
+                    </div>
+                )}
+
+                {/* Referral Error Banner */}
+                {referralError && (
+                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mx-4 mt-4 shadow-sm border border-red-100 flex items-center">
+                        <span className="mr-3 text-xl">❌</span>
+                        <div>
+                            <div className="font-bold text-sm">ไม่สามารถใช้รหัสแนะนำได้</div>
+                            <div className="text-xs opacity-90">{referralError}</div>
+                        </div>
                     </div>
                 )}
 

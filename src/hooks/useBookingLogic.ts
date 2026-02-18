@@ -71,11 +71,11 @@ export const useBookingLogic = () => {
     const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
 
     // [REFERRAL] Referral code from URL
+    // [REFERRAL] Referral code from URL
     const [referralCode, setReferralCode] = useState<string | null>(searchParams.get('ref'));
     const [referralDiscount, setReferralDiscount] = useState<number>(0); // e.g. 50 = 50%
     const [referralValid, setReferralValid] = useState<boolean>(false);
-
-    // Helpers
+    const [referralError, setReferralError] = useState<string | null>(null); // [NEW] Error state
     const getThaiDateString = (dateStr?: string) => {
         const dObj = dateStr ? new Date(dateStr) : new Date();
         const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
@@ -221,11 +221,14 @@ export const useBookingLogic = () => {
                             body: JSON.stringify({ referralCode: refCode, userId: currentUserId })
                         });
                         const refData = await refRes.json();
+
                         if (refRes.ok && refData.valid) {
                             setReferralCode(refCode);
-                            const discountPct = refData.discountPercent || 50;
+                            // [FIX] Access correctly nested program data, fallback to 50
+                            const discountPct = refData.program?.discountPercent || 50;
                             setReferralDiscount(discountPct);
                             setReferralValid(true);
+                            setReferralError(null);
 
                             // Auto-apply Referral Coupon
                             const referralCoupon: Coupon = {
@@ -246,11 +249,14 @@ export const useBookingLogic = () => {
                             setManualMainCoupon(referralCoupon);
                         } else {
                             setReferralCode(null);
-                            console.warn('[Referral] Invalid code:', refData.error);
+                            const errMsg = refData.error || 'Code invalid';
+                            console.warn('[Referral] Invalid code:', errMsg);
+                            setReferralError(errMsg);
                         }
-                    } catch (refErr) {
+                    } catch (refErr: any) {
                         console.error('[Referral] Validation error:', refErr);
                         setReferralCode(null);
+                        setReferralError(refErr.message || "Validation Error");
                     }
                 }
 
@@ -481,6 +487,7 @@ export const useBookingLogic = () => {
         allowedPaymentMethods, // [NEW] Return calculated methods
         referralCode: referralValid ? referralCode : null,
         referralDiscount,
-        referralValid
+        referralValid,
+        referralError
     };
 };
