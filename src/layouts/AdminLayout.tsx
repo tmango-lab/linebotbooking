@@ -9,9 +9,21 @@ export default function AdminLayout() {
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false); // [NEW] Strict state
 
+    const [pendingAffiliatesCount, setPendingAffiliatesCount] = useState(0);
+
     useEffect(() => {
         checkSession();
+        fetchPendingAffiliates();
     }, []);
+
+    async function fetchPendingAffiliates() {
+        const { count } = await supabase
+            .from('affiliates')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'PENDING');
+
+        if (count) setPendingAffiliatesCount(count);
+    }
 
     async function checkSession() {
         const { data: { session } } = await supabase.auth.getSession();
@@ -94,7 +106,12 @@ export default function AdminLayout() {
                                     <Icon size={20} className={`${isActive ? 'text-indigo-400' : 'text-gray-500 group-hover:text-white'} transition-colors`} />
                                     {item.name}
                                 </div>
-                                {isActive && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
+                                {item.name === 'Referral Settings' && pendingAffiliatesCount > 0 && (
+                                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                                        {pendingAffiliatesCount}
+                                    </span>
+                                )}
+                                {isActive && item.name !== 'Referral Settings' && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
                             </a>
                         );
                     })}

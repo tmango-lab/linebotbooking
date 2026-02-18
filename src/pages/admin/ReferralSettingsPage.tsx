@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
-import { Loader2, Save, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Loader2, Save, ToggleLeft, ToggleRight, ChevronRight } from 'lucide-react';
 
 interface ReferralProgram {
     id: string;
@@ -13,11 +14,23 @@ interface ReferralProgram {
     created_at: string;
 }
 
+interface PendingAffiliate {
+    user_id: string;
+    school_name: string;
+    created_at: string;
+    profiles?: {
+        team_name: string;
+        phone_number: string;
+    };
+}
+
 export default function ReferralSettingsPage() {
+    const navigate = useNavigate();
     const [program, setProgram] = useState<ReferralProgram | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [stats, setStats] = useState({ totalAffiliates: 0, pendingApprovals: 0, totalReferrals: 0, totalRewards: 0 });
+    const [pendingAffiliates, setPendingAffiliates] = useState<PendingAffiliate[]>([]);
 
     useEffect(() => {
         fetchData();
@@ -37,10 +50,14 @@ export default function ReferralSettingsPage() {
                 setProgram(programs[0]);
             }
 
-            // 2. Get stats
-            const [affResult, pendResult, refResult] = await Promise.all([
+            // 2. Get stats & Pending List
+            // Note: Use stored procedure or raw queries if needed, but here simple selects work thanks to RLS policy update
+            const [affResult, pendingResult, refResult] = await Promise.all([
                 supabase.from('affiliates').select('*', { count: 'exact', head: true }),
-                supabase.from('affiliates').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
+                supabase.from('affiliates')
+                    .select('user_id, school_name, created_at, profiles(team_name, phone_number)')
+                    .eq('status', 'PENDING')
+                    .order('created_at', { ascending: true }),
                 supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('status', 'COMPLETED'),
             ]);
 
@@ -51,9 +68,12 @@ export default function ReferralSettingsPage() {
 
             const totalRewards = (rewardData || []).reduce((sum, a) => sum + (a.total_earnings || 0), 0);
 
+            const pendingList = (pendingResult.data || []) as unknown as PendingAffiliate[];
+            setPendingAffiliates(pendingList);
+
             setStats({
                 totalAffiliates: affResult.count || 0,
-                pendingApprovals: pendResult.count || 0,
+                pendingApprovals: pendingList.length, // Use actual list length
                 totalReferrals: refResult.count || 0,
                 totalRewards
             });
@@ -138,6 +158,48 @@ export default function ReferralSettingsPage() {
                     <div className="text-2xl font-bold text-purple-600">฿{stats.totalRewards.toLocaleString()}</div>
                 </div>
             </div>
+
+            {/* Pending Approvals List */}
+            {pendingAffiliates.length > 0 && (
+                <div className="mb-8 bg-white rounded-xl shadow-sm border border-yellow-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-yellow-100 bg-yellow-50 flex items-center justify-between">
+                        <h2 className="font-bold text-yellow-900 flex items-center gap-2">
+                            <span className="relative flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
+                            </span>
+                            รอการอนุมัติ ({pendingAffiliates.length})
+                        </h2>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                        {pendingAffiliates.map((aff) => (
+                            <div key={aff.user_id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 font-bold">
+                                        {aff.profiles?.team_name?.charAt(0) || '?'}
+                                    </div>
+                                    <div>
+                                        <div className="font-medium text-gray-900">{aff.profiles?.team_name || 'Unknown'}</div>
+                                        <div className="text-xs text-gray-500 flex items-center gap-2">
+                                            <span>{aff.profiles?.phone_number}</span>
+                                            <span>•</span>
+                                            <span>{aff.school_name}</span>
+                                            <span>•</span>
+                                            <span>{new Date(aff.created_at).toLocaleDateString('th-TH')}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => navigate(`/admin/customers/${aff.user_id}`)}
+                                    className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+                                >
+                                    ตรวจสอบ <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {!program ? (
                 <div className="bg-white rounded-xl p-8 text-center shadow-sm border border-gray-200">

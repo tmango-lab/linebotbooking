@@ -223,8 +223,27 @@ export const useBookingLogic = () => {
                         const refData = await refRes.json();
                         if (refRes.ok && refData.valid) {
                             setReferralCode(refCode);
-                            setReferralDiscount(refData.discountPercent || 50);
+                            const discountPct = refData.discountPercent || 50;
+                            setReferralDiscount(discountPct);
                             setReferralValid(true);
+
+                            // Auto-apply Referral Coupon
+                            const referralCoupon: Coupon = {
+                                id: 'REFERRAL-' + refCode,
+                                campaign_id: 0,
+                                name: `ส่วนลดแนะนำเพื่อน (${discountPct}%)`,
+                                discount_type: 'PERCENT',
+                                discount_value: discountPct,
+                                min_spend: 0,
+                                eligible_fields: null,
+                                eligible_days: null,
+                                valid_time_start: null,
+                                valid_time_end: null,
+                                eligible_payments: null,
+                                category: 'MAIN',
+                                expiry: ''
+                            };
+                            setManualMainCoupon(referralCoupon);
                         } else {
                             setReferralCode(null);
                             console.warn('[Referral] Invalid code:', refData.error);
