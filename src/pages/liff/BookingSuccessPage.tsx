@@ -36,7 +36,8 @@ const BookingSuccessPage: React.FC = () => {
         document.title = "Booking Success";
     }, []);
 
-    const [autoPayCountdown, setAutoPayCountdown] = useState(3);
+    const INITIAL_COUNTDOWN = 10;
+    const [autoPayCountdown, setAutoPayCountdown] = useState(INITIAL_COUNTDOWN);
 
     // Auto-trigger Stripe payment when QR is selected (with countdown)
     useEffect(() => {
@@ -291,7 +292,7 @@ const BookingSuccessPage: React.FC = () => {
                                     <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
                                         <div
                                             className="bg-indigo-600 h-2 rounded-full transition-all duration-1000 ease-linear"
-                                            style={{ width: `${(3 - autoPayCountdown) / 3 * 100}%` }}
+                                            style={{ width: `${(INITIAL_COUNTDOWN - autoPayCountdown) / INITIAL_COUNTDOWN * 100}%` }}
                                         />
                                     </div>
                                     <button
