@@ -36,10 +36,27 @@ const BookingSuccessPage: React.FC = () => {
         document.title = "Booking Success";
     }, []);
 
-    // Auto-trigger Stripe payment when QR is selected
+    const [autoPayCountdown, setAutoPayCountdown] = useState(3);
+    const [isCountingDown, setIsCountingDown] = useState(false);
+
+    // Auto-trigger Stripe payment when QR is selected (with countdown)
     useEffect(() => {
         if (isQR && bookingId && !paymentStarted && !paymentSuccess) {
-            handleStripePayment();
+            setIsCountingDown(true);
+
+            // Start countdown
+            const timer = setInterval(() => {
+                setAutoPayCountdown((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        handleStripePayment(); // Trigger!
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+
+            return () => clearInterval(timer);
         }
     }, [isQR, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -234,9 +251,9 @@ const BookingSuccessPage: React.FC = () => {
 
                             <button
                                 onClick={handleStripePayment}
-                                disabled={stripeLoading || paymentStarted}
+                                disabled={stripeLoading || paymentStarted || autoPayCountdown > 0}
                                 className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2
-                                    ${stripeLoading || paymentStarted
+                                    ${(stripeLoading || paymentStarted || autoPayCountdown > 0)
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95'
                                     }`}
@@ -251,6 +268,11 @@ const BookingSuccessPage: React.FC = () => {
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                         รอการชำระ...
                                     </>
+                                ) : autoPayCountdown > 0 ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        กำลังเปิด QR ใน {autoPayCountdown}...
+                                    </>
                                 ) : (
                                     <>
                                         <CreditCard className="w-5 h-5" />
@@ -259,6 +281,33 @@ const BookingSuccessPage: React.FC = () => {
                                 )}
                             </button>
                         </div>
+
+                        {/* Countdown Overlay (Fixed at bottom or top) */}
+                        {isQR && autoPayCountdown > 0 && !stripeLoading && !paymentStarted && !paymentSuccess && (
+                            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-2xl z-50 animate-slide-up">
+                                <div className="max-w-md mx-auto">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-bold text-gray-800">กำลังพาไปหน้าชำระเงิน...</span>
+                                        <span className="text-xl font-black text-indigo-600">{autoPayCountdown}s</span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
+                                        <div
+                                            className="bg-indigo-600 h-2 rounded-full transition-all duration-1000 ease-linear"
+                                            style={{ width: `${(3 - autoPayCountdown) / 3 * 100}%` }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setAutoPayCountdown(0);
+                                            handleStripePayment();
+                                        }}
+                                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm active:scale-95 transition-all"
+                                    >
+                                        ชำระเงินทันที
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Fallback: Manual PromptPay */}
                         <details className="bg-gray-50 border border-gray-200 rounded-2xl">
@@ -297,7 +346,7 @@ const BookingSuccessPage: React.FC = () => {
                 </button>
                 <p className="text-xs text-gray-400 mt-4">กรุณากลับไปที่หน้าแชทเพื่อรอรับการยืนยัน</p>
             </div>
-        </div>
+        </div >
     );
 };
 
