@@ -425,7 +425,8 @@ export const useBookingLogic = () => {
                     endTime: selection!.endTime,
                     customerName: team,
                     phoneNumber: phone,
-                    couponIds: [appliedMain?.id, appliedOntop?.id].filter(id => id !== undefined && id !== null),
+                    couponIds: [appliedMain?.id, appliedOntop?.id]
+                        .filter(id => id && !id.toString().startsWith('REFERRAL-')),
                     paymentMethod: payment,
                     ...(referralValid && referralCode ? { referralCode } : {})
                 })
