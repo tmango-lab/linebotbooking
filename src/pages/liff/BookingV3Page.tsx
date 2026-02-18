@@ -37,7 +37,10 @@ const BookingV3Page: React.FC = () => {
         appliedOntopCoupon,
         setManualMainCoupon,
         setManualOntopCoupon,
-        allowedPaymentMethods // [NEW] From hook
+        allowedPaymentMethods, // [NEW] From hook
+        referralCode,
+        referralDiscount,
+        referralValid
     } = useBookingLogic();
 
     if (!isReady) {
@@ -89,6 +92,19 @@ const BookingV3Page: React.FC = () => {
                 {errorMsg && (
                     <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center mx-4 mt-4">
                         <span className="mr-3">⚠️</span> {errorMsg}
+                    </div>
+                )}
+
+                {/* Referral Discount Banner */}
+                {referralValid && referralCode && (
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-4 rounded-xl mx-4 mt-4 shadow-md">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">🎉</span>
+                            <div>
+                                <div className="font-bold text-sm">ส่วนลดจากเพื่อน!</div>
+                                <div className="text-xs opacity-90">คุณได้รับส่วนลด {referralDiscount}% สำหรับการจองครั้งแรก</div>
+                            </div>
+                        </div>
                     </div>
                 )}
 

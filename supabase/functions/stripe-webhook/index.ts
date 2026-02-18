@@ -272,6 +272,26 @@ serve(async (req) => {
                 }
             }
 
+            // 7. [REFERRAL] Process referral reward (async, non-blocking)
+            try {
+                const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+                const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+                fetch(`${supabaseUrl}/functions/v1/process-referral-reward`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${supabaseServiceKey}`
+                    },
+                    body: JSON.stringify({ bookingId })
+                }).then(res => {
+                    console.log(`[Stripe Webhook] Referral reward triggered for ${bookingId}: ${res.status}`);
+                }).catch(err => {
+                    console.error('[Stripe Webhook] Referral reward error:', err);
+                });
+            } catch (refErr) {
+                console.error('[Stripe Webhook] Referral reward non-blocking error:', refErr);
+            }
+
             return new Response(JSON.stringify({ received: true }), { status: 200 });
         }
 

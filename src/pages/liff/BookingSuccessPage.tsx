@@ -36,7 +36,7 @@ const BookingSuccessPage: React.FC = () => {
         document.title = "Booking Success";
     }, []);
 
-    const INITIAL_COUNTDOWN = 10;
+    const INITIAL_COUNTDOWN = 15;
     const [autoPayCountdown, setAutoPayCountdown] = useState(INITIAL_COUNTDOWN);
 
     // Auto-trigger Stripe payment when QR is selected (with countdown)

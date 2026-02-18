@@ -62,7 +62,7 @@ serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        let { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, couponIds, paymentMethod, campaignId, userId, source } = await req.json();
+        let { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, couponIds, paymentMethod, campaignId, userId, source, referralCode } = await req.json();
 
         // Support both single couponId (legacy) and couponIds array
         let usageCouponIds: string[] = [];
@@ -99,6 +99,58 @@ serve(async (req) => {
         let isPromo = false;
         let discountAmount = 0;
         let adminNote = note || '';
+
+        // [REFERRAL] Validate referral code and apply discount
+        let referralData: { referrerId: string; programId: string; discountPercent: number; rewardAmount: number } | null = null;
+        if (referralCode) {
+            console.log(`[Referral] Validating code: ${referralCode}`);
+            // 1. Find affiliate by code
+            const { data: affiliate } = await supabase
+                .from('affiliates')
+                .select('user_id, status')
+                .eq('referral_code', referralCode)
+                .eq('status', 'APPROVED')
+                .maybeSingle();
+
+            if (affiliate && affiliate.user_id !== userId) {
+                // 2. Check active program
+                const { data: program } = await supabase
+                    .from('referral_programs')
+                    .select('id, discount_percent, reward_amount, end_date')
+                    .eq('is_active', true)
+                    .maybeSingle();
+
+                if (program && (!program.end_date || new Date(program.end_date) >= new Date())) {
+                    // 3. Check if this user has already been referred (first time only)
+                    const { data: existingRef } = await supabase
+                        .from('referrals')
+                        .select('id')
+                        .eq('referee_id', userId)
+                        .maybeSingle();
+
+                    if (!existingRef) {
+                        referralData = {
+                            referrerId: affiliate.user_id,
+                            programId: program.id,
+                            discountPercent: program.discount_percent || 50,
+                            rewardAmount: program.reward_amount || 100
+                        };
+                        // Apply referral discount
+                        const refDiscount = Math.floor((originalPrice * referralData.discountPercent) / 100);
+                        discountAmount += refDiscount;
+                        finalPrice = Math.max(0, originalPrice - discountAmount);
+                        isPromo = true;
+                        console.log(`[Referral] Applied ${referralData.discountPercent}% discount: -${refDiscount} THB. Final: ${finalPrice}`);
+                    } else {
+                        console.log(`[Referral] User ${userId} already referred. Skipping discount.`);
+                    }
+                } else {
+                    console.log(`[Referral] No active program or expired.`);
+                }
+            } else {
+                console.log(`[Referral] Invalid code, not approved, or self-referral.`);
+            }
+        }
 
         // 3. Process Coupon/Campaign (V2 Redemption Logic)
         // [COUPON_TYPE_RULES] When upgrading to multi-coupon support:
@@ -345,6 +397,26 @@ serve(async (req) => {
                     target_campaign_id: camp.id
                 });
                 if (incError) console.error(`[CRITICAL] Failed to increment redemption for ${camp.name}`, incError);
+            }
+        }
+
+        // 7. [REFERRAL] Create referral tracking record
+        if (referralData) {
+            const { error: refError } = await supabase
+                .from('referrals')
+                .insert({
+                    referrer_id: referralData.referrerId,
+                    referee_id: userId,
+                    booking_id: booking.booking_id,
+                    program_id: referralData.programId,
+                    status: 'PENDING_PAYMENT',
+                    reward_amount: referralData.rewardAmount
+                });
+
+            if (refError) {
+                console.error('[Referral] Failed to create referral record:', refError);
+            } else {
+                console.log(`[Referral] Tracking record created: ${referralData.referrerId} -> ${userId}`);
             }
         }
 

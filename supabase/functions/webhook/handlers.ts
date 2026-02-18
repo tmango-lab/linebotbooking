@@ -518,6 +518,26 @@ export async function handleImage(event: LineEvent) {
 
         console.log(`[Handle Image] Booking ${booking.booking_id} confirmed via slip.`);
 
+        // 8. [REFERRAL] Process referral reward (async, non-blocking)
+        try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+            fetch(`${supabaseUrl}/functions/v1/process-referral-reward`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify({ bookingId: booking.booking_id })
+            }).then(res => {
+                console.log(`[Referral Reward] Triggered for booking ${booking.booking_id}: ${res.status}`);
+            }).catch(err => {
+                console.error('[Referral Reward] Trigger error:', err);
+            });
+        } catch (refErr) {
+            console.error('[Referral Reward] Non-blocking error:', refErr);
+        }
+
     } catch (err: any) {
         console.error('[Handle Image Error]:', err.message);
         await pushMessage(userId, { type: 'text', text: `⚠️ เกิดข้อผิดพลาดในการตรวจสอบสลิป: ${err.message}` });

@@ -70,6 +70,11 @@ export const useBookingLogic = () => {
 
     const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
 
+    // [REFERRAL] Referral code from URL
+    const [referralCode, setReferralCode] = useState<string | null>(searchParams.get('ref'));
+    const [referralDiscount, setReferralDiscount] = useState<number>(0); // e.g. 50 = 50%
+    const [referralValid, setReferralValid] = useState<boolean>(false);
+
     // Helpers
     const getThaiDateString = (dateStr?: string) => {
         const dObj = dateStr ? new Date(dateStr) : new Date();
@@ -200,6 +205,33 @@ export const useBookingLogic = () => {
                     if (urlCouponId) {
                         const target = fetchedCoupons.find(c => c.id === urlCouponId);
                         if (target) setManualMainCoupon(target as Coupon);
+                    }
+                }
+
+                // [REFERRAL] Validate referral code if present
+                const refCode = searchParams.get('ref');
+                if (refCode && currentUserId) {
+                    try {
+                        const refRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-referral`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                            },
+                            body: JSON.stringify({ referralCode: refCode, userId: currentUserId })
+                        });
+                        const refData = await refRes.json();
+                        if (refRes.ok && refData.valid) {
+                            setReferralCode(refCode);
+                            setReferralDiscount(refData.discountPercent || 50);
+                            setReferralValid(true);
+                        } else {
+                            setReferralCode(null);
+                            console.warn('[Referral] Invalid code:', refData.error);
+                        }
+                    } catch (refErr) {
+                        console.error('[Referral] Validation error:', refErr);
+                        setReferralCode(null);
                     }
                 }
 
@@ -369,7 +401,8 @@ export const useBookingLogic = () => {
                     customerName: team,
                     phoneNumber: phone,
                     couponIds: [appliedMain?.id, appliedOntop?.id].filter(id => id !== undefined && id !== null),
-                    paymentMethod: payment
+                    paymentMethod: payment,
+                    ...(referralValid && referralCode ? { referralCode } : {})
                 })
             });
 
@@ -426,6 +459,9 @@ export const useBookingLogic = () => {
         getThaiDateShort,
         handleFinalConfirm,
         userId,
-        allowedPaymentMethods // [NEW] Return calculated methods
+        allowedPaymentMethods, // [NEW] Return calculated methods
+        referralCode: referralValid ? referralCode : null,
+        referralDiscount,
+        referralValid
     };
 };

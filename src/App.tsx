@@ -9,6 +9,8 @@ import WalletPage from './pages/user/WalletPage';
 import BookingV2Page from './pages/liff/BookingV2Page';
 import BookingV3Page from './pages/liff/BookingV3Page';
 import BookingSuccessPage from './pages/liff/BookingSuccessPage';
+import AffiliateRegisterPage from './pages/user/AffiliateRegisterPage';
+import AffiliateDashboardPage from './pages/user/AffiliateDashboardPage';
 
 // Lazy Load Admin Components ONLY (To keep client bundle small)
 const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
@@ -180,6 +182,8 @@ function App() {
             <Route path="/booking-v2" element={<BookingV2Page />} />
             <Route path="/booking-v3" element={<BookingV3Page />} />
             <Route path="/booking-success" element={<BookingSuccessPage />} />
+            <Route path="/affiliate-register" element={<AffiliateRegisterPage />} />
+            <Route path="/affiliate-dashboard" element={<AffiliateDashboardPage />} />
 
             {/* Admin Routes */}
             <Route path="/admin/login" element={<LoginPage />} />

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Lock, Clock, History, AlertCircle } from 'lucide-react';
+import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2 } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 
 interface Coupon {
@@ -342,6 +342,23 @@ export default function WalletPage() {
             </div>
 
             <div className="px-5 space-y-6">
+                {/* Invite Friend CTA */}
+                {userId && (
+                    <div
+                        onClick={() => { window.location.hash = `#/affiliate-dashboard?userId=${userId}`; }}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-4 text-white shadow-lg cursor-pointer active:scale-[0.98] transition-transform"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="font-bold text-sm">🎓 แนะนำเพื่อน รับ ฿100</div>
+                                <div className="text-xs opacity-80 mt-0.5">เพื่อนได้ลด 50% คุณได้คูปอง!</div>
+                            </div>
+                            <div className="bg-white/20 rounded-full p-2">
+                                <Share2 className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {/* 1. My Coupons Tab */}
                 {activeTab === 'my_coupons' && (
                     <>
