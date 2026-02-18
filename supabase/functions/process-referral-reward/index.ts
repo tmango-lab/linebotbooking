@@ -79,7 +79,7 @@ serve(async (req) => {
                     status: 'active',
                     discount_amount: rewardAmount,
                     discount_percent: 0,
-                    coupon_type: 'MAIN',
+                    coupon_type: 'main',
                     start_date: new Date().toISOString(),
                     end_date: '2026-05-31T23:59:59+07:00',
                 })
@@ -104,7 +104,6 @@ serve(async (req) => {
                 user_id: referrerId,
                 campaign_id: rewardCampaign.id,
                 status: 'ACTIVE',
-                collected_at: new Date().toISOString(),
                 expires_at: expiresAt.toISOString()
             });
 

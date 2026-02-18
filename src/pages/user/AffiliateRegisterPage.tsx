@@ -55,14 +55,47 @@ export default function AffiliateRegisterPage() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 5 * 1024 * 1024) {
-                setError('ไฟล์ใหญ่เกินไป (สูงสุด 5MB)');
+            if (file.size > 10 * 1024 * 1024) {
+                setError('ไฟล์ใหญ่เกินไป (สูงสุด 10MB)');
                 return;
             }
             setStudentCardFile(file);
             setPreviewUrl(URL.createObjectURL(file));
             setError('');
         }
+    };
+
+    // Compress image using Canvas API — resize to max 800px, JPEG quality 0.6
+    const compressImage = (file: File, maxDim = 800, quality = 0.6): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                // Scale down if larger than maxDim
+                if (width > maxDim || height > maxDim) {
+                    if (width > height) {
+                        height = Math.round((height * maxDim) / width);
+                        width = maxDim;
+                    } else {
+                        width = Math.round((width * maxDim) / height);
+                        height = maxDim;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d')!;
+                ctx.drawImage(img, 0, 0, width, height);
+                // Convert to JPEG with quality
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                const base64 = dataUrl.split(',')[1];
+                const sizeKB = Math.round((base64.length * 3) / 4 / 1024);
+                console.log(`[Image Compress] ${file.name}: ${(file.size / 1024).toFixed(0)}KB → ${sizeKB}KB (${width}×${height}, q=${quality})`);
+                resolve(base64);
+            };
+            img.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์รูปภาพได้'));
+            img.src = URL.createObjectURL(file);
+        });
     };
 
     const handleSubmit = async () => {
@@ -75,12 +108,8 @@ export default function AffiliateRegisterPage() {
         setError('');
 
         try {
-            // Convert file to base64
-            const base64 = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve((reader.result as string).split(',')[1]);
-                reader.readAsDataURL(studentCardFile);
-            });
+            // Compress image before converting to base64
+            const base64 = await compressImage(studentCardFile);
 
             const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-affiliate`, {
@@ -94,7 +123,7 @@ export default function AffiliateRegisterPage() {
                     schoolName: schoolName.trim(),
                     birthDate,
                     studentCardBase64: base64,
-                    studentCardMimeType: studentCardFile.type || 'image/jpeg'
+                    studentCardMimeType: 'image/jpeg'
                 })
             });
 
