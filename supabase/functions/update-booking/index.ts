@@ -317,6 +317,31 @@ serve(async (req) => {
 
         console.log(`[Update Booking] Success: ${matchId}`);
 
+        // --- REFERRAL REWARD TRIGGER ---
+        // If payment status is updated to 'paid' or 'deposit_paid', try to process referral reward
+        if (
+            (updatePayload.payment_status === 'paid' || updatePayload.payment_status === 'deposit_paid') ||
+            (updatePayload.status === 'confirmed' && updatePayload.payment_status !== 'pending' && updatePayload.payment_status !== 'pending_payment')
+        ) {
+            console.log(`[Update Booking] Payment confirmed for ${matchId}. Triggering referral reward...`);
+            try {
+                fetch(`${supabaseUrl}/functions/v1/process-referral-reward`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${serviceRoleKey}`
+                    },
+                    body: JSON.stringify({ bookingId: String(matchId) })
+                }).then(res => {
+                    console.log(`[Referral Reward] Triggered: ${res.status}`);
+                }).catch(err => {
+                    console.error('[Referral Reward] Trigger error:', err);
+                });
+            } catch (err) {
+                console.error('[Referral Reward] Error:', err);
+            }
+        }
+
         return new Response(JSON.stringify({ success: true, booking: localData }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
