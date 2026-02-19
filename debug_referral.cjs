@@ -58,6 +58,15 @@ async function main() {
 
     if (affError) console.error('Affiliate Error:', affError);
     else console.log('Affiliate Stats:', affiliate);
+
+    console.log("\n--- Checking Campaigns ---");
+    const { data: campaigns, error: campError } = await supabase
+        .from('campaigns')
+        .select('id, name, status, created_at')
+        .eq('name', '🎁 รางวัลแนะนำเพื่อน');
+
+    if (campError) console.error("Campaign Error:", campError);
+    else console.log("Campaigns found:", campaigns);
 }
 
 main();
