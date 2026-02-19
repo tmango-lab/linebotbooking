@@ -114,6 +114,11 @@ serve(async (req) => {
         // Handle Payment Status
         if (isPaid !== undefined) {
             updatePayload.paid_at = isPaid ? new Date().toISOString() : null;
+
+            // Sync payment_status if not explicitly provided
+            if (paymentStatus === undefined) {
+                updatePayload.payment_status = isPaid ? 'paid' : 'pending';
+            }
         }
 
         // Handle Source

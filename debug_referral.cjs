@@ -12,7 +12,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const bookingId = '1771408694645';
+const bookingId = '1771410640014';
 const dashboardUserId = 'Ua636ab14081b483636896549d2026398';
 
 async function main() {
