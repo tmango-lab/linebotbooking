@@ -50,15 +50,20 @@ export default function AffiliateDashboardPage() {
         init();
     }, [isReady, liffUser]);
 
+    const [error, setError] = useState<string | null>(null);
+
     const fetchData = async (uid: string) => {
         setLoading(true);
+        setError(null);
         try {
             // 1. Fetch affiliate info
-            const { data: affData } = await supabase
+            const { data: affData, error: affError } = await supabase
                 .from('affiliates')
                 .select('*')
                 .eq('user_id', uid)
                 .maybeSingle();
+
+            if (affError) throw affError;
 
             if (affData) {
                 setAffiliate(affData);
@@ -72,8 +77,9 @@ export default function AffiliateDashboardPage() {
 
                 setReferrals((refData || []) as unknown as ReferralItem[]);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            setError(err.message || 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
         } finally {
             setLoading(false);
         }
@@ -128,7 +134,26 @@ export default function AffiliateDashboardPage() {
         );
     }
 
+    if (error) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+                <div className="bg-red-50 p-4 rounded-full mb-4">
+                    <Loader2 className="w-8 h-8 text-red-500" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">เกิดข้อผิดพลาดในการโหลดข้อมูล</h2>
+                <p className="text-gray-500 text-sm mb-6">{error}</p>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="bg-gray-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-800"
+                >
+                    ลองใหม่อีกครั้ง
+                </button>
+            </div>
+        );
+    }
+
     if (!affiliate) {
+
         return (
             <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex flex-col items-center justify-center p-6 text-center">
                 <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full">
@@ -262,8 +287,8 @@ export default function AffiliateDashboardPage() {
                                     </div>
                                     <div className="text-right">
                                         <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${ref.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                                                ref.status === 'PENDING_PAYMENT' ? 'bg-yellow-100 text-yellow-700' :
-                                                    'bg-gray-100 text-gray-600'
+                                            ref.status === 'PENDING_PAYMENT' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-gray-100 text-gray-600'
                                             }`}>
                                             {ref.status === 'COMPLETED' ? '✅ สำเร็จ' :
                                                 ref.status === 'PENDING_PAYMENT' ? '⏳ รอชำระ' : ref.status}
