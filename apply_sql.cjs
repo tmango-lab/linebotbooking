@@ -1,28 +1,27 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+const { Client } = require('pg');
+const dotenv = require('dotenv');
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+dotenv.config();
 
-serve(async (req) => {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+const dbUrl = process.env.SUPABASE_DB_URL;
 
+if (!dbUrl) {
+    console.error('Missing SUPABASE_DB_URL');
+    process.exit(1);
+}
+
+const client = new Client({
+    connectionString: dbUrl,
+    ssl: { rejectUnauthorized: false }
+});
+
+async function main() {
     try {
-        // Connect to Postgres directly to run DDL
-        const dbUrl = Deno.env.get('SUPABASE_DB_URL');
-        if (!dbUrl) throw new Error('Missing SUPABASE_DB_URL');
-
-        const client = new Client(dbUrl);
         await client.connect();
+        console.log('Connected to database.');
 
         const sql = `
-            -- Remove unique constraint to allow multiple referral coupons
-            DROP INDEX IF EXISTS public.idx_user_coupons_unique_active;
-
             -- 8. Function: process_referral_reward_sql
             CREATE OR REPLACE FUNCTION public.process_referral_reward_sql(p_booking_id TEXT)
             RETURNS JSONB
@@ -80,21 +79,16 @@ serve(async (req) => {
             GRANT EXECUTE ON FUNCTION public.process_referral_reward_sql(TEXT) TO postgres;
             GRANT EXECUTE ON FUNCTION public.process_referral_reward_sql(TEXT) TO anon;
             GRANT EXECUTE ON FUNCTION public.process_referral_reward_sql(TEXT) TO authenticated;
-        `;
+    `;
 
+        await client.query(sql);
+        console.log('SQL function created successfully.');
 
-        await client.queryArray(sql);
-
+    } catch (err) {
+        console.error('Error applying SQL:', err);
+    } finally {
         await client.end();
-
-        return new Response(JSON.stringify({ success: true, message: "Policies updated successfully" }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-
-    } catch (error: any) {
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
     }
-});
+}
+
+main();

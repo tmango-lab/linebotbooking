@@ -736,5 +736,74 @@ The system uses Stripe to handle automated PromptPay QR payments. This replaces 
 ### 18.4 Admin UI Logic
 - **Balance Calculation**: `BookingDetailModal` checks for `deposit_paid` status.
 - **Formula**: `Balance = (Grand Total + Discount) - 200`.
-- **Visibility**: Shows a "✅ จ่ายมัดจำแล้ว -200 ฿" row in the financial breakdown.
 
+---
+
+## 19. Affiliate & Referral System (2026-02)
+
+### 19.1 Overview
+The system incentivizes user growth through a "Refer-a-Friend" program.
+- **Referee (New User)**: Uses a referral code to get **50% Discount** on their first booking.
+- **Referrer (Existing User)**: Receives a **100 THB Coupon** reward when their referee completes payment.
+
+### 19.2 Data Schema (Supabase)
+
+#### A. Core Tables
+1.  **`affiliates`**: Stores referrer stats.
+    -   `user_id`: Link to Profile.
+    -   `referral_code`: Unique code (e.g., `REF-1234-ABCD`).
+    -   `total_referrals`, `total_earnings`: Aggregate stats for Dashboard.
+    -   `status`: `APPROVED`, `PENDING`, `REJECTED`.
+
+2.  **`referrals`**: Tracks individual referral events.
+    -   `referrer_id` (Who invited), `referee_id` (Who joined).
+    -   `booking_id`: The first booking made by the referee.
+    -   `status`: `PENDING_PAYMENT` -> `COMPLETED`.
+
+3.  **`referral_programs`**: Configuration.
+    -   Defines `discount_percent` (50%) and `reward_amount` (100).
+
+#### B. Reward Storage
+-   **`user_coupons`**: Rewards are issued as standard V2 Coupons.
+-   **Campaign**: A special background campaign "🎁 รางวัลแนะนำเพื่อน" allows stacking multiple active coupons.
+
+### 19.3 Processing Flow
+
+#### Step 1: Validation & Booking (`create-booking`)
+1.  User inputs Referral Code.
+2.  System validates:
+    -   Code exists & is `APPROVED`.
+    -   **Referee Eligibility**: Checks `referrals` table. If `referee_id` exists, they are **NOT** a new user.
+3.  **Outcome**:
+    -   Booking created with `is_promo: true`.
+    -   Data inserted into `referrals` with status `PENDING_PAYMENT`.
+
+#### Step 2: Payment Trigger (`update-booking`)
+1.  Admin marks booking as **Paid** (or Stripe Webhook triggers it).
+2.  `update-booking` detects `payment_status` change (`pending` -> `paid`).
+3.  **Async Trigger**: Calls `process-referral-reward` Edge Function.
+
+#### Step 3: Reward Execution (`process_referral_reward_sql`)
+*Located in Postgres (PL/pgSQL) for atomicity.*
+
+1.  **Verification**: Checks if referral is still `PENDING_PAYMENT`.
+2.  **Campaign Check**: Auto-creates/Finds the "Referral Reward" campaign.
+3.  **Coupon Issuance**:
+    -   Inserts into `user_coupons`.
+    -   **Critical**: Unique index on `(user_id, campaign_id, status)` was **DROPPED** to allow multiple "Active" rewards for super-referrers.
+4.  **Stat Update**: Recalculates `total_referrals` and `earnings` in `affiliates` table.
+5.  **Status Update**: Marks referral as `COMPLETED`.
+
+#### Step 4: Notification
+-   The Edge Function sends a **LINE Flex Message** to the Referrer: "You received a new coupon from [Friend's Name]!"
+
+### 19.4 Testing & Reset
+To re-test the flow for the same user pair:
+```sql
+-- 1. Reset Referee (Allow them to be "New" again)
+DELETE FROM referrals WHERE referee_id = 'REFEREE_UID';
+
+-- 2. Reset Referrer Stats (Optional)
+UPDATE affiliates SET total_referrals = 0, total_earnings = 0 WHERE user_id = 'REFERRER_UID';
+DELETE FROM user_coupons WHERE user_id = 'REFERRER_UID' AND campaign_id = '...';
+```
