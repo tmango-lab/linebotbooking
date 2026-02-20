@@ -71,11 +71,46 @@ serve(async (req: Request) => {
         }
 
         // Fetch profile for phone number (optional now)
-        const { data: profile } = await supabase
+        let { data: profile } = await supabase
             .from('profiles')
             .select('user_id, phone_number')
             .eq('user_id', userId)
             .maybeSingle();
+
+        // [FIX] Create Profile if missing (Required for Affiliates FK)
+        if (!profile) {
+            console.log(`[Register Affiliate] Profile missing for ${userId}, creating...`);
+            // Try to get name from last booking
+            const { data: lastBooking } = await supabase
+                .from('bookings')
+                .select('display_name, phone_number')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            const displayName = lastBooking?.display_name || schoolName || `User-${userId.slice(0, 4)}`;
+            const phoneNumber = lastBooking?.phone_number || null;
+
+            const { data: newProfile, error: createProfileError } = await supabase
+                .from('profiles')
+                .insert({
+                    user_id: userId,
+                    team_name: displayName,
+                    phone_number: phoneNumber,
+                    // role: 'customer', // Removed as it might not accept this column or default is sufficient
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (createProfileError) {
+                console.error('Create profile error:', createProfileError);
+                throw new Error('ไม่สามารถสร้างข้อมูลผู้ใช้ได้');
+            }
+            profile = newProfile;
+        }
 
         // 5. Upload Student Card image (if provided as Base64)
         let studentCardUrl: string | null = null;
