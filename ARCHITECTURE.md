@@ -797,7 +797,23 @@ The system incentivizes user growth through a "Refer-a-Friend" program.
 #### Step 4: Notification
 -   The Edge Function sends a **LINE Flex Message** to the Referrer: "You received a new coupon from [Friend's Name]!"
 
-### 19.4 Testing & Reset
+### 19.4 Constraints & Business Logic
+
+**A. One-Time Use Per Referee (New Customer Only)**
+- **Rule**: A customer can only be referred **ONCE** in their lifetime.
+- **Logic**: The system checks the `referrals` table for any record where `referee_id` matches the current user.
+- **Error**: If found, it returns "คุณเคยใช้สิทธิ์แนะนำเพื่อนไปแล้ว/You have already used the referral privilege".
+- **Objective**: To prevent "Referral Cycling" where existing users refer each other to get 50% discounts.
+
+**B. Self-Referral Prevention**
+- **Rule**: A user cannot use their own referral code.
+- **Logic**: Checks if `referrer_id == referee_id`.
+
+**C. Eligibility Check (Affiliate Registration)**
+- **Rule**: To become an Affiliate, a user must have at least **1 Booking History**.
+- **Logic**: Checks `bookings` count > 0. (Does NOT require a pre-existing profile; creates one on the fly if needed).
+
+### 19.5 Testing & Reset
 To re-test the flow for the same user pair:
 ```sql
 -- 1. Reset Referee (Allow them to be "New" again)
