@@ -56,19 +56,34 @@ serve(async (req) => {
             // If REJECTED, allow re-submission
         }
 
-        // 5. Ensure user has a profile
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('user_id, phone_number')
+        // 5. Ensure user has at least 1 booking (confirmed or pending)
+        const { count, error: countError } = await supabase
+            .from('bookings')
+            .select('*', { count: 'exact', head: true })
             .eq('user_id', userId)
-            .maybeSingle();
+            .neq('status', 'cancelled');
 
-        if (!profile) {
+        if (countError) {
+            console.error('Check booking error:', countError);
+            // Allow to proceed if error? No, safer to fail or assume 0.
+            // Let's assume 0 if error to be safe, or throw.
+            // Throwing might be better for debugging.
+            throw new Error('ไม่สามารถตรวจสอบประวัติการจองได้');
+        }
+
+        if (!count || count < 1) {
             return new Response(
                 JSON.stringify({ error: 'กรุณาจองสนามอย่างน้อย 1 ครั้งก่อนสมัครเป็นผู้แนะนำ' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
+
+        // Fetch profile for phone number (optional now)
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('user_id, phone_number')
+            .eq('user_id', userId)
+            .maybeSingle();
 
         // 6. Upload Student Card image (if provided as Base64)
         let studentCardUrl: string | null = null;
@@ -104,7 +119,7 @@ serve(async (req) => {
         }
 
         // 7. Generate Referral Code (use phone number for simplicity)
-        const referralCode = profile.phone_number
+        const referralCode = (profile && profile.phone_number)
             ? `REF-${profile.phone_number.slice(-4)}-${Date.now().toString(36).toUpperCase()}`
             : `REF-${userId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
