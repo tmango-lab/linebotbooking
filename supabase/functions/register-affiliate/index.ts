@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { supabase } from "../_shared/supabaseClient.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -13,12 +13,7 @@ serve(async (req: Request) => {
     }
 
     try {
-        // 2. Setup Supabase Client (Service Role for Admin Access)
-        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
-        // 3. Parse Input
+        // 2. Parse Input
         const { userId, schoolName, birthDate, studentCardBase64 } = await req.json();
 
         console.log(`[Register Affiliate] userId: ${userId}, school: ${schoolName}`);
@@ -33,7 +28,7 @@ serve(async (req: Request) => {
             throw new Error('Birth date is required');
         }
 
-        // 4. Check if user already registered as affiliate
+        // 3. Check if user already registered as affiliate
         const { data: existingAffiliate } = await supabase
             .from('affiliates')
             .select('user_id, status')
@@ -56,7 +51,7 @@ serve(async (req: Request) => {
             // If REJECTED, allow re-submission
         }
 
-        // 5. Ensure user has at least 1 booking (confirmed or pending)
+        // 4. Ensure user has at least 1 booking (confirmed or pending)
         const { count, error: countError } = await supabase
             .from('bookings')
             .select('*', { count: 'exact', head: true })
@@ -65,9 +60,6 @@ serve(async (req: Request) => {
 
         if (countError) {
             console.error('Check booking error:', countError);
-            // Allow to proceed if error? No, safer to fail or assume 0.
-            // Let's assume 0 if error to be safe, or throw.
-            // Throwing might be better for debugging.
             throw new Error('ไม่สามารถตรวจสอบประวัติการจองได้');
         }
 
@@ -85,7 +77,7 @@ serve(async (req: Request) => {
             .eq('user_id', userId)
             .maybeSingle();
 
-        // 6. Upload Student Card image (if provided as Base64)
+        // 5. Upload Student Card image (if provided as Base64)
         let studentCardUrl: string | null = null;
         if (studentCardBase64) {
             const fileExt = 'jpg';
@@ -118,12 +110,12 @@ serve(async (req: Request) => {
             studentCardUrl = publicUrlData?.publicUrl || null;
         }
 
-        // 7. Generate Referral Code (use phone number for simplicity)
+        // 6. Generate Referral Code (use phone number for simplicity)
         const referralCode = (profile && profile.phone_number)
             ? `REF-${profile.phone_number.slice(-4)}-${Date.now().toString(36).toUpperCase()}`
             : `REF-${userId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
-        // 8. Check active referral program exists
+        // 7. Check active referral program exists
         const { data: activeProgram } = await supabase
             .from('referral_programs')
             .select('id, end_date')
@@ -145,7 +137,7 @@ serve(async (req: Request) => {
             );
         }
 
-        // 9. Upsert Affiliate Record
+        // 8. Upsert Affiliate Record
         const { data: affiliate, error: upsertError } = await supabase
             .from('affiliates')
             .upsert({
