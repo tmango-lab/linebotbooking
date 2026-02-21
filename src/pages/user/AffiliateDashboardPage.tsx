@@ -39,13 +39,20 @@ export default function AffiliateDashboardPage() {
             if (liffUser?.userId) {
                 uid = liffUser.userId;
             } else {
-                const user = await getLiffUser({ requireLogin: true });
-                if (user?.userId) uid = user.userId;
+                try {
+                    const user = await getLiffUser({ requireLogin: true });
+                    if (user?.userId) uid = user.userId;
+                } catch (e) {
+                    console.error('Failed to get LIFF User:', e);
+                }
             }
 
             if (uid) {
                 setUserId(uid);
                 fetchData(uid);
+            } else {
+                setLoading(false);
+                setError('ไม่พบข้อมูลผู้ใช้ของท่าน กรุณาล็อกอินผ่าน LINE อีกครั้ง');
             }
         };
         init();
