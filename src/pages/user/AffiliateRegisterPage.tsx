@@ -23,15 +23,21 @@ export default function AffiliateRegisterPage() {
         const init = async () => {
             let uid = '';
 
-            // ใช้ userId จากคนที่ล็อกอิน LIFF เท่านั้น เพื่อความปลอดภัย
             if (liffUser?.userId) {
                 uid = liffUser.userId;
             } else {
                 try {
-                    const user = await getLiffUser({ requireLogin: true });
-                    if (user?.userId) uid = user.userId;
+                    if (liff.isLoggedIn()) {
+                        const profile = await liff.getProfile();
+                        if (profile?.userId) {
+                            uid = profile.userId;
+                        }
+                    } else {
+                        const user = await getLiffUser({ requireLogin: true });
+                        if (user?.userId) uid = user.userId;
+                    }
                 } catch (e) {
-                    console.error('Failed to get LIFF User:', e);
+                    console.error('Failed to get LIFF User strictly:', e);
                 }
             }
 

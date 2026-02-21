@@ -38,7 +38,8 @@ export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Pro
             }
             const urlUserId = params.get('userId');
 
-            if (urlUserId) {
+            // Only use urlUserId if we are not explicitly trying to login securely
+            if (urlUserId && !options.requireLogin) {
                 console.log("Found userId in URL, bypassing login for testing.");
                 return { userId: urlUserId };
             }
@@ -64,11 +65,21 @@ export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Pro
 
     } catch (e: any) {
         console.error("LIFF Init Failed:", e);
-        // Fallback to URL
-        const params = new URLSearchParams(window.location.search);
-        const urlUserId = params.get('userId');
+
+        // Final Fallback to URL if we didn't require strict secure login
+        if (!options.requireLogin) {
+            const params = new URLSearchParams(window.location.search);
+            const urlUserId = params.get('userId');
+            if (urlUserId) {
+                return {
+                    userId: urlUserId,
+                    error: e.message || "LIFF Init Failed but found URL userId"
+                };
+            }
+        }
+
         return {
-            userId: urlUserId,
+            userId: null,
             error: e.message || "LIFF Init Failed"
         };
     }
