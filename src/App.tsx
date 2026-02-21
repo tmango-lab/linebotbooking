@@ -153,6 +153,12 @@ function RootRedirect() {
   if (redirect === 'booking-v3') {
     return <Navigate to={`/booking-v3${searchStr}`} replace />;
   }
+  if (redirect === 'affiliate-dashboard') {
+    return <Navigate to={`/affiliate-dashboard${searchStr}`} replace />;
+  }
+  if (redirect === 'affiliate-register') {
+    return <Navigate to={`/affiliate-register${searchStr}`} replace />;
+  }
 
   // 2. Secondary Priority: App Mode Default
   if (appMode === 'booking') {

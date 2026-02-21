@@ -161,7 +161,16 @@ export default function AffiliateDashboardPage() {
 
                 {error.includes('ล็อกอิน') ? (
                     <button
-                        onClick={() => liff.login({ redirectUri: window.location.href })}
+                        onClick={() => {
+                            if (liff.isInClient() && !liff.isLoggedIn()) {
+                                const liffId = import.meta.env.VITE_LIFF_ID || '';
+                                const currentSearch = window.location.search;
+                                const extraParams = currentSearch ? '&' + currentSearch.substring(1) : '';
+                                window.location.href = `https://liff.line.me/${liffId}?redirect=affiliate-dashboard${extraParams}`;
+                            } else {
+                                liff.login({ redirectUri: window.location.href });
+                            }
+                        }}
                         className="bg-[#06C755] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#05b34c] shadow-md flex items-center gap-2 mx-auto"
                     >
                         เข้าสู่ระบบด้วย LINE

@@ -161,7 +161,16 @@ export default function AffiliateRegisterPage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-2">เข้าถึงข้อมูลไม่ได้</h2>
                 <p className="text-gray-500 text-sm mb-6">{error}</p>
                 <button
-                    onClick={() => liff.login({ redirectUri: window.location.href })}
+                    onClick={() => {
+                        if (liff.isInClient() && !liff.isLoggedIn()) {
+                            const liffId = import.meta.env.VITE_LIFF_ID || '';
+                            const currentSearch = window.location.search;
+                            const extraParams = currentSearch ? '&' + currentSearch.substring(1) : '';
+                            window.location.href = `https://liff.line.me/${liffId}?redirect=affiliate-register${extraParams}`;
+                        } else {
+                            liff.login({ redirectUri: window.location.href });
+                        }
+                    }}
                     className="bg-[#06C755] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#05b34c] shadow-md flex items-center gap-2 mx-auto"
                 >
                     เข้าสู่ระบบด้วย LINE
