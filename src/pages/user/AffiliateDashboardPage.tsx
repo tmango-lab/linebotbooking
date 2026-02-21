@@ -34,14 +34,15 @@ export default function AffiliateDashboardPage() {
         if (!isReady) return;
         const init = async () => {
             let uid = '';
-            const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-            uid = params.get('userId') || '';
 
-            if (!uid && liffUser?.userId) uid = liffUser.userId;
-            if (!uid) {
+            // ใช้ userId จากคนที่ล็อกอิน LIFF เท่านั้น เพื่อความปลอดภัย
+            if (liffUser?.userId) {
+                uid = liffUser.userId;
+            } else {
                 const user = await getLiffUser({ requireLogin: true });
-                if (user.userId) uid = user.userId;
+                if (user?.userId) uid = user.userId;
             }
+
             if (uid) {
                 setUserId(uid);
                 fetchData(uid);

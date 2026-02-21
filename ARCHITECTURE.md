@@ -491,8 +491,19 @@ The `upsertProfile` function contains "Adoption Logic" to link manual entries to
 2. If a match is found, the `manual_` ID is **updated/renamed** to the user's real LINE UID.
 3. This preserves history and configuration from the manual record without creating duplicates.
 
+### 4. Seamless Auto-Registration (2026-02)
+To streamline the booking process and ensure accurate customer tracking, the system implements a seamless auto-registration flow during a user's first booking:
+1. **Frontend Logic (`BookingConfirmationModal.tsx`)**:
+   - The UI checks if the user's profile (`initialProfile`) is available when the modal opens.
+   - **Returning Users**: If a profile exists, the "Team Name" and "Phone Number" fields are displayed as read-only text, removing friction.
+   - **New Users**: If no profile exists, input fields are shown requesting their details.
+2. **Backend Logic (`create-booking` Edge Function)**:
+   - After successfully inserting a new booking into the `bookings` table, the backend performs a check against the `profiles` table.
+   - If the `userId` does not exist in the `profiles` table, a new profile is automatically created using the inserted `customerName` and `phoneNumber`.
+   - This background process is wrapped in a fail-safe `try/catch` block so that any profile creation issues do not block the core booking confirmation.
 
 ---
+
 
 ## 12. Regular Booking (VIP Implementation)
 
