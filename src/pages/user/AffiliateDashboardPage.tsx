@@ -154,7 +154,7 @@ export default function AffiliateDashboardPage() {
 
                 {error.includes('ล็อกอิน') ? (
                     <button
-                        onClick={() => liff.login()}
+                        onClick={() => liff.login({ redirectUri: window.location.href })}
                         className="bg-[#06C755] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#05b34c] shadow-md flex items-center gap-2 mx-auto"
                     >
                         เข้าสู่ระบบด้วย LINE
