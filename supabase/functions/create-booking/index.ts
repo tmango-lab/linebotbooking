@@ -267,6 +267,37 @@ serve(async (req) => {
 
         if (insertError) throw insertError;
 
+        // Auto-register profile if it doesn't exist
+        try {
+            if (userId) {
+                const { data: existingProfile } = await supabase
+                    .from('profiles')
+                    .select('user_id')
+                    .eq('user_id', userId)
+                    .maybeSingle();
+
+                if (!existingProfile) {
+                    const { error: profileError } = await supabase
+                        .from('profiles')
+                        .insert({
+                            user_id: userId,
+                            team_name: customerName,
+                            phone_number: phoneNumber,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        });
+
+                    if (profileError) {
+                        console.error('[Profile Auto-Registration Error]', profileError);
+                    } else {
+                        console.log(`[Profile] Auto-registered new profile for user ${userId}`);
+                    }
+                }
+            }
+        } catch (profileCatchError) {
+            console.error('[Profile Auto-Registration Exception]', profileCatchError);
+        }
+
         // --- TRANSACTIONAL SAFETY BLOCK ---
         try {
             // 5. Mark Coupons as Used

@@ -95,26 +95,41 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                     {/* Input Fields */}
                     <div className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ชื่อทีม / ผู้จอง</label>
-                            <input
-                                type="text"
-                                value={teamName}
-                                onChange={(e) => setTeamName(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
-                                placeholder="เช่น หมูเด้ง เอฟซี"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">เบอร์โทรศัพท์</label>
-                            <input
-                                type="tel"
-                                value={phoneNumber}
-                                onChange={(e) => setPhoneNumber(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
-                                placeholder="08x-xxx-xxxx"
-                            />
-                        </div>
+                        {initialProfile ? (
+                            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-1">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm">ชื่อทีม / ผู้จอง</span>
+                                    <span className="font-bold text-gray-800">{teamName}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm">เบอร์โทรศัพท์</span>
+                                    <span className="font-bold text-gray-800">{phoneNumber}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ชื่อทีม / ผู้จอง</label>
+                                    <input
+                                        type="text"
+                                        value={teamName}
+                                        onChange={(e) => setTeamName(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                                        placeholder="เช่น หมูเด้ง เอฟซี"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">เบอร์โทรศัพท์</label>
+                                    <input
+                                        type="tel"
+                                        value={phoneNumber}
+                                        onChange={(e) => setPhoneNumber(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                                        placeholder="08x-xxx-xxxx"
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
