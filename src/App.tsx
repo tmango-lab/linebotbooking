@@ -137,7 +137,9 @@ function RootRedirect() {
   const appMode = import.meta.env.VITE_APP_MODE; // 'admin', 'booking', 'wallet'
   const searchStr = window.location.search; // Preserve all params (ref, userId, etc.)
 
-  if (liffState || code || state) {
+  const { isReady } = useLiff();
+
+  if ((liffState || code || state) && !isReady) {
     return <PageLoader text="Verifying Secure Login..." />;
   }
 
