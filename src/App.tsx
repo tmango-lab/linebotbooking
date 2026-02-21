@@ -127,18 +127,7 @@ function StatusPage() {
 // Smart Redirect Component
 function RootRedirect() {
   const searchParams = new URLSearchParams(window.location.search);
-  let redirect = searchParams.get('redirect');
-
-  // [NEW] Fallback to hash if redirect is not in search (for maximum robustness with LIFF)
-  if (!redirect && window.location.hash.includes('redirect=')) {
-    const hashPart = window.location.hash.includes('?')
-      ? window.location.hash.split('?')[1]
-      : window.location.hash.replace(/^#\/?/, '').split('?')[0];
-
-    // Look specifically for redirect in the string
-    const match = hashPart.match(/redirect=([^&]*)/);
-    if (match) redirect = match[1];
-  }
+  const redirect = searchParams.get('redirect');
 
   const liffState = searchParams.get('liff.state');
   const code = searchParams.get('code');
