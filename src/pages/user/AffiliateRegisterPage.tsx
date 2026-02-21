@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
+import liff from '@line/liff';
 import { Loader2, Camera, GraduationCap, Calendar, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function AffiliateRegisterPage() {
@@ -38,7 +39,7 @@ export default function AffiliateRegisterPage() {
                 setUserId(uid);
                 checkExisting(uid);
             } else {
-                setError('ไม่พบข้อมูลผู้ใช้ของท่าน กรุณาล็อกอินผ่าน LINE อีกครั้ง');
+                setError('กรุณาล็อกอินผ่าน LINE เพื่อทำรายการต่อ');
             }
         };
         init();
@@ -144,6 +145,24 @@ export default function AffiliateRegisterPage() {
             setLoading(false);
         }
     };
+
+    if (error && error.includes('ล็อกอิน')) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+                <div className="bg-yellow-50 p-4 rounded-full mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-yellow-500" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">เข้าถึงข้อมูลไม่ได้</h2>
+                <p className="text-gray-500 text-sm mb-6">{error}</p>
+                <button
+                    onClick={() => liff.login()}
+                    className="bg-[#06C755] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#05b34c] shadow-md flex items-center gap-2 mx-auto"
+                >
+                    เข้าสู่ระบบด้วย LINE
+                </button>
+            </div>
+        );
+    }
 
     if (!isReady) {
         return (

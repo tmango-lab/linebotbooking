@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
+import liff from '@line/liff';
 import { Loader2, Copy, CheckCircle2, Share2, Users, Banknote, ArrowLeft, Gift } from 'lucide-react';
 
 interface AffiliateInfo {
@@ -52,7 +53,7 @@ export default function AffiliateDashboardPage() {
                 fetchData(uid);
             } else {
                 setLoading(false);
-                setError('ไม่พบข้อมูลผู้ใช้ของท่าน กรุณาล็อกอินผ่าน LINE อีกครั้ง');
+                setError('กรุณาล็อกอินผ่าน LINE เพื่อดูข้อมูลของท่าน');
             }
         };
         init();
@@ -145,17 +146,27 @@ export default function AffiliateDashboardPage() {
     if (error) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-                <div className="bg-red-50 p-4 rounded-full mb-4">
-                    <Loader2 className="w-8 h-8 text-red-500" />
+                <div className="bg-yellow-50 p-4 rounded-full mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-yellow-500" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">เกิดข้อผิดพลาดในการโหลดข้อมูล</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">เข้าถึงข้อมูลไม่ได้</h2>
                 <p className="text-gray-500 text-sm mb-6">{error}</p>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="bg-gray-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-800"
-                >
-                    ลองใหม่อีกครั้ง
-                </button>
+
+                {error.includes('ล็อกอิน') ? (
+                    <button
+                        onClick={() => liff.login()}
+                        className="bg-[#06C755] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#05b34c] shadow-md flex items-center gap-2 mx-auto"
+                    >
+                        เข้าสู่ระบบด้วย LINE
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="bg-gray-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-800 mx-auto"
+                    >
+                        ลองใหม่อีกครั้ง
+                    </button>
+                )}
             </div>
         );
     }
