@@ -126,12 +126,23 @@ function StatusPage() {
 
 // Smart Redirect Component
 function RootRedirect() {
-  const params = new URLSearchParams(window.location.search);
-  const redirect = params.get('redirect');
+  const searchParams = new URLSearchParams(window.location.search);
+  let redirect = searchParams.get('redirect');
 
-  const liffState = params.get('liff.state');
-  const code = params.get('code');
-  const state = params.get('state');
+  // [NEW] Fallback to hash if redirect is not in search (for maximum robustness with LIFF)
+  if (!redirect && window.location.hash.includes('redirect=')) {
+    const hashPart = window.location.hash.includes('?')
+      ? window.location.hash.split('?')[1]
+      : window.location.hash.replace(/^#\/?/, '').split('?')[0];
+
+    // Look specifically for redirect in the string
+    const match = hashPart.match(/redirect=([^&]*)/);
+    if (match) redirect = match[1];
+  }
+
+  const liffState = searchParams.get('liff.state');
+  const code = searchParams.get('code');
+  const state = searchParams.get('state');
 
   // [NEW] Check App Mode from Environment
   const appMode = import.meta.env.VITE_APP_MODE; // 'admin', 'booking', 'wallet'
