@@ -179,7 +179,13 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     };
 
     const handleConfirmPayment = async () => {
-        setIsPaid(true);
+        const pm = booking.payment_method?.toLowerCase() || '';
+        const isQr = pm === 'qr' || pm.includes('qr') || pm.includes('transfer');
+
+        const newPaymentStatus = isQr ? 'deposit_paid' : 'paid';
+        const newIsPaid = !isQr; // ถ้าเป็น QR ให้ถือว่ายังจ่ายไม่ครบ (แค่จ่ายมัดจำ)
+
+        setIsPaid(newIsPaid);
         setLoading(true);
         setError(null);
 
@@ -189,10 +195,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             const updatePayload = {
                 matchId: booking.id,
                 price: booking.price,
-                adminNote: (booking.admin_note ? booking.admin_note + ' | ' : '') + '[Admin Confirm Payment]',
-                isPaid: true,
+                adminNote: (booking.admin_note ? booking.admin_note + ' | ' : '') + (isQr ? '[Admin Confirm Deposit]' : '[Admin Confirm Payment]'),
+                isPaid: newIsPaid,
                 status: 'confirmed',
-                paymentStatus: 'paid',
+                paymentStatus: newPaymentStatus,
                 customerName: booking.name,
                 tel: booking.tel,
                 timeStart: booking.time_start,
