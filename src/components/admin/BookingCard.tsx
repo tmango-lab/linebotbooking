@@ -63,7 +63,8 @@ export default function BookingCard({
     };
 
     const isPendingPayment = booking.status === 'pending_payment';
-    const isQR = booking.payment_method === 'qr';
+    const pm = booking.payment_method?.toLowerCase() || '';
+    const isQR = pm === 'qr' || pm.includes('qr') || pm.includes('transfer');
     const isPaid = !!booking.paid_at;
 
     // Determine Card Status for Coloring
