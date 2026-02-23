@@ -2,3 +2,9 @@ project_id = "kyprnvazjyilthdzhqxh"
 
 [functions.webhook]
 verify_jwt = false
+
+[functions.validate-promo-code]
+verify_jwt = false
+
+[functions.use-promo-code-and-book]
+verify_jwt = false

@@ -85,8 +85,11 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'ไม่สามารถตรวจสอบโค้ดได้');
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('เซสชั่นหมดอายุ กรุณารีเฟรชหน้าเว็บหรือล็อกอินใหม่');
+                }
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || errorData.message || 'ไม่สามารถตรวจสอบโค้ดได้');
             }
 
             const data = await response.json();
@@ -160,7 +163,10 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
             console.log('[PromoCodeModal] API Response:', responseData);
 
             if (!response.ok) {
-                throw new Error(responseData.error || 'ไม่สามารถสร้างการจองได้');
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('เซสชั่นหมดอายุ กรุณารีเฟรชหน้าเว็บหรือล็อกอินใหม่');
+                }
+                throw new Error(responseData.error || responseData.message || 'ไม่สามารถสร้างการจองได้');
             }
 
             // Success!
