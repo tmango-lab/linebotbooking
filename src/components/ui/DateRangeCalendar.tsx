@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 
 interface DatePickerButtonProps {
     label: string;
@@ -18,9 +19,7 @@ function toDateStr(y: number, m: number, d: number) {
 }
 
 function formatThaiShort(dateStr: string) {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+    return formatDate(dateStr);
 }
 
 export default function DatePickerButton({ label, value, onChange }: DatePickerButtonProps) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
 import { Loader2, Save, ToggleLeft, ToggleRight, ChevronRight } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 
 interface ReferralProgram {
     id: string;
@@ -185,7 +186,7 @@ export default function ReferralSettingsPage() {
                                             <span>•</span>
                                             <span>{aff.school_name}</span>
                                             <span>•</span>
-                                            <span>{new Date(aff.created_at).toLocaleDateString('th-TH')}</span>
+                                            <span>{formatDate(aff.created_at)}</span>
                                         </div>
                                     </div>
                                 </div>

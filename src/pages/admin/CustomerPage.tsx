@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
 import { Search, User, Phone, Calendar, Edit2, Check, X, RefreshCw, Plus, Eye } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 
 interface Profile {
     user_id: string;
@@ -245,7 +246,7 @@ export default function CustomerPage() {
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-gray-400">
                                                             <Calendar className="h-3 w-3" />
-                                                            Registered: {new Date(p.created_at).toLocaleDateString()}
+                                                            Registered: {formatDate(p.created_at)}
                                                         </div>
                                                     </div>
                                                 )}

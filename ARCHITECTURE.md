@@ -228,6 +228,22 @@ System sends a standardized confirmation message via LINE:
 - All database queries for `date` should ensure correct timezone comparison.
 - Time strings are usually passed as `HH:MM`.
 
+### 3. Date & Time Formatting Standards
+To ensure UI consistency, all date and time displays must use the centralized utility `src/utils/date.ts`.
+
+**Standard Formats**:
+- **Date**: "จ. 23 ก.พ. 2026" (Short weekday, Day, Short month, AD Year)
+- **Time**: "HH:MM" (24-hour format)
+- **DateTime**: "จ. 23 ก.พ. 2026 18:00"
+
+**Utility Functions**:
+- `formatDate(dateInput)`: Formats a date string, Date object, or null/undefined.
+- `formatTime(timeInput)`: Formats time (handles ISO strings, time-only strings, and Date objects).
+- `formatDateTime(dateInput)`: Combines date and time formatting.
+
+> [!IMPORTANT]
+> Avoid using `.toLocaleDateString()` or `.toLocaleTimeString()` directly in components. Always import from `src/utils/date.ts` to maintain system-wide consistency and correct year (AD) handling.
+
 ---
 
 ## Version Control & Rollback
@@ -729,6 +745,7 @@ The system uses Stripe to handle automated PromptPay QR payments. This replaces 
     - Receives `payment_intent.succeeded`.
     - Updates local DB booking to `payment_status: 'deposit_paid'`.
     - Sends LINE Flex Message showing the deposit paid and the **Remaining Balance** to be collected at the field.
+    - **Crucial Configuration**: The `stripe-webhook` Edge Function MUST have JWT verification disabled (`verify_jwt = false` in `supabase/config.toml`) because Stripe's payload does not include a Supabase Auth Bearer token. It relies solely on `stripe-signature` for security.
 
 ### 18.3 Technical Details (Edge Functions)
 
@@ -738,15 +755,19 @@ The system uses Stripe to handle automated PromptPay QR payments. This replaces 
 - **Concurrency**: Updates `bookings.stripe_payment_intent_id` immediately so we have a reference.
 
 #### `stripe-webhook`
-- **Verification**: Uses `stripe.webhooks.constructEvent` with `STRIPE_WEBHOOK_SECRET` for security.
+- **Verification**: Uses `crypto.subtle` natively in Deno to verify `stripe-signature` with `STRIPE_WEBHOOK_SECRET` for security.
 - **Processing**:
-    - Extracts `deposit_amount` and `total_price` from metadata.
-    - Updates `payment_status` to `'deposit_paid'`.
+    - Extracts `booking_id` from metadata.
+    - Updates `payment_status` to `'deposit_paid'` and `status` to `'confirmed'`.
     - Sends confirmation via LINE Messaging API.
+    - Triggers `process-referral-reward` asynchronously.
 
 ### 18.4 Admin UI Logic
-- **Balance Calculation**: `BookingDetailModal` checks for `deposit_paid` status.
+- **Balance Calculation**: `BookingDetailModal` checks for `deposit_paid` (or `payment_method === 'QR'`) status.
 - **Formula**: `Balance = (Grand Total + Discount) - 200`.
+- **Manual Confirmation**: If an admin clicks "Confirm Payment" on a QR booking with a missing webhook, the system smartly limits the status to `deposit_paid` rather than `paid` to preserve the outstanding 600 THB balance.
+- **BookingCard Colors**: 
+    - Applies `deposit_paid` (Amber Color) securely by assessing if `isQR` (case-insensitive) matches and `payment_status` is `paid` or `deposit_paid` without a full `paid_at` timestamp.
 
 ---
 

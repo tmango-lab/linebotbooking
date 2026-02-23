@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate, formatDateTime, formatTime } from '../../utils/date';
 import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift } from 'lucide-react';
 
 interface BookingDetailModalProps {
@@ -73,20 +74,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
     if (!isOpen || !booking) return null;
 
-    const formatTime = (dateStr: string) => {
-        const date = new Date(dateStr.replace(' ', 'T'));
-        return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-    };
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr.replace(' ', 'T'));
-        return date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    };
 
-    const formatFullDateTime = (dateStr: string) => {
-        const date = new Date(dateStr);
-        return date.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    };
+
+
+
 
     const handleSave = async () => {
         setLoading(true);
@@ -448,8 +440,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                         <ImageIcon className="w-5 h-5 text-indigo-600" />
                                                     </div>
                                                     <div>
-                                                        <div>หลักฐานการโอน</div>
-                                                        <div className="text-xs text-gray-500 font-normal">แนบเมื่อ: {booking.paid_at ? formatFullDateTime(booking.paid_at) : '-'}</div>
+                                                        <div className="text-xs text-gray-500 font-normal">แนบเมื่อ: {booking.paid_at ? formatDateTime(booking.paid_at) : '-'}</div>
                                                     </div>
                                                 </div>
                                                 <button
@@ -467,7 +458,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                 <AlertTriangle className="w-4 h-4 mr-2 text-amber-600 flex-shrink-0" />
                                                 <div>
                                                     <span>จะถูกยกเลิกอัตโนมัติเมื่อ: </span>
-                                                    <span className="font-bold block sm:inline sm:ml-1">{formatFullDateTime(booking.timeout_at)}</span>
+                                                    <span className="font-bold block sm:inline sm:ml-1">{formatDateTime(booking.timeout_at)}</span>
                                                 </div>
                                             </div>
                                         )}

@@ -1,4 +1,5 @@
 import { X, Calendar, DollarSign, Clock, Info } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 
 interface CouponDetailModalProps {
     isOpen: boolean;
@@ -84,9 +85,7 @@ export default function CouponDetailModal({ isOpen, onClose, coupon }: CouponDet
                             <div>
                                 <h4 className="font-bold text-gray-900 text-sm">ระยะเวลาใช้งาน</h4>
                                 <p className="text-gray-500 text-xs mt-0.5">
-                                    {expiry ? `หมดอายุ: ${new Date(expiry).toLocaleDateString('th-TH', {
-                                        year: 'numeric', month: 'long', day: 'numeric'
-                                    })}` : 'ไม่มีวันหมดอายุ'}
+                                    {expiry ? `หมดอายุ: ${formatDate(expiry)}` : 'ไม่มีวันหมดอายุ'}
                                 </p>
                             </div>
                         </div>

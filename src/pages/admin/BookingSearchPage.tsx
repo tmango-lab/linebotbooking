@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
 import BookingDetailModal from '../../components/ui/BookingDetailModal';
 import DatePickerButton from '../../components/ui/DateRangeCalendar';
-import {
-    Search, RefreshCw, ChevronLeft, ChevronRight,
-    Filter, ChevronsUpDown
-} from 'lucide-react';
+import { Search, RefreshCw, ChevronLeft, ChevronRight, Filter, ChevronsUpDown } from 'lucide-react';
+import { formatTime, formatDateTime, formatDate } from '../../utils/date';
 
 // Court mapping (field_no → display info)
 const COURTS = [
@@ -359,16 +357,7 @@ export default function BookingSearchPage() {
         navigate(`/admin/dashboard?date=${d}`);
     }
 
-    function formatDate(dateStr: string) {
-        const d = new Date(dateStr + 'T00:00:00');
-        const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
-        const dayAbbr = dayNames[d.getDay()];
-        return `${dayAbbr} ${d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}`;
-    }
 
-    function formatTime(timeStr: string) {
-        return timeStr?.slice(0, 5) || '';
-    }
 
     return (
         <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
@@ -699,7 +688,7 @@ export default function BookingSearchPage() {
                                                     {formatSource(b.source || b.booking_source)}
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
-                                                    {b.created_at ? new Date(b.created_at).toLocaleString('th-TH') : '-'}
+                                                    {b.created_at ? formatDateTime(b.created_at) : '-'}
                                                 </td>
                                             </tr>
                                         );

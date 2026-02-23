@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
 import { RefreshCw, ExternalLink, CheckCircle, AlertTriangle, FileText, XCircle } from 'lucide-react';
+import { formatDate, formatTime } from '../../utils/date';
 
 interface RefundBooking {
     id: number;
@@ -126,8 +127,8 @@ export default function RefundPage() {
                                                     </div>
                                                     <h3 className="text-lg font-semibold text-gray-900">{booking.display_name}</h3>
                                                     <div className="text-sm text-gray-600 flex items-center gap-4 mt-1">
-                                                        <span>🗓️ {new Date(booking.date).toLocaleDateString('th-TH')}</span>
-                                                        <span>⏰ {booking.time_from.substring(0, 5)} - {booking.time_to.substring(0, 5)}</span>
+                                                        <span>🗓️ {formatDate(booking.date)}</span>
+                                                        <span>⏰ {formatTime(booking.time_from)} - {formatTime(booking.time_to)}</span>
                                                         <span className="font-bold text-gray-900">฿{booking.price_total_thb}</span>
                                                     </div>
                                                     {booking.admin_note && (

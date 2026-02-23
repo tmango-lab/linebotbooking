@@ -5,6 +5,7 @@ import BookingModal from '../../components/ui/BookingModal';
 import BookingDetailModal from '../../components/ui/BookingDetailModal';
 import PromoCodeModal from '../../components/ui/PromoCodeModal';
 import BookingCard from '../../components/admin/BookingCard';
+import { formatDate, formatTime } from '../../utils/date';
 
 interface MatchdayMatch {
     id: string | number;
@@ -605,17 +606,13 @@ export default function DashboardPage() {
 
 
     // --- Render Helpers ---
-    const formatDateHeader = (d: string) => new Date(d).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    // formatDateHeader was originaly used for header. The new formatDate gives e.g. "จ. 23 ก.พ. 2026"
+    // Let's use formatDate for the header.
+    const formatDateHeader = (d: string) => formatDate(d);
     function calculatePosition(timeStr: string) { return minToY(new Date(timeStr.replace(' ', 'T')).getHours() * 60 + new Date(timeStr.replace(' ', 'T')).getMinutes()); }
     function calculateHeight(s: string, e: string) { return (new Date(e.replace(' ', 'T')).getTime() - new Date(s.replace(' ', 'T')).getTime()) / 60000 * PIXELS_PER_MINUTE; }
 
-    // Formatting logic same as before
-    const formatTime = (t: string) => {
-        const d = new Date(t.replace(' ', 'T'));
-        let m = d.getMinutes();
-        if (m === 1) m = 0; if (m === 31) m = 30;
-        return `${d.getHours().toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-    };
+
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] bg-white">

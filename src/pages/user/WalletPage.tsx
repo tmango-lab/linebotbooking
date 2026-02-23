@@ -4,6 +4,7 @@ import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
 import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2 } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
+import { formatDate } from '../../utils/date';
 
 interface Coupon {
     coupon_id: string; // user_coupon_id
@@ -270,7 +271,7 @@ export default function WalletPage() {
 
                 <div className="flex justify-between items-end">
                     <div className="text-xs opacity-60">
-                        <p>Exp: {coupon.expiry ? new Date(coupon.expiry).toLocaleDateString() : 'No Expiry'}</p>
+                        <p>Exp: {coupon.expiry ? formatDate(coupon.expiry) : 'No Expiry'}</p>
                     </div>
                     {!isHistory && (
                         <button

@@ -4,6 +4,7 @@ import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
 import liff from '@line/liff';
 import { Loader2, Copy, CheckCircle2, Share2, Users, Banknote, ArrowLeft, Gift } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 
 interface AffiliateInfo {
     user_id: string;
@@ -317,7 +318,7 @@ export default function AffiliateDashboardPage() {
                                             {ref.profiles?.team_name || 'ผู้ใช้ใหม่'}
                                         </div>
                                         <div className="text-xs text-gray-400">
-                                            {new Date(ref.created_at).toLocaleDateString('th-TH')}
+                                            {formatDate(ref.created_at)}
                                         </div>
                                     </div>
                                     <div className="text-right">

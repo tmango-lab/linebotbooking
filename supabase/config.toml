@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.attendance-nudge]
+verify_jwt = false
+
+[functions.cron-cancel-unpaid]
+verify_jwt = false

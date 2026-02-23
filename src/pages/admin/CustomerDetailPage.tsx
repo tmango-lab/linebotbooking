@@ -4,6 +4,7 @@ import { supabase } from '../../lib/api';
 import {
     User, Phone, Calendar, ArrowLeft, Tag, X, Shield, ExternalLink
 } from 'lucide-react';
+import { formatDate, formatDateTime, formatTime } from '../../utils/date';
 
 // Types
 interface Profile {
@@ -356,7 +357,7 @@ export default function CustomerDetailPage() {
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <Calendar className="h-4 w-4" />
-                                    Joined: {new Date(profile.created_at).toLocaleDateString()}
+                                    Joined: {formatDate(profile.created_at)}
                                 </div>
                             </div>
                         </div>
@@ -424,8 +425,8 @@ export default function CustomerDetailPage() {
                     Affiliate
                     {affiliateData && (
                         <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${affiliateData.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
-                                affiliateData.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                                    'bg-red-100 text-red-700'
+                            affiliateData.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                                'bg-red-100 text-red-700'
                             }`}>
                             {affiliateData.status === 'PENDING' ? '!' : affiliateData.status === 'APPROVED' ? '✓' : '✗'}
                         </span>
@@ -445,8 +446,8 @@ export default function CustomerDetailPage() {
                         <div className="space-y-6">
                             {/* Status Banner */}
                             <div className={`rounded-lg p-4 border ${affiliateData.status === 'PENDING' ? 'bg-yellow-50 border-yellow-200' :
-                                    affiliateData.status === 'APPROVED' ? 'bg-green-50 border-green-200' :
-                                        'bg-red-50 border-red-200'
+                                affiliateData.status === 'APPROVED' ? 'bg-green-50 border-green-200' :
+                                    'bg-red-50 border-red-200'
                                 }`}>
                                 <div className="flex items-center justify-between flex-wrap gap-3">
                                     <div>
@@ -521,14 +522,12 @@ export default function CustomerDetailPage() {
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">🎂 วันเกิด</label>
                                         <p className="text-lg font-semibold text-gray-900">
-                                            {affiliateData.birth_date
-                                                ? new Date(affiliateData.birth_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
-                                                : '-'}
+                                            {affiliateData.birth_date ? formatDate(affiliateData.birth_date) : '-'}
                                         </p>
                                     </div>
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">📅 วันที่สมัคร</label>
-                                        <p className="text-sm text-gray-700">{new Date(affiliateData.created_at).toLocaleString('th-TH')}</p>
+                                        <p className="text-sm text-gray-700">{formatDateTime(affiliateData.created_at)}</p>
                                     </div>
                                 </div>
                             </div>
@@ -569,12 +568,12 @@ export default function CustomerDetailPage() {
                                                         <td className="px-4 py-2 text-sm">{ref.profiles?.team_name || ref.referee_id.slice(0, 10)}</td>
                                                         <td className="px-4 py-2">
                                                             <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${ref.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                                                                    ref.status === 'PENDING_PAYMENT' ? 'bg-yellow-100 text-yellow-800' :
-                                                                        'bg-gray-100 text-gray-800'
+                                                                ref.status === 'PENDING_PAYMENT' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-gray-100 text-gray-800'
                                                                 }`}>{ref.status}</span>
                                                         </td>
                                                         <td className="px-4 py-2 text-sm font-medium">฿{ref.reward_amount}</td>
-                                                        <td className="px-4 py-2 text-xs text-gray-500">{new Date(ref.created_at).toLocaleDateString('th-TH')}</td>
+                                                        <td className="px-4 py-2 text-xs text-gray-500">{formatDate(ref.created_at)}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -633,11 +632,9 @@ export default function CustomerDetailPage() {
                                             )}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm font-medium text-gray-900">
-                                                    {new Date(b.date).toLocaleDateString('th-TH', {
-                                                        year: 'numeric', month: 'short', day: 'numeric', weekday: 'short'
-                                                    })}
+                                                    {formatDate(b.date)}
                                                 </div>
-                                                <div className="text-sm text-gray-500">{b.time_from.slice(0, 5)} - {b.time_to.slice(0, 5)}</div>
+                                                <div className="text-sm text-gray-500">{formatTime(b.time_from)} - {formatTime(b.time_to)}</div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                 สนาม {b.field_no}

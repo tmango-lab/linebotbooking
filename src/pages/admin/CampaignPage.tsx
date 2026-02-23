@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
 import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users, Send } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 import CampaignModal from '../../components/admin/CampaignModal';
 import BroadcastModal from '../../components/admin/BroadcastModal';
 
@@ -262,7 +263,7 @@ export default function CampaignPage() {
                                     <div className="flex items-center">
                                         <Calendar className="w-4 h-4 mr-2 text-gray-400" />
                                         <span>
-                                            {new Date(campaign.start_date).toLocaleDateString()} - {new Date(campaign.end_date).toLocaleDateString()}
+                                            {formatDate(campaign.start_date)} - {formatDate(campaign.end_date)}
                                         </span>
                                     </div>
                                     <div className="flex items-center">
