@@ -73,16 +73,8 @@ export default function BookingCard({
         cardStatus = 'fully_paid';
     } else if (isPendingPayment) {
         cardStatus = 'pending'; // Rose/Pink (Critical 10m)
-    } else if (isQR && booking.payment_status === 'paid' && !isPaid) {
-        // NOTE: Actually if payment_status is paid, usually paid_at should be set? 
-        // But for our flow: QR confirmed via Slip = status: confirmed, payment_status: paid. 
-        // We need to differentiate "Deposit Paid" vs "Full Paid".
-        // Let's assume:
-        // - "fully_paid" -> manual toggle in modal sets isPaid=true (paid_at != null)
-        // - "deposit_paid" -> QR flow complete (payment_status='paid') but admin hasn't clicked "Fully Paid" yet.
-        // HOWEVER, our current webhook sets payment_status='paid'.
-        // Let's rely on `paid_at`. If `paid_at` exists -> Green.
-        // If not, check other flags.
+    } else if (isQR && (booking.payment_status === 'paid' || booking.payment_status === 'deposit_paid') && !isPaid) {
+        // [MODIFIED] Check for 'deposit_paid' as well as 'paid'
         cardStatus = 'deposit_paid'; // Amber (Balance remaining)
     } else {
         cardStatus = 'pay_at_field'; // Blue (Cash/Field)
