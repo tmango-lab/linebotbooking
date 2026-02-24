@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle, Copy, X, AlertCircle, Loader2, CreditCard } from 'lucide-react';
+import { CheckCircle, X, AlertCircle, Loader2, CreditCard } from 'lucide-react';
 import liff from '@line/liff';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe } from '@stripe/stripe-js';
@@ -28,9 +28,6 @@ const BookingSuccessPage: React.FC = () => {
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [paymentStarted, setPaymentStarted] = useState(false);
 
-    // Fallback static QR (keep as backup)
-    const promptPayId = "0839144000";
-    const amountToPay = isQR ? 200 : price;
 
     useEffect(() => {
         document.title = "Booking Success";
@@ -59,10 +56,6 @@ const BookingSuccessPage: React.FC = () => {
         }
     }, [isQR, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(promptPayId);
-        alert('คัดลอกเบอร์พร้อมเพย์แล้ว');
-    };
 
     /**
      * Initiate Stripe PromptPay payment flow
@@ -308,26 +301,7 @@ const BookingSuccessPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Fallback: Manual PromptPay */}
-                        <details className="bg-gray-50 border border-gray-200 rounded-2xl">
-                            <summary className="p-4 text-sm text-gray-500 cursor-pointer font-medium text-center">
-                                หรือ โอนเองผ่านพร้อมเพย์ (สำรอง)
-                            </summary>
-                            <div className="px-6 pb-6">
-                                <p className="text-gray-500 text-xs mb-3">โอนเข้าบัญชีด้านล่าง แล้วส่งสลิปทางแชท</p>
-                                <div className="bg-white p-3 rounded-xl shadow-sm inline-block mb-4">
-                                    <img
-                                        src={`https://promptpay.io/${promptPayId}/${amountToPay}.png`}
-                                        alt="QR Code"
-                                        className="w-40 h-40 object-contain"
-                                    />
-                                </div>
-                                <div className="flex items-center justify-center gap-2 text-gray-600 bg-white/50 py-2 rounded-lg cursor-pointer" onClick={handleCopy}>
-                                    <span className="font-mono font-bold">{promptPayId.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}</span>
-                                    <Copy className="w-4 h-4 opacity-50" />
-                                </div>
-                            </div>
-                        </details>
+
                     </div>
                 ) : (
                     <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-6">
