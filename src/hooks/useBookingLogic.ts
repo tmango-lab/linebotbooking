@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/api';
 import { getLiffUser } from '../lib/liff';
+import { formatDate } from '../utils/date';
 
 export interface Field {
     id: number;
@@ -78,13 +79,7 @@ export const useBookingLogic = () => {
     const [referralValid, setReferralValid] = useState<boolean>(false);
     const [referralError, setReferralError] = useState<string | null>(null); // [NEW] Error state
     const getThaiDateString = (dateStr?: string) => {
-        const dObj = dateStr ? new Date(dateStr) : new Date();
-        const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-        const d = dObj.getDate();
-        const m = dObj.getMonth() + 1;
-        const y = dObj.getFullYear();
-        const dayName = days[dObj.getDay()];
-        return `${dayName} ${d}/${m}/${y}`;
+        return formatDate(dateStr || new Date());
     };
 
     const getThaiDateShort = (dateStr: string) => {
