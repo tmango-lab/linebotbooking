@@ -247,7 +247,7 @@ export const useBookingLogic = () => {
                                 eligible_payments: null,
                                 category: 'MAIN',
                                 expiry: '',
-                                allow_ontop_stacking: true
+                                allow_ontop_stacking: refData.program?.allow_ontop_stacking ?? true
                             };
                             setManualMainCoupon(referralCoupon);
                         } else {

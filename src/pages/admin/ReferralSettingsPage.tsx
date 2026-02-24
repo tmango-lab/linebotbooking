@@ -12,6 +12,7 @@ interface ReferralProgram {
     end_date: string;
     discount_percent: number;
     reward_amount: number;
+    allow_ontop_stacking: boolean;
     created_at: string;
 }
 
@@ -113,7 +114,8 @@ export default function ReferralSettingsPage() {
                     name: program.name,
                     end_date: program.end_date,
                     discount_percent: program.discount_percent,
-                    reward_amount: program.reward_amount
+                    reward_amount: program.reward_amount,
+                    allow_ontop_stacking: program.allow_ontop_stacking
                 })
                 .eq('id', program.id);
             if (error) throw error;
@@ -280,6 +282,30 @@ export default function ReferralSettingsPage() {
                                     className="w-full mt-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                                 />
                             </div>
+                        </div>
+
+                        {/* Stacking Setting */}
+                        <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900">สิทธิ์การใช้ร่วมกับคูปองเสริม</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    ลูกค้าที่ได้รับสิทธิ์นี้ จะสามารถนำรหัสไปกรอกพร้อมกับคูปองลดเพิ่มอื่นๆ (On-top) ได้หรือไม่?
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setProgram({ ...program, allow_ontop_stacking: !program.allow_ontop_stacking })}
+                                disabled={saving}
+                                className={`transition-colors flex-shrink-0 ${saving ? 'opacity-50' : ''}`}
+                            >
+                                {program.allow_ontop_stacking ? (
+                                    <ToggleRight className="w-10 h-10 text-indigo-600" />
+                                ) : (
+                                    <ToggleLeft className="w-10 h-10 text-gray-300" />
+                                )}
+                            </button>
+                        </div>
+                        <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1 ${program.allow_ontop_stacking ? 'bg-indigo-50 text-indigo-700' : 'bg-red-50 text-red-600'}`}>
+                            {program.allow_ontop_stacking ? '🔵 อนุญาตให้ใช้ร่วมกันได้' : '🔴 ไม่อนุญาตให้ใช้พ่วงกับคูปองเสริมเด็ดขาด'}
                         </div>
 
                         <button

@@ -85,7 +85,7 @@ serve(async (req) => {
         // 5. Check active referral program
         const { data: activeProgram } = await supabase
             .from('referral_programs')
-            .select('id, name, discount_percent, reward_amount, end_date')
+            .select('id, name, discount_percent, reward_amount, end_date, allow_ontop_stacking')
             .eq('is_active', true)
             .maybeSingle();
 
@@ -124,7 +124,8 @@ serve(async (req) => {
                     id: activeProgram.id,
                     name: activeProgram.name,
                     discountPercent: activeProgram.discount_percent,
-                    rewardAmount: activeProgram.reward_amount
+                    rewardAmount: activeProgram.reward_amount,
+                    allow_ontop_stacking: activeProgram.allow_ontop_stacking ?? true
                 }
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

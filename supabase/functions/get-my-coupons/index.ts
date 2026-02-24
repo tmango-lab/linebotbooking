@@ -161,7 +161,8 @@ serve(async (req) => {
                         days: campaign.eligible_days,
                         min_spend: campaign.min_spend || 0
                     },
-                    is_stackable: campaign.is_stackable || false
+                    is_stackable: campaign.is_stackable || false,
+                    allow_ontop_stacking: campaign.allow_ontop_stacking ?? true
                 };
 
                 // Case-insensitive comparison
