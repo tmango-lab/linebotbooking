@@ -40,6 +40,34 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
     const mainCoupons = coupons.filter(c => c.category === 'MAIN');
     const ontopCoupons = coupons.filter(c => c.category === 'ONTOP');
 
+    // [NEW] Validation Logic
+    const handleSelectMain = (c: Coupon | null) => {
+        if (!onSelectMain) return;
+
+        if (c) {
+            // Check if switching to a main coupon that DISALLOWS stacking, 
+            // but an on-top is already applied.
+            if (c.allow_ontop_stacking === false && appliedOntopCoupon && onSelectOntop) {
+                alert(`คูปองหลีก "${c.name}" ไม่สามารถใช้ร่วมกับคูปองเสริมได้\nระบบจะยกเลิกการใช้คูปองเสริมอัตโนมัติ`);
+                onSelectOntop(null); // Clear on-top
+            }
+        }
+        onSelectMain(c);
+    };
+
+    const handleSelectOntop = (c: Coupon | null) => {
+        if (!onSelectOntop) return;
+
+        if (c && appliedMainCoupon) {
+            // Check if Main Coupon DISALLOWS stacking
+            if (appliedMainCoupon.allow_ontop_stacking === false) {
+                alert(`ไม่สามารถใช้คูปองเสริมได้\nเนื่องจากคูปองหลัก "${appliedMainCoupon.name}" ไม่อนุญาตให้ใช้ร่วมกับคูปองเสริม`);
+                return; // Block selection
+            }
+        }
+        onSelectOntop(c);
+    };
+
     // Helper to render a card (reused)
     const renderCouponCard = (coupon: Coupon, isSelected: boolean, onPick: () => void) => {
         const isEligible = originalPrice >= coupon.min_spend;
@@ -124,20 +152,20 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                                 <>
                                     <div className="mb-2 flex justify-between items-center">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Main Coupons</span>
-                                        {appliedMainCoupon && <button onClick={() => onSelectMain && onSelectMain(null)} className="text-xs text-red-500 font-bold">Clear</button>}
+                                        {appliedMainCoupon && <button onClick={() => handleSelectMain(null)} className="text-xs text-red-500 font-bold">Clear</button>}
                                     </div>
                                     {mainCoupons.length === 0 ? <p className="text-center text-gray-400 py-8">No Main Coupons</p> :
-                                        mainCoupons.map(c => renderCouponCard(c, appliedMainCoupon?.id === c.id, () => onSelectMain && onSelectMain(c)))
+                                        mainCoupons.map(c => renderCouponCard(c, appliedMainCoupon?.id === c.id, () => handleSelectMain(c)))
                                     }
                                 </>
                             ) : (
                                 <>
                                     <div className="mb-2 flex justify-between items-center">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">On-top Coupons</span>
-                                        {appliedOntopCoupon && <button onClick={() => onSelectOntop && onSelectOntop(null)} className="text-xs text-red-500 font-bold">Clear</button>}
+                                        {appliedOntopCoupon && <button onClick={() => handleSelectOntop(null)} className="text-xs text-red-500 font-bold">Clear</button>}
                                     </div>
                                     {ontopCoupons.length === 0 ? <p className="text-center text-gray-400 py-8">No On-top Coupons</p> :
-                                        ontopCoupons.map(c => renderCouponCard(c, appliedOntopCoupon?.id === c.id, () => onSelectOntop && onSelectOntop(c)))
+                                        ontopCoupons.map(c => renderCouponCard(c, appliedOntopCoupon?.id === c.id, () => handleSelectOntop(c)))
                                     }
                                 </>
                             )}
@@ -210,10 +238,10 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
 
                             {activeTab === 'MAIN' ? (
                                 mainCoupons.length === 0 ? <p className="text-center text-gray-400 py-8 italic">No coupons found for this slot.</p> :
-                                    mainCoupons.map(c => renderCouponCard(c, appliedMainCoupon?.id === c.id, () => onSelectMain && onSelectMain(c)))
+                                    mainCoupons.map(c => renderCouponCard(c, appliedMainCoupon?.id === c.id, () => handleSelectMain(c)))
                             ) : (
                                 ontopCoupons.length === 0 ? <p className="text-center text-gray-400 py-8 italic">No coupons found for this slot.</p> :
-                                    ontopCoupons.map(c => renderCouponCard(c, appliedOntopCoupon?.id === c.id, () => onSelectOntop && onSelectOntop(c)))
+                                    ontopCoupons.map(c => renderCouponCard(c, appliedOntopCoupon?.id === c.id, () => handleSelectOntop(c)))
                             )}
                         </div>
                     </>

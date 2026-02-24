@@ -44,7 +44,8 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         redemption_limit: 0,
         duration_days: 0, // Changed from validity_days
         secret_codes: [] as string[],
-        status: 'active'
+        status: 'active',
+        allow_ontop_stacking: true // New: allow stacking main with on-top
     });
 
     // Temp state for tag inputs
@@ -81,7 +82,8 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     redemption_limit: campaign.redemption_limit || 0,
                     duration_days: campaign.duration_days || 0,
                     secret_codes: campaign.secret_codes || [],
-                    status: campaign.status || 'active'
+                    status: campaign.status || 'active',
+                    allow_ontop_stacking: campaign.allow_ontop_stacking ?? true
                 });
             } else {
                 // Reset for Create Mode
@@ -109,7 +111,8 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     redemption_limit: 0,
                     duration_days: 0,
                     secret_codes: [],
-                    status: 'active'
+                    status: 'active',
+                    allow_ontop_stacking: true
                 });
             }
             setError(null);
@@ -172,6 +175,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                 is_stackable: formData.is_stackable,
                 coupon_type: formData.is_stackable ? 'ontop' : 'main',
                 is_public: formData.is_public,
+                allow_ontop_stacking: !formData.is_stackable ? formData.allow_ontop_stacking : true,
 
                 // Conditions
                 min_spend: Number(formData.min_spend),
@@ -311,6 +315,26 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                             </button>
                                         </div>
                                     </div>
+
+                                    {/* Stackable Toggle (Only for Main Coupon) */}
+                                    {!formData.is_stackable && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">สิทธิ์การใช้ร่วมกับคูปองเสริม (On-Top)</label>
+                                            <div className="flex gap-2">
+                                                <button type="button"
+                                                    onClick={() => setFormData({ ...formData, allow_ontop_stacking: true })}
+                                                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center ${formData.allow_ontop_stacking ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+                                                    ✔️ อนุญาตให้ใช้คู่กันได้
+                                                </button>
+                                                <button type="button"
+                                                    onClick={() => setFormData({ ...formData, allow_ontop_stacking: false })}
+                                                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center ${!formData.allow_ontop_stacking ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+                                                    ❌ ไม่อนุญาต
+                                                </button>
+                                            </div>
+                                            <p className="mt-1 text-xs text-gray-500">หากเลือก "ไม่อนุญาต" ลูกค้าที่เลือกคูปองหลักนี้ จะไม่สามารถเลือกคูปองเสริมในหน้าจองได้</p>
+                                        </div>
+                                    )}
 
                                     {/* Acquisition Method */}
                                     <div>

@@ -87,7 +87,8 @@ serve(async (req) => {
                     valid_time_start,
                     valid_time_end,
                     eligible_days,
-                    is_stackable
+                    is_stackable,
+                    allow_ontop_stacking
                 )
             `)
             .eq('user_id', userId);

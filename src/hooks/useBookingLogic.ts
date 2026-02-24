@@ -25,6 +25,7 @@ export interface Coupon {
     eligible_payments: string[] | null;
     category: 'MAIN' | 'ONTOP';
     expiry: string; // [NEW] For Date Check
+    allow_ontop_stacking?: boolean; // [NEW] Stacking Rules
 }
 
 export interface UserProfile {
@@ -195,7 +196,8 @@ export const useBookingLogic = () => {
                             valid_time_end: c.conditions?.time?.end || null,
                             eligible_payments: c.conditions?.payment || null,
                             category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP",
-                            expiry: c.expiry // [NEW]
+                            expiry: c.expiry, // [NEW]
+                            allow_ontop_stacking: c.is_stackable ? true : (c.allow_ontop_stacking ?? true)
                         };
                     });
                     setCoupons(fetchedCoupons);
@@ -244,7 +246,8 @@ export const useBookingLogic = () => {
                                 valid_time_end: null,
                                 eligible_payments: null,
                                 category: 'MAIN',
-                                expiry: ''
+                                expiry: '',
+                                allow_ontop_stacking: true
                             };
                             setManualMainCoupon(referralCoupon);
                         } else {
