@@ -264,8 +264,17 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const pm = booking.payment_method?.toLowerCase();
         const isQr = pm === 'qr' || pm?.includes('qr') || pm?.includes('transfer');
 
+        // Extract dynamic deposit amount from admin_note (e.g. "[Deposit 11 THB Required]")
+        let parsedDeposit = 200; // fallback
+        if (booking?.admin_note) {
+            const match = booking.admin_note.match(/\[Deposit\s+(\d+(?:\.\d+)?)\s+THB\s+Required\]/i);
+            if (match && match[1]) {
+                parsedDeposit = parseFloat(match[1]);
+            }
+        }
+
         const isDepositPaid = (isQr && (!!booking.paid_at || booking.payment_status === 'paid' || booking.payment_status === 'deposit_paid'));
-        const depositAmount = isDepositPaid ? 200 : 0;
+        const depositAmount = isDepositPaid ? parsedDeposit : 0;
 
         // Balance Logic
         let balance = 0;
@@ -278,10 +287,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             balance = netPrice;
         }
 
-        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons };
+        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit };
     };
 
-    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons } = getFinancials();
+    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit } = getFinancials();
 
     const isPendingPayment = booking.status === 'pending_payment';
 
@@ -425,7 +434,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                 </div>
                                                 <div className="text-xs text-gray-500">
                                                     <div className="text-xs text-gray-500">
-                                                        {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'มัดจำ 200 บาท' : 'ชำระเต็มจำนวนหน้าสนาม'}
+                                                        {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? `มัดจำ ${parsedDeposit} บาท` : 'ชำระเต็มจำนวนหน้าสนาม'}
                                                     </div>
                                                 </div>
                                             </div>

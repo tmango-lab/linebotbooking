@@ -780,8 +780,9 @@ export function buildBookingSuccessFlex(params: {
     timeTo: string;
     price: number;
     paymentMethod: string;
+    depositAmount?: number;
 }) {
-    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod } = params;
+    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod, depositAmount = 200 } = params;
 
     return {
         type: "flex",
@@ -790,7 +791,7 @@ export function buildBookingSuccessFlex(params: {
             type: "bubble",
             hero: (paymentMethod === 'qr') ? {
                 type: "image",
-                url: `https://promptpay.io/${Deno.env.get('PROMPTPAY_ID') || '0839144000'}/200.png`,
+                url: `https://promptpay.io/${Deno.env.get('PROMPTPAY_ID') || '0839144000'}/${depositAmount}.png`,
                 size: "full",
                 aspectRatio: "1:1",
                 aspectMode: "cover",
@@ -801,7 +802,7 @@ export function buildBookingSuccessFlex(params: {
                 contents: [
                     {
                         type: "text",
-                        text: paymentMethod === 'qr' ? "💳 ชำระเงินมัดจำ 200 บาท" : "✅ จองสนามสำเร็จแล้ว!",
+                        text: paymentMethod === 'qr' ? `💳 ชำระเงินมัดจำ ${depositAmount} บาท` : "✅ จองสนามสำเร็จแล้ว!",
                         weight: "bold",
                         size: "lg",
                         color: paymentMethod === 'qr' ? "#FF9800" : "#06C755"
@@ -871,7 +872,7 @@ export function buildBookingSuccessFlex(params: {
                                 spacing: "sm",
                                 contents: [
                                     { type: "text", text: "ยอดโอน", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: paymentMethod === 'qr' ? "200.00 บาท" : "-", weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
+                                    { type: "text", text: paymentMethod === 'qr' ? `${depositAmount.toFixed(2)} บาท` : "-", weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
                                 ]
                             },
                             {
@@ -880,7 +881,7 @@ export function buildBookingSuccessFlex(params: {
                                 spacing: "sm",
                                 contents: [
                                     { type: "text", text: "การชำระ", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: paymentMethod === 'qr' ? 'มัดจำ 200 (QR)' : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: paymentMethod === 'qr' ? `มัดจำ ${depositAmount} (QR)` : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
                                 ]
                             }
                         ]

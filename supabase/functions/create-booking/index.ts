@@ -237,7 +237,26 @@ serve(async (req) => {
         const isQR = paymentMethod === 'QR';
         const timeoutMinutes = 10;
         const timeoutAt = isQR ? new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString() : null;
-        if (isQR) adminNote = (adminNote ? adminNote + ' | ' : '') + `[Deposit 200 THB Required]`;
+
+        // [MOD] Fetch dynamic deposit amount from system_settings
+        let depositAmountForLog = 200; // Default fallback
+        if (isQR) {
+            try {
+                const { data: settings } = await supabase
+                    .from('system_settings')
+                    .select('stripe_deposit_amount')
+                    .eq('id', 1)
+                    .maybeSingle();
+
+                if (settings?.stripe_deposit_amount) {
+                    depositAmountForLog = settings.stripe_deposit_amount;
+                }
+            } catch (err) {
+                console.error('[Create Booking] Error fetching deposit setting:', err);
+                // Fallback to 200 on error
+            }
+            adminNote = (adminNote ? adminNote + ' | ' : '') + `[Deposit ${depositAmountForLog} THB Required]`;
+        }
 
         const { data: booking, error: insertError } = await supabase
             .from('bookings')
@@ -365,7 +384,8 @@ serve(async (req) => {
                 timeFrom: startTime,
                 timeTo: endTime,
                 price: finalPrice,
-                paymentMethod: paymentMethod || 'N/A'
+                paymentMethod: paymentMethod || 'N/A',
+                depositAmount: isQR ? depositAmountForLog : 0
             });
             if (userId) {
                 await pushMessage(userId, successFlex);
