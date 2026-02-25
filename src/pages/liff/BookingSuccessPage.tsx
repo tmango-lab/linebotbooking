@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, X, AlertCircle, Loader2, CreditCard } from 'lucide-react';
 import liff from '@line/liff';
@@ -28,6 +28,9 @@ const BookingSuccessPage: React.FC = () => {
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [paymentStarted, setPaymentStarted] = useState(false);
     const [depositAmount, setDepositAmount] = useState<number>(200); // Default, will update from API
+
+    // Prevent double clicking / multiple API calls
+    const paymentInitiatedRef = useRef(false);
 
 
     useEffect(() => {
@@ -63,7 +66,9 @@ const BookingSuccessPage: React.FC = () => {
      */
     const handleStripePayment = useCallback(async () => {
         if (!bookingId) return;
+        if (paymentInitiatedRef.current) return;
 
+        paymentInitiatedRef.current = true;
         setStripeLoading(true);
         setStripeError(null);
         setPaymentStarted(true);
@@ -117,6 +122,7 @@ const BookingSuccessPage: React.FC = () => {
                 } else {
                     setStripeError(result.error.message || 'Payment cancelled');
                     setPaymentStarted(false);
+                    paymentInitiatedRef.current = false;
                 }
             } else if (result.paymentIntent?.status === 'succeeded') {
                 // Payment succeeded!
@@ -125,12 +131,14 @@ const BookingSuccessPage: React.FC = () => {
                 // User might have closed without paying
                 setStripeError('การชำระเงินถูกยกเลิก กรุณาลองใหม่');
                 setPaymentStarted(false);
+                paymentInitiatedRef.current = false;
             }
         } catch (err: any) {
             console.error('[Stripe Payment Error]:', err);
             setStripeError(err.message || 'เกิดข้อผิดพลาด');
             setStripeLoading(false);
             setPaymentStarted(false);
+            paymentInitiatedRef.current = false;
         }
     }, [bookingId]);
 
