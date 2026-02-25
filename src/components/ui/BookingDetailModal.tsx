@@ -25,6 +25,7 @@ interface BookingDetailModalProps {
         payment_status?: string;
         payment_slip_url?: string | null;
         timeout_at?: string | null;
+        deposit_amount?: number | null;
         coupons?: {
             code: string;
             name: string;
@@ -264,9 +265,12 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         const pm = booking.payment_method?.toLowerCase();
         const isQr = pm === 'qr' || pm?.includes('qr') || pm?.includes('transfer');
 
-        // Extract dynamic deposit amount from admin_note (e.g. "[Deposit 11 THB Required]")
+        // [LOCK] Read deposit from booking.deposit_amount first (locked at booking time)
+        // Fallback to parsing admin_note for older bookings
         let parsedDeposit = 200; // fallback
-        if (booking?.admin_note) {
+        if (booking?.deposit_amount != null && booking.deposit_amount > 0) {
+            parsedDeposit = booking.deposit_amount;
+        } else if (booking?.admin_note) {
             const match = booking.admin_note.match(/\[Deposit\s+(\d+(?:\.\d+)?)\s+THB\s+Required\]/i);
             if (match && match[1]) {
                 parsedDeposit = parseFloat(match[1]);

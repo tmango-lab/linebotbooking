@@ -19,6 +19,7 @@ const BookingSuccessPage: React.FC = () => {
     const date = searchParams.get('date');
     const time = searchParams.get('time');
     const userId = searchParams.get('userId');
+    const depositParam = searchParams.get('deposit');
 
     const isQR = paymentMethod === 'qr';
 
@@ -27,7 +28,7 @@ const BookingSuccessPage: React.FC = () => {
     const [stripeError, setStripeError] = useState<string | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [paymentStarted, setPaymentStarted] = useState(false);
-    const [depositAmount, setDepositAmount] = useState<number>(200); // Default, will update from API
+    const [depositAmount, setDepositAmount] = useState<number>(depositParam ? Number(depositParam) : 200);
 
     // Prevent double clicking / multiple API calls
     const paymentInitiatedRef = useRef(false);

@@ -43,15 +43,21 @@ serve(async (req) => {
             throw new Error('Invalid amount');
         }
 
-        // Fetch system settings to get configured deposit amount
-        const { data: settings } = await supabase
-            .from('system_settings')
-            .select('stripe_deposit_amount')
-            .eq('id', 1)
-            .single();
-
-        // Default to 200 if not configured
-        const DEPOSIT_AMOUNT = settings?.stripe_deposit_amount ?? 200;
+        // [LOCK] Read deposit amount from booking first (locked at booking time)
+        // Fallback to system_settings for older bookings without deposit_amount
+        let DEPOSIT_AMOUNT: number;
+        if (booking.deposit_amount != null && booking.deposit_amount > 0) {
+            DEPOSIT_AMOUNT = booking.deposit_amount;
+            console.log(`[PaymentIntent] Using locked deposit from booking: ${DEPOSIT_AMOUNT} THB`);
+        } else {
+            const { data: settings } = await supabase
+                .from('system_settings')
+                .select('stripe_deposit_amount')
+                .eq('id', 1)
+                .single();
+            DEPOSIT_AMOUNT = settings?.stripe_deposit_amount ?? 200;
+            console.log(`[PaymentIntent] Fallback to system_settings deposit: ${DEPOSIT_AMOUNT} THB`);
+        }
         const depositAmount = Math.min(DEPOSIT_AMOUNT, totalPrice); // Don't charge more than total
 
         // 2. Create PaymentIntent via Stripe REST API

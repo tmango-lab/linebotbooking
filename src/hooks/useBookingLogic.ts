@@ -439,7 +439,8 @@ export const useBookingLogic = () => {
                     fieldName: `สนาม ${(selectedField?.name || '').replace('สนาม ', '').replace('#', '').trim()}`,
                     date: getThaiDateString(selectedDate),
                     time: `${selection!.startTime} - ${selection!.endTime}`,
-                    userId: userId || ''
+                    userId: userId || '',
+                    ...(data.booking.deposit_amount ? { deposit: data.booking.deposit_amount.toString() } : {})
                 });
                 navigate(`/booking-success?${params.toString()}`);
             } else {

@@ -273,6 +273,7 @@ serve(async (req) => {
                 time_to: endTime,
                 duration_h: durationH,
                 price_total_thb: finalPrice,
+                deposit_amount: isQR ? depositAmountForLog : null,
                 display_name: customerName,
                 phone_number: phoneNumber,
                 admin_note: adminNote || null,
@@ -403,6 +404,7 @@ serve(async (req) => {
                 price: booking.price_total_thb,
                 original_price: originalPrice,
                 discount_amount: discountAmount,
+                deposit_amount: isQR ? depositAmountForLog : 0,
                 customer_name: booking.display_name,
                 rewards: campaignsToIncrement.map(c => c.reward_item).filter(Boolean)
             }
