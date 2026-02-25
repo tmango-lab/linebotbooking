@@ -24,6 +24,7 @@ const CampaignPage = lazy(() => import('./pages/admin/CampaignPage'));
 const RefundPage = lazy(() => import('./pages/admin/RefundPage'));
 const BookingSearchPage = lazy(() => import('./pages/admin/BookingSearchPage'));
 const ReferralSettingsPage = lazy(() => import('./pages/admin/ReferralSettingsPage'));
+const SystemSettingsPage = lazy(() => import('./pages/admin/SystemSettingsPage'));
 
 // Branded Loader
 const PageLoader = ({ text = "Loading..." }) => (
@@ -206,6 +207,7 @@ function App() {
               <Route path="promo-codes" element={<PromoCodePage />} />
               <Route path="refunds" element={<RefundPage />} />
               <Route path="referral-settings" element={<ReferralSettingsPage />} />
+              <Route path="system-settings" element={<SystemSettingsPage />} />
             </Route>
 
             {/* Catch All - Redirect to Status Page */}

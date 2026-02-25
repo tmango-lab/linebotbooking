@@ -43,9 +43,15 @@ serve(async (req) => {
             throw new Error('Invalid amount');
         }
 
-        // Fixed deposit amount: 200 THB
-        // The remaining balance is paid in cash at the field
-        const DEPOSIT_AMOUNT = 200;
+        // Fetch system settings to get configured deposit amount
+        const { data: settings } = await supabase
+            .from('system_settings')
+            .select('stripe_deposit_amount')
+            .eq('id', 1)
+            .single();
+
+        // Default to 200 if not configured
+        const DEPOSIT_AMOUNT = settings?.stripe_deposit_amount ?? 200;
         const depositAmount = Math.min(DEPOSIT_AMOUNT, totalPrice); // Don't charge more than total
 
         // 2. Create PaymentIntent via Stripe REST API
