@@ -63,8 +63,9 @@ CREATE TABLE bookings (
     user_id TEXT,                   -- LINE User ID (Optional/Nullable for Admin bookings)
     timeout_at TIMESTAMPTZ,         -- [NEW] Cancellation deadline for QR bookings
     payment_method TEXT,            -- [NEW] qr, field
-    payment_status TEXT,            -- [NEW] pending, paid
+    payment_status TEXT,            -- [NEW] pending, paid, deposit_paid
     payment_slip_url TEXT,          -- [NEW] URL to uploaded slip in Supabase Storage
+    deposit_amount NUMERIC,         -- [LOCK] Deposit amount locked at booking time (from system_settings)
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
@@ -209,7 +210,8 @@ System sends a standardized confirmation message via LINE:
 ### Backend Functions
 | File | Purpose |
 |------|---------|
-| `create-booking/index.ts` | **Core**: Admin manual booking creation |
+| `create-booking/index.ts` | **Core**: Booking creation (locks `deposit_amount` from `system_settings`) |
+| `create-payment-intent/index.ts` | **Core**: Creates Stripe PaymentIntent (reads locked `deposit_amount` from booking) |
 | `use-promo-code-and-book/index.ts` | **Core**: Promo code redemption & booking |
 | `get-bookings/index.ts` | **Core**: Fetch daily schedule (Local DB) |
 | `bookingService.ts` / `searchService.ts` | Shared logic for slot availability (Bot) |
@@ -735,10 +737,11 @@ To ensure instantaneous page loads for customers:
 The system uses Stripe to handle automated PromptPay QR payments. This replaces the manual slip upload process with a secure, real-time transaction verified via webhooks.
 
 ### 18.2 QR Deposit Workflow (Standard)
-1. **Frontend**: The user reaches `BookingSuccessPage.tsx`. It calls the `create-payment-intent` edge function.
+1. **Frontend**: The user reaches `BookingSuccessPage.tsx`. It initiates a countdown (15s). Once triggered, it calls `create-payment-intent`.
+    - *Anti-Gaming Guard*: A `useRef` flag (`paymentInitiatedRef`) is used to strictly prevent the function from executing multiple times concurrently, guaranteeing only one Stripe PaymentIntent (`pi_...`) is generated per booking attempt.
 2. **Backend (`create-payment-intent`)**:
-    - Calculates a **Fixed 200 THB Deposit** (or full price if lower).
-    - Creates a Stripe PaymentIntent with `payment_method_types: ['promptpay']`.
+    - **[LOCKED DEPOSIT]**: Reads `deposit_amount` directly from the `bookings` record (locked at booking creation time). Falls back to `system_settings.stripe_deposit_amount` only for legacy bookings without the column.
+    - Creates a Stripe PaymentIntent with `payment_method_types: ['promptpay']` for that amount.
     - Returns the `clientSecret` to the frontend.
 3. **Frontend**: Stripe.js opens the PromptPay QR modal automatically.
 4. **Stripe Webhook**:
@@ -747,25 +750,26 @@ The system uses Stripe to handle automated PromptPay QR payments. This replaces 
     - Sends LINE Flex Message showing the deposit paid and the **Remaining Balance** to be collected at the field.
     - **Crucial Configuration**: The `stripe-webhook` Edge Function MUST have JWT verification disabled (`verify_jwt = false` in `supabase/config.toml`) because Stripe's payload does not include a Supabase Auth Bearer token. It relies solely on `stripe-signature` for security.
 
-### 18.3 Technical Details (Edge Functions)
+### 18.3 Deposit Amount Locking Strategy
 
-#### `create-payment-intent`
-- **Purpose**: Bridge between our system and Stripe API.
-- **Metadata**: Stores `booking_id`, `field_no`, `deposit_amount`, and `total_price` inside the Stripe object for reconciliation.
-- **Concurrency**: Updates `bookings.stripe_payment_intent_id` immediately so we have a reference.
+> [!IMPORTANT]
+> The deposit amount is **locked into the booking record at creation time**. Changing `system_settings.stripe_deposit_amount` afterwards does NOT affect existing bookings.
 
-#### `stripe-webhook`
-- **Verification**: Uses `crypto.subtle` natively in Deno to verify `stripe-signature` with `STRIPE_WEBHOOK_SECRET` for security.
-- **Processing**:
-    - Extracts `booking_id` from metadata.
-    - Updates `payment_status` to `'deposit_paid'` and `status` to `'confirmed'`.
-    - Sends confirmation via LINE Messaging API.
-    - Triggers `process-referral-reward` asynchronously.
+**Flow**:
+1. `create-booking` reads `stripe_deposit_amount` from `system_settings` and saves it to `bookings.deposit_amount`.
+2. `create-payment-intent` reads from `bookings.deposit_amount` (not `system_settings`).
+3. `BookingSuccessPage` receives the locked amount via URL param `?deposit=...` from the booking API response.
+4. `BookingDetailModal` reads from `booking.deposit_amount`, falling back to parsing `admin_note` for older bookings.
 
-### 18.4 Admin UI Logic
-- **Balance Calculation**: `BookingDetailModal` checks for `deposit_paid` (or `payment_method === 'QR'`) status.
-- **Formula**: `Balance = (Grand Total + Discount) - 200`.
-- **Manual Confirmation**: If an admin clicks "Confirm Payment" on a QR booking with a missing webhook, the system smartly limits the status to `deposit_paid` rather than `paid` to preserve the outstanding 600 THB balance.
+**Backward Compatibility**: Legacy bookings without `deposit_amount` column are handled by:
+- `create-payment-intent`: Falls back to `system_settings.stripe_deposit_amount`.
+- `BookingDetailModal`: Falls back to parsing `[Deposit X THB Required]` from `admin_note`.
+
+### 18.4 Admin UI & Dynamic Config Logic
+- **Global Settings**: The deposit amount is configurable via `/admin/system-settings`. This value is used as the **default for new bookings** — it is locked into each booking at creation time.
+- **Balance Calculation**: `BookingDetailModal` reads `booking.deposit_amount` directly (falls back to `admin_note` parsing for legacy bookings).
+- **Formula**: `Balance = Grand Total - Locked Deposit Amount`.
+- **Manual Confirmation**: If an admin clicks "Confirm Payment" on a QR booking with a missing webhook, the system smartly limits the status to `deposit_paid` rather than `paid` to preserve the outstanding balance.
 - **BookingCard Colors**: 
     - Applies `deposit_paid` (Amber Color) securely by assessing if `isQR` (case-insensitive) matches and `payment_status` is `paid` or `deposit_paid` without a full `paid_at` timestamp.
 
