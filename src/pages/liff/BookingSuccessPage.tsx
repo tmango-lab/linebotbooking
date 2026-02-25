@@ -27,6 +27,7 @@ const BookingSuccessPage: React.FC = () => {
     const [stripeError, setStripeError] = useState<string | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [paymentStarted, setPaymentStarted] = useState(false);
+    const [depositAmount, setDepositAmount] = useState<number>(200); // Default, will update from API
 
 
     useEffect(() => {
@@ -83,7 +84,8 @@ const BookingSuccessPage: React.FC = () => {
                 throw new Error(data.error || 'Failed to create payment');
             }
 
-            const { clientSecret, publicKey } = data;
+            const { clientSecret, publicKey, amount } = data;
+            if (amount) setDepositAmount(amount);
 
             // 2. Load Stripe.js
             const stripePublicKey = publicKey || import.meta.env.VITE_STRIPE_PUBLIC_KEY || '';
@@ -161,11 +163,11 @@ const BookingSuccessPage: React.FC = () => {
                         </div>
                         <div className="border-t border-dashed border-green-200 my-2 pt-2 flex justify-between">
                             <span className="text-gray-500">ค่ามัดจำ (Stripe)</span>
-                            <span className="font-bold text-green-600 text-lg">฿200</span>
+                            <span className="font-bold text-green-600 text-lg">฿{depositAmount}</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-gray-500">ยอดคงเหลือ (หน้าสนาม)</span>
-                            <span className="font-bold text-orange-500">฿{Math.max(0, Number(price || 0) - 200)}</span>
+                            <span className="font-bold text-orange-500">฿{Math.max(0, Number(price || 0) - depositAmount)}</span>
                         </div>
                         <div className="text-center">
                             <span className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full font-bold">
@@ -224,10 +226,10 @@ const BookingSuccessPage: React.FC = () => {
                         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6">
                             <h3 className="text-indigo-800 font-bold mb-2 flex items-center justify-center gap-2">
                                 <CreditCard className="w-5 h-5" />
-                                ชำระมัดจำ ฿200 ผ่าน PromptPay
+                                ชำระมัดจำ ฿{depositAmount} ผ่าน PromptPay
                             </h3>
                             <p className="text-indigo-500 text-xs mb-4">
-                                สแกน QR Code จ่ายมัดจำ ฿200 ส่วนที่เหลือ ฿{Math.max(0, Number(price || 0) - 200)} ชำระหน้าสนาม
+                                สแกน QR Code จ่ายมัดจำ ฿{depositAmount} ส่วนที่เหลือ ฿{Math.max(0, Number(price || 0) - depositAmount)} ชำระหน้าสนาม
                             </p>
 
                             <div className="bg-red-50 text-red-600 text-[11px] font-bold p-2 rounded-lg mb-4 border border-red-100 flex items-start gap-2">
