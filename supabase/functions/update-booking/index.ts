@@ -330,18 +330,15 @@ serve(async (req) => {
         ) {
             console.log(`[Update Booking] Payment confirmed for ${matchId}. Triggering referral reward...`);
             try {
-                fetch(`${supabaseUrl}/functions/v1/process-referral-reward`, {
+                const res = await fetch(`${supabaseUrl}/functions/v1/process-referral-reward`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${serviceRoleKey}`
                     },
                     body: JSON.stringify({ bookingId: String(matchId) })
-                }).then(res => {
-                    console.log(`[Referral Reward] Triggered: ${res.status}`);
-                }).catch(err => {
-                    console.error('[Referral Reward] Trigger error:', err);
                 });
+                console.log(`[Referral Reward] Triggered: ${res.status}`);
             } catch (err) {
                 console.error('[Referral Reward] Error:', err);
             }
