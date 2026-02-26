@@ -781,8 +781,9 @@ export function buildBookingSuccessFlex(params: {
     price: number;
     paymentMethod: string;
     depositAmount?: number;
+    bookingId?: string;
 }) {
-    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod: rawPaymentMethod, depositAmount = 200 } = params;
+    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod: rawPaymentMethod, depositAmount = 200, bookingId = '-' } = params;
     const paymentMethod = rawPaymentMethod.toLowerCase();
 
     return {
@@ -816,6 +817,15 @@ export function buildBookingSuccessFlex(params: {
                         margin: "lg",
                         spacing: "sm",
                         contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ID", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: bookingId, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
                             {
                                 type: "box",
                                 layout: "baseline",

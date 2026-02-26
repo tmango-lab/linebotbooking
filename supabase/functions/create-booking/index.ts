@@ -386,7 +386,8 @@ serve(async (req) => {
                 timeTo: endTime,
                 price: finalPrice,
                 paymentMethod: paymentMethod || 'N/A',
-                depositAmount: isQR ? depositAmountForLog : 0
+                depositAmount: isQR ? depositAmountForLog : 0,
+                bookingId: booking.booking_id
             });
             if (userId) {
                 await pushMessage(userId, successFlex);
