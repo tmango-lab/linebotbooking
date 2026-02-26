@@ -323,14 +323,18 @@ serve(async (req) => {
         console.log(`[Update Booking] Success: ${matchId}`);
 
         // --- REFERRAL REWARD TRIGGER ---
-        // If payment status is updated to 'paid' or 'deposit_paid', try to process referral reward
-        if (
-            (updatePayload.payment_status === 'paid' || updatePayload.payment_status === 'deposit_paid') ||
-            (updatePayload.status === 'confirmed' && updatePayload.payment_status !== 'pending' && updatePayload.payment_status !== 'pending_payment')
-        ) {
-            console.log(`[Update Booking] Payment confirmed for ${matchId}. Triggering referral reward...`);
+        // We check the final state (localData) to ensure it's confirmed and paid
+        const isCurrentlyPaid = localData && (localData.payment_status === 'paid' || localData.payment_status === 'deposit_paid');
+        const isCurrentlyConfirmed = localData && localData.status === 'confirmed';
+
+        console.log(`[Referral Check] Booking ${matchId}: Paid=${isCurrentlyPaid}, Confirmed=${isCurrentlyConfirmed}`);
+
+        if (isCurrentlyPaid || isCurrentlyConfirmed) {
+            console.log(`[Update Booking] Payment/Confirmation detected for ${matchId}. Triggering referral reward...`);
             try {
-                const res = await fetch(`${supabaseUrl}/functions/v1/process-referral-reward`, {
+                const rewardUrl = `${supabaseUrl}/functions/v1/process-referral-reward`;
+
+                const res = await fetch(rewardUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -338,26 +342,31 @@ serve(async (req) => {
                     },
                     body: JSON.stringify({ bookingId: String(matchId) })
                 });
-                console.log(`[Referral Reward] Triggered: ${res.status}`);
-            } catch (err) {
-                console.error('[Referral Reward] Error:', err);
+
+                const resText = await res.text();
+                console.log(`[Referral Reward] Response Status: ${res.status}, Body: ${resText.substring(0, 100)}`);
+
+            } catch (err: any) {
+                console.error('[Referral Reward] Trigger Exception:', err);
             }
         }
 
-        return new Response(JSON.stringify({ success: true, booking: localData }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return new Response(
+            JSON.stringify({
+                success: true,
+                matchId
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
 
-    } catch (error: any) {
-        console.error('[Update Booking Error]:', error);
-        console.error('[Update Booking Error Stack]:', error.stack);
-        return new Response(JSON.stringify({
-            error: error.message,
-            stack: error.stack,
-            debug: "Function crashed - check logs"
-        }), {
-            status: 200, // CHANGED TO 200 FOR DEBUGGING
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+    } catch (err: any) {
+        console.error('[Update Booking Error]', err);
+        return new Response(
+            JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }),
+            {
+                status: 200, // CHANGED TO 200 FOR DEBUGGING
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+        );
     }
 });

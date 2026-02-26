@@ -52,37 +52,35 @@ serve(async (req) => {
             if (data && data.success) {
                 const { pushMessage } = await import('../_shared/lineClient.ts');
 
-                // Get referee name for the notification
+                // Get referral record (without join)
                 const { data: referral } = await supabase
                     .from('referrals')
-                    .select('*, referee:profiles!referee_id(team_name)')
+                    .select('*')
                     .eq('booking_id', bookingId)
                     .maybeSingle();
 
-                const refereeName = referral?.referee?.team_name || 'เพื่อนของคุณ';
-                const rewardAmount = data.reward_amount || 100;
+                if (referral) {
+                    // Get referee name separately
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('team_name')
+                        .eq('user_id', referral.referee_id)
+                        .maybeSingle();
 
-                // Get current total coupons count
-                const { count: totalCoupons } = await supabase
-                    .from('user_coupons')
-                    .select('id', { count: 'exact' })
-                    .eq('user_id', data.referrer_id)
-                    .eq('status', 'ACTIVE')
-                    .eq('campaign_id', 'b9479905-ae44-43b0-8a67-aed95c9c5327'); // Hardcode or query? Better query.
+                    const refereeName = profile?.team_name || 'เพื่อนของคุณ';
+                    const rewardAmount = data.reward_amount || 100;
 
-                // Re-query campaign ID just to be safe or use the one from RPC if returned? 
-                // RPC returns referrer_id and reward_amount. 
+                    const message = {
+                        type: 'text' as const,
+                        text: `🎉 ยินดีด้วย!\n\n${refereeName} จองสนามและชำระเงินสำเร็จแล้ว ⚽️\n\nเราได้ส่งคูปอง ${rewardAmount} บาท เข้ากระเป๋าตังค์คุณแล้ว!\n\nขอบคุณที่ช่วยชวนเพื่อนมาเตะบอลนะครับ! 🙏`
+                    };
 
-                const message = {
-                    type: 'text' as const,
-                    text: `🎉 ยินดีด้วย!\n\n${refereeName} จองสนามและชำระเงินสำเร็จแล้ว ⚽️\n\nเราได้ส่งคูปอง ${rewardAmount} บาท เข้ากระเป๋าตังค์คุณแล้ว!\n\nขอบคุณที่ช่วยชวนเพื่อนมาเตะบอลนะครับ! 🙏`
-                };
-
-                await pushMessage(data.referrer_id, message);
-                console.log(`[Process Referral Reward] LINE notification sent to ${data.referrer_id}`);
+                    await pushMessage(data.referrer_id, message);
+                    console.log(`[Process Referral Reward] LINE notification sent to ${data.referrer_id}`);
+                }
             }
         } catch (e) {
-            console.error('LINE Error', e);
+            console.error('[Process Referral Reward] Notification Error:', e);
         }
 
         return new Response(

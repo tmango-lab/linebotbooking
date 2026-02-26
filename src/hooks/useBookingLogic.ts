@@ -239,7 +239,7 @@ export const useBookingLogic = () => {
                                 eligible_days: null,
                                 valid_time_start: null,
                                 valid_time_end: null,
-                                eligible_payments: null,
+                                eligible_payments: refData.program?.allowed_payment_methods || null,
                                 category: 'MAIN',
                                 expiry: '',
                                 allow_ontop_stacking: refData.program?.allow_ontop_stacking ?? true

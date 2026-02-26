@@ -13,6 +13,7 @@ interface ReferralProgram {
     discount_percent: number;
     reward_amount: number;
     allow_ontop_stacking: boolean;
+    allowed_payment_methods: string[] | null;
     created_at: string;
 }
 
@@ -115,7 +116,8 @@ export default function ReferralSettingsPage() {
                     end_date: program.end_date,
                     discount_percent: program.discount_percent,
                     reward_amount: program.reward_amount,
-                    allow_ontop_stacking: program.allow_ontop_stacking
+                    allow_ontop_stacking: program.allow_ontop_stacking,
+                    allowed_payment_methods: program.allowed_payment_methods
                 })
                 .eq('id', program.id);
             if (error) throw error;
@@ -306,6 +308,47 @@ export default function ReferralSettingsPage() {
                         </div>
                         <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1 ${program.allow_ontop_stacking ? 'bg-indigo-50 text-indigo-700' : 'bg-red-50 text-red-600'}`}>
                             {program.allow_ontop_stacking ? '🔵 อนุญาตให้ใช้ร่วมกันได้' : '🔴 ไม่อนุญาตให้ใช้พ่วงกับคูปองเสริมเด็ดขาด'}
+                        </div>
+
+                        {/* Payment Methods */}
+                        <div className="pt-4 border-t border-gray-100">
+                            <h3 className="text-sm font-bold text-gray-900 mb-3">ช่องทางการชำระเงินที่อนุญาต</h3>
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={!program.allowed_payment_methods || program.allowed_payment_methods.includes('qr')}
+                                        onChange={(e) => {
+                                            const current = program.allowed_payment_methods || ['qr', 'field'];
+                                            const next = e.target.checked
+                                                ? [...current, 'qr']
+                                                : current.filter(m => m !== 'qr');
+                                            setProgram({ ...program, allowed_payment_methods: next });
+                                        }}
+                                        className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                    />
+                                    <div className="text-sm">
+                                        <span className="font-medium text-gray-900 block">สแกนจ่าย QR (PromptPay)</span>
+                                    </div>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={!program.allowed_payment_methods || program.allowed_payment_methods.includes('field')}
+                                        onChange={(e) => {
+                                            const current = program.allowed_payment_methods || ['qr', 'field'];
+                                            const next = e.target.checked
+                                                ? [...current, 'field']
+                                                : current.filter(m => m !== 'field');
+                                            setProgram({ ...program, allowed_payment_methods: next });
+                                        }}
+                                        className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                    />
+                                    <div className="text-sm">
+                                        <span className="font-medium text-gray-900 block">ชำระเงินสด (หน้าสนาม)</span>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
 
                         <button

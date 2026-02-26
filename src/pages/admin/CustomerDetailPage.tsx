@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/api';
 import {
-    User, Phone, Calendar, ArrowLeft, Tag, X, Shield, ExternalLink
+    User, Phone, Calendar, ArrowLeft, Tag, X, Shield, ExternalLink, Edit2, Save
 } from 'lucide-react';
 import { formatDate, formatDateTime, formatTime } from '../../utils/date';
 
@@ -66,6 +66,10 @@ export default function CustomerDetailPage() {
     const [affiliateData, setAffiliateData] = useState<AffiliateData | null>(null);
     const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
     const [affiliateLoading, setAffiliateLoading] = useState(false);
+
+    // Affiliate Edit State
+    const [isEditingAffiliate, setIsEditingAffiliate] = useState(false);
+    const [editFormData, setEditFormData] = useState({ school_name: '', birth_date: '' });
 
     // Filter/Tab State
     const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'coupons' | 'affiliate'>('upcoming');
@@ -173,16 +177,57 @@ export default function CustomerDetailPage() {
         if (!affiliateData || !id) return;
         setAffiliateLoading(true);
         try {
-            const { error } = await supabase
-                .from('affiliates')
-                .update({ status: action, updated_at: new Date().toISOString() })
-                .eq('user_id', id);
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/approve-affiliate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    userId: id,
+                    action
+                })
+            });
 
-            if (error) throw error;
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update affiliate status');
+            }
+
             setAffiliateData({ ...affiliateData, status: action });
             alert(`Affiliate ${action === 'APPROVED' ? 'อนุมัติ' : 'ปฏิเสธ'}เรียบร้อยแล้ว`);
         } catch (err: any) {
             alert('Error: ' + err.message);
+        } finally {
+            setAffiliateLoading(false);
+        }
+    };
+
+    const handleSaveAffiliateInfo = async () => {
+        if (!affiliateData || !id) return;
+        setAffiliateLoading(true);
+        try {
+            const { error } = await supabase
+                .from('affiliates')
+                .update({
+                    school_name: editFormData.school_name,
+                    birth_date: editFormData.birth_date,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('user_id', id);
+
+            if (error) throw error;
+
+            setAffiliateData({
+                ...affiliateData,
+                school_name: editFormData.school_name,
+                birth_date: editFormData.birth_date
+            });
+            setIsEditingAffiliate(false);
+            alert('บันทึกข้อมูลสำเร็จ');
+        } catch (err: any) {
+            alert('Error updating data: ' + err.message);
         } finally {
             setAffiliateLoading(false);
         }
@@ -514,21 +559,75 @@ export default function CustomerDetailPage() {
                                 </div>
 
                                 {/* Info Fields */}
-                                <div className="space-y-4">
+                                <div className="space-y-4 relative">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-sm font-medium text-gray-700">📋 ข้อมูลผู้สมัคร</h3>
+                                        {!isEditingAffiliate ? (
+                                            <button
+                                                onClick={() => {
+                                                    setEditFormData({
+                                                        school_name: affiliateData.school_name || '',
+                                                        birth_date: affiliateData.birth_date || ''
+                                                    });
+                                                    setIsEditingAffiliate(true);
+                                                }}
+                                                className="text-xs flex items-center gap-1 text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+                                            >
+                                                <Edit2 className="w-3 h-3" /> แก้ไขข้อมูล
+                                            </button>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setIsEditingAffiliate(false)}
+                                                    className="text-xs text-gray-600 hover:text-gray-800 bg-gray-100 px-2 py-1 rounded-md transition-colors"
+                                                >
+                                                    ยกเลิก
+                                                </button>
+                                                <button
+                                                    onClick={handleSaveAffiliateInfo}
+                                                    disabled={affiliateLoading}
+                                                    className="text-xs flex items-center gap-1 text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded-md transition-colors disabled:opacity-50"
+                                                >
+                                                    <Save className="w-3 h-3" /> บันทึก
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">🏫 ชื่อโรงเรียน/มหาวิทยาลัย</label>
-                                        <p className="text-lg font-semibold text-gray-900">{affiliateData.school_name || '-'}</p>
+                                        {!isEditingAffiliate ? (
+                                            <p className="text-lg font-semibold text-gray-900">{affiliateData.school_name || '-'}</p>
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                value={editFormData.school_name}
+                                                onChange={(e) => setEditFormData({ ...editFormData, school_name: e.target.value })}
+                                                className="w-full mt-1 p-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                            />
+                                        )}
                                     </div>
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">🎂 วันเกิด</label>
-                                        <p className="text-lg font-semibold text-gray-900">
-                                            {affiliateData.birth_date ? formatDate(affiliateData.birth_date) : '-'}
-                                        </p>
+                                        {!isEditingAffiliate ? (
+                                            <p className="text-lg font-semibold text-gray-900">
+                                                {affiliateData.birth_date ? formatDate(affiliateData.birth_date) : '-'}
+                                            </p>
+                                        ) : (
+                                            <input
+                                                type="date"
+                                                value={editFormData.birth_date}
+                                                onChange={(e) => setEditFormData({ ...editFormData, birth_date: e.target.value })}
+                                                className="w-full mt-1 p-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                            />
+                                        )}
                                     </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">📅 วันที่สมัคร</label>
-                                        <p className="text-sm text-gray-700">{formatDateTime(affiliateData.created_at)}</p>
-                                    </div>
+                                    {!isEditingAffiliate && (
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">📅 วันที่สมัคร</label>
+                                            <p className="text-sm text-gray-700">{formatDateTime(affiliateData.created_at)}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

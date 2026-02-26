@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.cron-cancel-unpaid]
 verify_jwt = false
+
+[functions.process-referral-reward]
+verify_jwt = false
