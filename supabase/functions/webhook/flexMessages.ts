@@ -782,7 +782,8 @@ export function buildBookingSuccessFlex(params: {
     paymentMethod: string;
     depositAmount?: number;
 }) {
-    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod, depositAmount = 200 } = params;
+    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod: rawPaymentMethod, depositAmount = 200 } = params;
+    const paymentMethod = rawPaymentMethod.toLowerCase();
 
     return {
         type: "flex",
