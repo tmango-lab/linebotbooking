@@ -3,7 +3,7 @@ import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
 import liff from '@line/liff';
-import { Loader2, Copy, CheckCircle2, Share2, Users, Banknote, ArrowLeft, Gift } from 'lucide-react';
+import { Loader2, CheckCircle2, Share2, Users, Banknote, ArrowLeft, Gift } from 'lucide-react';
 import { formatDate } from '../../utils/date';
 
 interface AffiliateInfo {
@@ -24,13 +24,19 @@ interface ReferralItem {
     profiles?: { team_name: string } | null;
 }
 
+interface ReferralProgram {
+    id: string;
+    end_date: string;
+    is_active: boolean;
+}
+
 export default function AffiliateDashboardPage() {
     const { isReady, liffUser } = useLiff();
     const [userId, setUserId] = useState('');
     const [affiliate, setAffiliate] = useState<AffiliateInfo | null>(null);
     const [referrals, setReferrals] = useState<ReferralItem[]>([]);
+    const [program, setProgram] = useState<ReferralProgram | null>(null);
     const [loading, setLoading] = useState(true);
-    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (!isReady) return;
@@ -82,10 +88,23 @@ export default function AffiliateDashboardPage() {
 
             if (affError) throw affError;
 
+            // 2. Fetch active referral program
+            const { data: progData } = await supabase
+                .from('referral_programs')
+                .select('id, end_date, is_active')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (progData) {
+                setProgram(progData);
+            }
+
             if (affData) {
                 setAffiliate(affData);
 
-                // 2. Fetch referrals
+                // 3. Fetch referrals
                 const { data: refData } = await supabase
                     .from('referrals')
                     .select('*, profiles:referee_id(team_name)')
@@ -106,24 +125,6 @@ export default function AffiliateDashboardPage() {
         if (!affiliate) return '';
         const liffId = import.meta.env.VITE_LIFF_ID || '';
         return `https://liff.line.me/${liffId}?redirect=booking-v3&ref=${affiliate.referral_code}`;
-    };
-
-    const handleCopy = async () => {
-        try {
-            await navigator.clipboard.writeText(getReferralLink());
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch {
-            // Fallback for LIFF
-            const input = document.createElement('input');
-            input.value = getReferralLink();
-            document.body.appendChild(input);
-            input.select();
-            document.execCommand('copy');
-            document.body.removeChild(input);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }
     };
 
     const handleShare = async () => {
@@ -266,21 +267,22 @@ export default function AffiliateDashboardPage() {
 
                 {/* Referral Code */}
                 <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg">
-                    <div className="text-sm font-medium opacity-80 mb-1">รหัสแนะนำของคุณ</div>
+                    <div className="flex justify-between items-start mb-1">
+                        <div className="text-sm font-medium opacity-80">รหัสแนะนำของคุณ</div>
+                        {program?.end_date && (
+                            <div className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                หมดเขต {formatDate(program.end_date)}
+                            </div>
+                        )}
+                    </div>
                     <div className="font-mono text-2xl font-bold tracking-wider mb-4">{affiliate.referral_code}</div>
 
                     <div className="flex gap-3">
                         <button
-                            onClick={handleCopy}
-                            className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors"
-                        >
-                            {copied ? <><CheckCircle2 className="w-4 h-4" /> คัดลอกแล้ว!</> : <><Copy className="w-4 h-4" /> คัดลอกลิงก์</>}
-                        </button>
-                        <button
                             onClick={handleShare}
-                            className="flex-1 bg-green-500 hover:bg-green-400 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-md"
+                            className="w-full bg-[#06C755] hover:bg-[#05b34c] py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-colors shadow-md"
                         >
-                            <Share2 className="w-4 h-4" /> แชร์เลย
+                            <Share2 className="w-5 h-5" /> แชร์เลย
                         </button>
                     </div>
                 </div>
