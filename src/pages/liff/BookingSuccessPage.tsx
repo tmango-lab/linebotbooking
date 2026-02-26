@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle, X, AlertCircle, Loader2, CreditCard } from 'lucide-react';
+import { CheckCircle, X, AlertCircle, Loader2, CreditCard, Clock } from 'lucide-react';
 import liff from '@line/liff';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe } from '@stripe/stripe-js';
@@ -21,7 +21,7 @@ const BookingSuccessPage: React.FC = () => {
     const userId = searchParams.get('userId');
     const depositParam = searchParams.get('deposit');
 
-    const isQR = paymentMethod === 'qr';
+    const isQR = paymentMethod?.toLowerCase() === 'qr';
 
     // Stripe state
     const [stripeLoading, setStripeLoading] = useState(false);
@@ -201,14 +201,21 @@ const BookingSuccessPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6 pb-24">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-sm p-8 text-center animate-scale-in">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle className="w-10 h-10 text-green-600" />
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isQR ? 'bg-orange-100' : 'bg-green-100'}`}>
+                    {isQR ? (
+                        <Clock className="w-10 h-10 text-orange-600 animate-pulse" />
+                    ) : (
+                        <CheckCircle className="w-10 h-10 text-green-600" />
+                    )}
                 </div>
 
                 <h1 className="text-2xl font-bold text-gray-800 mb-2">
-                    {isQR ? 'จองสำเร็จ! กรุณาชำระเงิน' : 'จองสนามสำเร็จ!'}
+                    {isQR ? '⚠️ รอการชำระเงินมัดจำ' : 'จองสนามสำเร็จ!'}
                 </h1>
-                <p className="text-gray-500 text-sm mb-6">Booking ID: {bookingId}</p>
+                <p className="text-gray-500 text-sm mb-2">Booking ID: {bookingId}</p>
+                {isQR && (
+                    <p className="text-orange-600 text-xs font-bold mb-6">กรุณาชำระมัดจำทันทีเพื่อล็อกสนามให้คุณ</p>
+                )}
 
                 <div className="space-y-3 bg-gray-50 rounded-2xl p-5 mb-6 text-sm">
                     <div className="flex justify-between">
@@ -224,10 +231,33 @@ const BookingSuccessPage: React.FC = () => {
                         <span className="font-bold text-gray-800">{time}</span>
                     </div>
                     <div className="border-t border-dashed border-gray-200 my-2 pt-2 flex justify-between">
-                        <span className="text-gray-500">ยอดชำระสุทธิ</span>
-                        <span className="font-bold text-green-600 text-lg">฿{price}</span>
+                        <span className="text-gray-500">{isQR ? 'ราคาทั้งหมด' : 'ยอดชำระสุทธิ'}</span>
+                        <span className="font-bold text-gray-800">฿{price}</span>
                     </div>
                 </div>
+
+                {isQR && (
+                    <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-6 text-left shadow-sm">
+                        <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <div className="w-1.5 h-4 bg-indigo-600 rounded-full"></div>
+                            ขั้นตอนการยืนยันการจอง
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="flex gap-3">
+                                <div className="bg-indigo-100 text-indigo-600 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                                <div className="text-xs text-gray-600">สแกน QR Code เพื่อชำระมัดจำ ฿{depositAmount}</div>
+                            </div>
+                            <div className="flex gap-3">
+                                <div className="bg-indigo-100 text-indigo-600 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                                <div className="text-xs text-gray-600">ระบบจะยืนยันการจองให้อัตโนมัติทันที</div>
+                            </div>
+                            <div className="flex gap-3">
+                                <div className="bg-indigo-100 text-indigo-600 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</div>
+                                <div className="text-xs text-gray-600">ส่วนที่เหลือ ฿{Math.max(0, Number(price || 0) - depositAmount)} ชำระหน้าสนาม</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {isQR ? (
                     <div className="space-y-4 mb-6">
@@ -241,9 +271,9 @@ const BookingSuccessPage: React.FC = () => {
                                 สแกน QR Code จ่ายมัดจำ ฿{depositAmount} ส่วนที่เหลือ ฿{Math.max(0, Number(price || 0) - depositAmount)} ชำระหน้าสนาม
                             </p>
 
-                            <div className="bg-red-50 text-red-600 text-[11px] font-bold p-2 rounded-lg mb-4 border border-red-100 flex items-start gap-2">
-                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                                <span>กรุณาชำระเงินภายใน 10 นาที มิฉะนั้นการจองจะถูกยกเลิกอัตโนมัติ</span>
+                            <div className="bg-orange-50 text-orange-700 text-[11px] font-bold p-3 rounded-lg mb-4 border border-orange-100 flex items-start gap-2 leading-relaxed">
+                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-orange-600" />
+                                <span>สำคัญ: กรุณาชำระเงินภายใน 10 นาที มิฉะนั้นระบบจะยกเลิกคิวของคุณเพื่อให้ผู้อื่นจองต่อโดยอัตโนมัติ</span>
                             </div>
 
                             {stripeError && (
