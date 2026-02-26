@@ -87,9 +87,9 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
-                <div className="bg-green-600 p-6 text-white text-center">
+                <div className="bg-[#06C755] p-6 text-white text-center">
                     <h2 className="text-xl font-bold">ยืนยันการจอง</h2>
-                    <p className="text-green-100 text-sm opacity-90">ตรวจสอบความถูกต้องก่อนยืนยัน</p>
+                    <p className="text-green-50 text-sm opacity-90">ตรวจสอบความถูกต้องก่อนยืนยัน</p>
                 </div>
 
                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">

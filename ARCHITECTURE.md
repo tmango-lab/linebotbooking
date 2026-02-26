@@ -798,6 +798,7 @@ The system incentivizes user growth through a "Refer-a-Friend" program.
 
 3.  **`referral_programs`**: Configuration.
     -   Defines `discount_percent` (50%) and `reward_amount` (100).
+    -   **[NEW]** `allowed_payment_methods`: `text[]` (e.g. `['qr']` or `['qr', 'field']`). Restricts how the referee can pay when using a referral link.
 
 #### B. Reward Storage
 -   **`user_coupons`**: Rewards are issued as standard V2 Coupons.

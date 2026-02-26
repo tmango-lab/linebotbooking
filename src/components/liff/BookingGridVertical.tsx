@@ -88,7 +88,7 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
                 <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white shadow-sm">
                     {/* Corner Cell (Sticky Top & Left) */}
                     <div className="w-16 shrink-0 p-3 text-xs font-bold text-gray-400 border-r border-gray-100 flex items-center justify-center bg-gray-50 sticky left-0 z-30">
-                        Time
+                        เวลา
                     </div>
                     {/* Field Headers */}
                     <div className="flex">
@@ -142,10 +142,10 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
                                             </div>
                                         )}
                                         {isSelected && selection.startIdx === i && (
-                                            <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
+                                            <div className="absolute top-1 left-1 text-[8px] opacity-75">เริ่ม</div>
                                         )}
                                         {isSelected && selection.endIdx === i && (
-                                            <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
+                                            <div className="absolute bottom-1 right-1 text-[8px] opacity-75">จบ</div>
                                         )}
                                     </div>
                                 );
