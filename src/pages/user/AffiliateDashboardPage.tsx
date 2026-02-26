@@ -13,6 +13,7 @@ interface AffiliateInfo {
     total_referrals: number;
     total_earnings: number;
     created_at: string;
+    profiles?: { team_name: string } | null;
 }
 
 interface ReferralItem {
@@ -82,7 +83,7 @@ export default function AffiliateDashboardPage() {
             // 1. Fetch affiliate info
             const { data: affData, error: affError } = await supabase
                 .from('affiliates')
-                .select('*')
+                .select('*, profiles(team_name)')
                 .eq('user_id', uid)
                 .maybeSingle();
 
@@ -236,13 +237,31 @@ export default function AffiliateDashboardPage() {
     return (
         <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white pb-16">
             {/* Header */}
-            <div className="bg-white shadow-sm px-5 py-4 flex items-center gap-3 sticky top-0 z-30">
-                <button onClick={() => window.history.back()} className="p-1 hover:bg-gray-100 rounded-lg">
-                    <ArrowLeft className="w-5 h-5 text-gray-600" />
-                </button>
-                <div>
-                    <h1 className="font-bold text-gray-900">Dashboard ผู้แนะนำ</h1>
-                    <p className="text-xs text-gray-400">Affiliate Dashboard</p>
+            <div className="bg-white/80 backdrop-blur-md shadow-sm px-5 py-4 sticky top-0 z-30 border-b border-purple-50">
+                <div className="flex items-center gap-4 mb-3">
+                    <button onClick={() => window.history.back()} className="p-2 hover:bg-purple-50 rounded-xl transition-colors">
+                        <ArrowLeft className="w-5 h-5 text-purple-600" />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="font-extrabold text-xl text-gray-900 tracking-tight">แนะนำเพื่อน & รับรางวัล</h1>
+                            <div className="bg-purple-100 p-1 rounded-lg">
+                                <Gift className="w-4 h-4 text-purple-600" />
+                            </div>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Refer & Earn</p>
+                    </div>
+                </div>
+
+                {/* Greeting */}
+                <div className="flex items-center gap-2 pt-1">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                        {affiliate.profiles?.team_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-500">ยินดีต้อนรับกลับมา,</p>
+                        <p className="text-sm font-bold text-gray-900">{affiliate.profiles?.team_name || 'คุณผู้แนะนำ'}</p>
+                    </div>
                 </div>
             </div>
 
