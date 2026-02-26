@@ -790,13 +790,6 @@ export function buildBookingSuccessFlex(params: {
         altText: paymentMethod === 'qr' ? "กรุณาชำระเงินมัดจำภายใน 10 นาที ⚠️" : "จองสนามสำเร็จ! ✅",
         contents: {
             type: "bubble",
-            hero: (paymentMethod === 'qr') ? {
-                type: "image",
-                url: `https://promptpay.io/${Deno.env.get('PROMPTPAY_ID') || '0839144000'}/${depositAmount}.png`,
-                size: "full",
-                aspectRatio: "1:1",
-                aspectMode: "cover",
-            } : undefined,
             body: {
                 type: "box",
                 layout: "vertical",
@@ -904,19 +897,6 @@ export function buildBookingSuccessFlex(params: {
                                 margin: "md"
                             }
                         ] : []
-                    }
-                ]
-            },
-            footer: {
-                type: "box",
-                layout: "vertical",
-                spacing: "sm",
-                contents: [
-                    {
-                        type: "button",
-                        style: "secondary",
-                        height: "sm",
-                        action: { type: "message", label: "ดูรายการจองของฉัน", text: "รายการจอง" }
                     }
                 ]
             }
