@@ -89,9 +89,9 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                             </span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
-                            {coupon.discount_type === 'FIXED' ? `Get ฿${coupon.discount_value} OFF` : `Get ${coupon.discount_value}% OFF`}
+                            {coupon.discount_type === 'FIXED' ? `ลดไป ฿${coupon.discount_value}` : `ลดไป ${coupon.discount_value}%`}
                         </p>
-                        <p className="text-[10px] text-gray-400 mt-2">Min. Spend: ฿{coupon.min_spend}</p>
+                        <p className="text-[10px] text-gray-400 mt-2">ยอดขั้นต่ำ: ฿{coupon.min_spend}</p>
                     </div>
                     <div className="text-right ml-4">
                         <div className="text-2xl font-black text-green-600">
@@ -101,7 +101,7 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                 </div>
                 {!isEligible && (
                     <div className="mt-2 text-[10px] font-medium text-red-500">
-                        Add ฿{coupon.min_spend - originalPrice} more
+                        ซื้อเพิ่มอีก ฿{coupon.min_spend - originalPrice}
                     </div>
                 )}
                 {isSelected && (
@@ -120,12 +120,12 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
 
                 {/* Header with Toggle */}
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-gray-800">Select Coupons</h2>
+                    <h2 className="text-xl font-bold text-gray-800">เลือกคูปอง</h2>
                     <button
                         onClick={() => setDesignMode(prev => prev === 'TABS' ? 'SLOTS' : 'TABS')}
                         className="text-xs bg-gray-100 px-3 py-1 rounded-full font-bold text-gray-500 hover:bg-gray-200"
                     >
-                        Switch to {designMode === 'TABS' ? 'Slots' : 'Tabs'} UI
+                        สลับไปใช้แบบ {designMode === 'TABS' ? 'ช่อง' : 'แท็บ'}
                     </button>
                 </div>
 
@@ -137,13 +137,13 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                                 onClick={() => setActiveTab('MAIN')}
                                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'MAIN' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
                             >
-                                Main Coupon
+                                คูปองหลัก
                             </button>
                             <button
                                 onClick={() => setActiveTab('ONTOP')}
                                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'ONTOP' ? 'bg-white shadow text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
                             >
-                                On-top Coupon
+                                คูปองเสริม
                             </button>
                         </div>
 
@@ -151,20 +151,20 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                             {activeTab === 'MAIN' ? (
                                 <>
                                     <div className="mb-2 flex justify-between items-center">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Main Coupons</span>
-                                        {appliedMainCoupon && <button onClick={() => handleSelectMain(null)} className="text-xs text-red-500 font-bold">Clear</button>}
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">คูปองหลัก</span>
+                                        {appliedMainCoupon && <button onClick={() => handleSelectMain(null)} className="text-xs text-red-500 font-bold">ล้าง</button>}
                                     </div>
-                                    {mainCoupons.length === 0 ? <p className="text-center text-gray-400 py-8">No Main Coupons</p> :
+                                    {mainCoupons.length === 0 ? <p className="text-center text-gray-400 py-8">ไม่มีคูปองหลัก</p> :
                                         mainCoupons.map(c => renderCouponCard(c, appliedMainCoupon?.id === c.id, () => handleSelectMain(c)))
                                     }
                                 </>
                             ) : (
                                 <>
                                     <div className="mb-2 flex justify-between items-center">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">On-top Coupons</span>
-                                        {appliedOntopCoupon && <button onClick={() => handleSelectOntop(null)} className="text-xs text-red-500 font-bold">Clear</button>}
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">คูปองเสริม</span>
+                                        {appliedOntopCoupon && <button onClick={() => handleSelectOntop(null)} className="text-xs text-red-500 font-bold">ล้าง</button>}
                                     </div>
-                                    {ontopCoupons.length === 0 ? <p className="text-center text-gray-400 py-8">No On-top Coupons</p> :
+                                    {ontopCoupons.length === 0 ? <p className="text-center text-gray-400 py-8">ไม่มีคูปองเสริม</p> :
                                         ontopCoupons.map(c => renderCouponCard(c, appliedOntopCoupon?.id === c.id, () => handleSelectOntop(c)))
                                     }
                                 </>
@@ -183,13 +183,13 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                                 onClick={() => setActiveTab('MAIN')}
                                 className={`relative p-3 rounded-xl border-2 text-left transition-all group ${activeTab === 'MAIN' ? 'border-blue-500 bg-white shadow-md ring-2 ring-blue-100' : 'border-dashed border-gray-300 hover:border-blue-300'}`}
                             >
-                                <span className="absolute -top-2 left-3 bg-gray-50 px-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Slot 1</span>
+                                <span className="absolute -top-2 left-3 bg-gray-50 px-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ช่องที่ 1</span>
                                 <div className="mt-1">
-                                    <div className="text-xs font-bold text-gray-400 mb-1">MAIN COUPON</div>
+                                    <div className="text-xs font-bold text-gray-400 mb-1">คูปองหลัก</div>
                                     {appliedMainCoupon ? (
                                         <div className="text-blue-600 font-black text-lg truncate leading-tight">{appliedMainCoupon.name}</div>
                                     ) : (
-                                        <div className="text-gray-300 font-bold text-lg">Empty</div>
+                                        <div className="text-gray-300 font-bold text-lg">ว่าง</div>
                                     )}
                                 </div>
                                 {appliedMainCoupon && (
@@ -207,13 +207,13 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                                 onClick={() => setActiveTab('ONTOP')}
                                 className={`relative p-3 rounded-xl border-2 text-left transition-all group ${activeTab === 'ONTOP' ? 'border-purple-500 bg-white shadow-md ring-2 ring-purple-100' : 'border-dashed border-gray-300 hover:border-purple-300'}`}
                             >
-                                <span className="absolute -top-2 left-3 bg-gray-50 px-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Slot 2</span>
+                                <span className="absolute -top-2 left-3 bg-gray-50 px-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ช่องที่ 2</span>
                                 <div className="mt-1">
-                                    <div className="text-xs font-bold text-gray-400 mb-1">ON-TOP</div>
+                                    <div className="text-xs font-bold text-gray-400 mb-1">คูปองเสริม</div>
                                     {appliedOntopCoupon ? (
                                         <div className="text-purple-600 font-black text-lg truncate leading-tight">{appliedOntopCoupon.name}</div>
                                     ) : (
-                                        <div className="text-gray-300 font-bold text-lg">Empty</div>
+                                        <div className="text-gray-300 font-bold text-lg">ว่าง</div>
                                     )}
                                 </div>
                                 {appliedOntopCoupon && (
@@ -232,15 +232,15 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
                             <div className="flex items-center gap-2 mb-3">
                                 <div className={`w-2 h-2 rounded-full ${activeTab === 'MAIN' ? 'bg-blue-500' : 'bg-purple-500'}`} />
                                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                    Available {activeTab === 'MAIN' ? 'Main' : 'On-top'} Coupons
+                                    คูปอง{activeTab === 'MAIN' ? 'หลัก' : 'เสริม'}ที่ใช้ได้
                                 </span>
                             </div>
 
                             {activeTab === 'MAIN' ? (
-                                mainCoupons.length === 0 ? <p className="text-center text-gray-400 py-8 italic">No coupons found for this slot.</p> :
+                                mainCoupons.length === 0 ? <p className="text-center text-gray-400 py-8 italic">ไม่มีคูปองหลักในช่องนี้</p> :
                                     mainCoupons.map(c => renderCouponCard(c, appliedMainCoupon?.id === c.id, () => handleSelectMain(c)))
                             ) : (
-                                ontopCoupons.length === 0 ? <p className="text-center text-gray-400 py-8 italic">No coupons found for this slot.</p> :
+                                ontopCoupons.length === 0 ? <p className="text-center text-gray-400 py-8 italic">ไม่มีคูปองเสริมในช่องนี้</p> :
                                     ontopCoupons.map(c => renderCouponCard(c, appliedOntopCoupon?.id === c.id, () => handleSelectOntop(c)))
                             )}
                         </div>
@@ -249,7 +249,7 @@ const CouponBottomSheet: React.FC<CouponBottomSheetProps> = ({
 
                 <div className="p-4 border-t border-gray-100 bg-white">
                     <button onClick={onClose} className="w-full py-3.5 bg-gray-900 text-white rounded-xl font-bold shadow-lg shadow-gray-200 hover:bg-gray-800 transition-colors">
-                        Done
+                        เสร็จแล้ว
                     </button>
                 </div>
             </div>
