@@ -120,9 +120,16 @@ export default function WalletPage() {
                     .lte('start_date', new Date().toISOString());
 
                 if (campaigns) {
-                    const myCouponCampaignIds = [...data.main, ...data.on_top].map((c: any) => c.campaign_id);
-                    const notCollected = campaigns.filter(c => !myCouponCampaignIds.includes(c.id));
-                    setAvailableCampaigns(notCollected);
+                    const myCoupons = [...data.main, ...data.on_top];
+
+                    const availableToCollect = campaigns.filter(c => {
+                        // Count how many ACTIVE coupons of this campaign the user already has
+                        const collectedCount = myCoupons.filter(userCoupon => userCoupon.campaign_id === c.id).length;
+                        // Allow displaying if collected count is less than the campaign limit
+                        return collectedCount < (c.limit_per_user || 1);
+                    });
+
+                    setAvailableCampaigns(availableToCollect);
                 }
             }
 
