@@ -134,7 +134,7 @@ const BookingV3Page: React.FC = () => {
                 originalPrice={originalPrice}
                 discount={discount}
                 finalPrice={finalPrice}
-                couponName={appliedCoupon?.name}
+                couponName={[appliedMainCoupon?.name, appliedOntopCoupon?.name].filter(Boolean).join(' + ') || (appliedCoupon ? appliedCoupon.name : undefined)}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}

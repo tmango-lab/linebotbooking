@@ -21,7 +21,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
 }) => {
     if (!isVisible) return null;
 
-    const isCouponInvalid = couponName && discount === 0;
+    const isCouponInvalid = Boolean(couponName && discount === 0);
 
     return (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-40 animate-slide-up">

@@ -323,11 +323,11 @@ export const useBookingLogic = () => {
     const appliedOntop = manualOntopCoupon;
 
     // Helper: Centralized Validation Logic
-    const validateCoupon = (coupon: Coupon | null) => {
+    const validateCoupon = (coupon: Coupon | null, priceToCheck: number) => {
         if (!coupon) return false;
 
         // 1. Min Spend
-        if (coupon.min_spend && originalPrice < coupon.min_spend) return false;
+        if (coupon.min_spend && priceToCheck < coupon.min_spend) return false;
 
         // 2. Eligible Fields
         if (coupon.eligible_fields && coupon.eligible_fields.length > 0) {
@@ -362,7 +362,7 @@ export const useBookingLogic = () => {
     };
 
     // Validate Main
-    const isMainValid = validateCoupon(appliedMain);
+    const isMainValid = validateCoupon(appliedMain, originalPrice);
 
     // Calculate Price after Main
     let priceAfterMain = originalPrice;
@@ -374,7 +374,7 @@ export const useBookingLogic = () => {
     }
 
     // Validate On-top
-    const isOntopValid = validateCoupon(appliedOntop);
+    const isOntopValid = validateCoupon(appliedOntop, priceAfterMain);
 
     // Calculate On-top Discount (Applied on Price After Main?)
     // Usually On-top is applied on the *remaining* price or the *full* price depending on business logic. 
