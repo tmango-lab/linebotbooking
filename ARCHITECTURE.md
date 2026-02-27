@@ -662,7 +662,13 @@ The system enforces a **Flexible but Safe** anti-gaming policy:
     - **Win-Win**: Honest customers can extend their playtime without losing their coupon benefit.
     - **Safe**: Bad actors cannot shrink a booking to pay less than the coupon intended.
 
-### 13.3 Redemption Limit & Race Condition (Atomic Flow)
+### 13.3 Coupon Categorization & Validation Logic (Main vs On-Top)
+To enhance flexibility, the system supports stacking discounts using a dual-slot system:
+- **Main Coupon Slot (`MAIN`)**: Applied first. Evaluated against the total `originalPrice`.
+- **On-Top Coupon Slot (`ONTOP`)**: Applied second. Evaluated against the `priceAfterMain` (Total Price - Main Discount).
+- **Validation**: Minimum spend logic strictly follows the order of operations. A "Free Water" coupon (On-Top, 0 THB discount) requiring a 500 THB minimum spend will only be valid if the booking price *after* the Main Coupon is applied still exceeds 500 THB. Payment method restrictions from both coupons intersect (e.g., if Main requires QR and On-top allows Any, the final allowed method is QR).
+
+### 13.4 Redemption Limit & Race Condition (Atomic Flow)
 The system enforces strict redemption limits (e.g., "Only first 5 payers get the discount") using atomic operations and fallback mechanisms.
 
 1.  **Atomic Counter**: The system uses a PostgreSQL RPC (`increment_campaign_redemption`) to increment the count only if it's below the limit in a single transaction.

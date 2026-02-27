@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { pushMessage } from "../_shared/lineClient.ts";
+import { buildCancelTimeoutFlex } from "../webhook/flexMessages.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -21,7 +22,7 @@ serve(async (req) => {
         // 1. Find pending_payment bookings older than 10 mins (timeout_at < NOW)
         const { data: expiredBookings, error: findError } = await supabase
             .from('bookings')
-            .select('booking_id, user_id, display_name')
+            .select('booking_id, user_id, display_name, date, time_from, time_to, price_total_thb, deposit_amount, field_no')
             .eq('status', 'pending_payment')
             .lt('timeout_at', now);
 
@@ -72,10 +73,36 @@ serve(async (req) => {
 
                 // 3. Notify User
                 if (booking.user_id) {
-                    await pushMessage(booking.user_id, {
-                        type: 'text',
-                        text: "⚠️ ไม่ได้ชำระภายในเวลาที่กำหนด การจองถูกยกเลิกแล้ว ขอบคุณค่ะ"
-                    });
+                    try {
+                        let fieldLabel = `Field ${booking.field_no}`;
+                        const { data: fieldData } = await supabase
+                            .from('fields')
+                            .select('label')
+                            .eq('id', booking.field_no)
+                            .maybeSingle();
+
+                        if (fieldData?.label) fieldLabel = fieldData.label;
+
+                        const cancelFlex = buildCancelTimeoutFlex({
+                            teamName: booking.display_name,
+                            fieldName: fieldLabel,
+                            date: booking.date,
+                            timeFrom: booking.time_from,
+                            timeTo: booking.time_to,
+                            price: booking.price_total_thb || 0,
+                            depositAmount: booking.deposit_amount || 0,
+                            bookingId: booking.booking_id
+                        });
+
+                        await pushMessage(booking.user_id, cancelFlex);
+                    } catch (notifyErr: any) {
+                        console.error(`[Cron Cancel] Failed to send flex message for ${booking.booking_id}:`, notifyErr.message);
+                        // Fallback to text message
+                        await pushMessage(booking.user_id, {
+                            type: 'text',
+                            text: "⚠️ ไม่ได้ชำระภายในเวลาที่กำหนด การจองถูกยกเลิกแล้ว ขอบคุณค่ะ"
+                        });
+                    }
                 }
 
                 console.log(`[Cron Cancel] Cancelled booking: ${booking.booking_id}`);

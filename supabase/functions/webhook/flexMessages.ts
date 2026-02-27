@@ -914,6 +914,130 @@ export function buildBookingSuccessFlex(params: {
     };
 }
 
+// 8.5 Cancel Timeout Flex Message
+export function buildCancelTimeoutFlex(params: {
+    teamName: string;
+    fieldName: string;
+    date: string;
+    timeFrom: string;
+    timeTo: string;
+    price: number;
+    depositAmount: number;
+    bookingId: string;
+}) {
+    const { teamName, fieldName, date, timeFrom, timeTo, price, depositAmount, bookingId } = params;
+
+    return {
+        type: "flex",
+        altText: "ไม่ได้ชำระภายในเวลาที่กำหนด การจองถูกยกเลิกแล้ว ขอบคุณค่ะ",
+        contents: {
+            type: "bubble",
+            body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                    {
+                        type: "text",
+                        text: "❌ ยกเลิกการจอง",
+                        weight: "bold",
+                        size: "lg",
+                        color: "#FF0000"
+                    },
+                    {
+                        type: "text",
+                        text: "ไม่ได้ชำระเงินมัดจำภายในเวลา 10 นาที การจองถูกยกเลิกครับ",
+                        size: "sm",
+                        color: "#999999",
+                        margin: "xs",
+                        wrap: true
+                    },
+                    { type: "separator", margin: "md" },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "lg",
+                        spacing: "sm",
+                        contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ID", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: bookingId, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ทีม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: teamName, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "สนาม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: fieldName, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "วันที่", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: formatThaiDate(date), wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "เวลา", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${timeFrom} - ${timeTo}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ยอดรวม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${price.toLocaleString()} บาท`, color: "#333333", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ยอดที่ต้องโอน", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${depositAmount.toFixed(2)} บาท`, weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "หมายเหตุ", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: "เกินเวลา 10 นาที (เลยกำหนดชำระ)", color: "#FF0000", size: "sm", flex: 5, wrap: true }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    };
+}
+
 // 9. Regular Booking Summary Flex
 export function buildRegularBookingSummaryFlex(params: {
     startDate: string;
