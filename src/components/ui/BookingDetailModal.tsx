@@ -99,10 +99,21 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                 timeEnd: booking.time_end,
             };
 
-            // If manually marking as paid and it was pending_payment, update status to confirmed
-            if (isPaid && booking.status === 'pending_payment') {
-                updatePayload.status = 'confirmed';
-                updatePayload.paymentStatus = 'paid';
+            const isPaidInit = (booking.payment_status === 'paid' || !!booking.paid_at);
+
+            if (isPaid === isPaidInit) {
+                // If the user hasn't toggled the payment status, preserve the existing payment_status (like deposit_paid)
+                if (booking.payment_status) {
+                    updatePayload.paymentStatus = booking.payment_status;
+                }
+            } else {
+                // User has toggled the payment status explicitly
+                if (isPaid) {
+                    updatePayload.paymentStatus = 'paid';
+                    updatePayload.status = 'confirmed';
+                } else {
+                    updatePayload.paymentStatus = 'pending';
+                }
             }
 
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
