@@ -35,6 +35,8 @@ const BookingV3Page: React.FC = () => {
         handleFinalConfirm,
         appliedMainCoupon,
         appliedOntopCoupon,
+        manualMainCoupon,
+        manualOntopCoupon,
         setManualMainCoupon,
         setManualOntopCoupon,
         allowedPaymentMethods, // [NEW] From hook
@@ -135,6 +137,7 @@ const BookingV3Page: React.FC = () => {
                 discount={discount}
                 finalPrice={finalPrice}
                 couponName={[appliedMainCoupon?.name, appliedOntopCoupon?.name].filter(Boolean).join(' + ') || (appliedCoupon ? appliedCoupon.name : undefined)}
+                isCouponInvalid={!!(manualMainCoupon || manualOntopCoupon) && !appliedMainCoupon && !appliedOntopCoupon}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}

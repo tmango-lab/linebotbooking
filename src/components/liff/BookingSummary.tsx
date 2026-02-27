@@ -5,6 +5,7 @@ interface BookingSummaryProps {
     discount: number;
     finalPrice: number;
     couponName?: string;
+    isCouponInvalid?: boolean; // NEW: Explicitly pass validity
     onConfirm: () => void;
     onOpenCoupons: () => void;
     isVisible: boolean;
@@ -15,13 +16,14 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     discount,
     finalPrice,
     couponName,
+    isCouponInvalid: explicitInvalid,
     onConfirm,
     onOpenCoupons,
     isVisible
 }) => {
     if (!isVisible) return null;
 
-    const isCouponInvalid = Boolean(couponName && discount === 0);
+    const isCouponInvalid = explicitInvalid ?? Boolean(couponName && discount === 0);
 
     return (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-40 animate-slide-up">
