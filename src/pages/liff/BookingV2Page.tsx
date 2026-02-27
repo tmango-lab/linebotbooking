@@ -125,6 +125,9 @@ const BookingV2Page: React.FC = () => {
                 discount={discount}
                 finalPrice={finalPrice}
                 couponName={appliedCoupon?.name}
+                selectedFieldName={selectedField?.name.replace('สนาม', 'สนาม ').trim()}
+                selectedStartTime={selection?.startTime}
+                selectedEndTime={selection?.endTime}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}

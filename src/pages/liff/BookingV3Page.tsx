@@ -138,6 +138,9 @@ const BookingV3Page: React.FC = () => {
                 finalPrice={finalPrice}
                 couponName={[appliedMainCoupon?.name, appliedOntopCoupon?.name].filter(Boolean).join(' + ') || (appliedCoupon ? appliedCoupon.name : undefined)}
                 isCouponInvalid={!!(manualMainCoupon || manualOntopCoupon) && !appliedMainCoupon && !appliedOntopCoupon}
+                selectedFieldName={selectedField?.name.replace('สนาม', 'สนาม ').trim()}
+                selectedStartTime={selection?.startTime}
+                selectedEndTime={selection?.endTime}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}

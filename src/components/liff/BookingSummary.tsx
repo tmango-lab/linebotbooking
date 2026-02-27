@@ -6,6 +6,9 @@ interface BookingSummaryProps {
     finalPrice: number;
     couponName?: string;
     isCouponInvalid?: boolean; // NEW: Explicitly pass validity
+    selectedFieldName?: string;
+    selectedStartTime?: string;
+    selectedEndTime?: string;
     onConfirm: () => void;
     onOpenCoupons: () => void;
     isVisible: boolean;
@@ -17,6 +20,9 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     finalPrice,
     couponName,
     isCouponInvalid: explicitInvalid,
+    selectedFieldName,
+    selectedStartTime,
+    selectedEndTime,
     onConfirm,
     onOpenCoupons,
     isVisible
@@ -27,6 +33,22 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
 
     return (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-40 animate-slide-up">
+            {selectedStartTime && selectedEndTime && (
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">⚽️</span>
+                        <div>
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                                {selectedFieldName || 'เลือกสนาม'}
+                            </div>
+                            <div className="font-extrabold text-green-700 text-[15px]">
+                                {selectedStartTime} - {selectedEndTime} น.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-4">
                 <button
                     onClick={onOpenCoupons}
