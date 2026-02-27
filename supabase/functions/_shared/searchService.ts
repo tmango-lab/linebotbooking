@@ -2,7 +2,7 @@
 
 import { supabase } from './supabaseClient.ts';
 
-const SEARCH_OPEN_TIME = '16:00';
+const SEARCH_OPEN_TIME = '15:00';
 const SEARCH_CLOSE_TIME = '24:00';
 const SEARCH_STEP_MIN = 30; // 30-minute intervals (Grid System)
 

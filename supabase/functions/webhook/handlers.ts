@@ -1124,7 +1124,7 @@ async function handleSetRegularDay(event: LineEvent, userId: string, params: any
 
     // Reuse Time Picker but with different action
     const timeSlots = [
-        { label: "16:00 - 18:00", times: ["16:00", "16:30", "17:00", "17:30"] },
+        { label: "15:00 - 18:00", times: ["15:00", "15:30", "16:00", "16:30", "17:00", "17:30"] },
         { label: "18:00 - 20:00", times: ["18:00", "18:30", "19:00", "19:30"] },
         { label: "20:00 - 22:00", times: ["20:00", "20:30", "21:00", "21:30"] },
         { label: "22:00 - 24:00", times: ["22:00", "22:30", "23:00", "23:30"] },
