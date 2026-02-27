@@ -73,12 +73,21 @@ const BookingV3Page: React.FC = () => {
                         </svg>
                     </button>
                 </div>
-                {userProfile && (
-                    <div className="text-right">
-                        <div className="text-xs text-gray-400">ทีม</div>
-                        <div className="text-sm font-bold text-green-600">{userProfile.team_name}</div>
+                {selection?.startTime && selection?.endTime ? (
+                    <div className="text-right flex flex-col items-end justify-center animate-fade-in">
+                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                            {(selectedField?.name || '').replace('สนาม', 'สนาม ').trim() || 'เวลาที่เลือก'}
+                        </div>
+                        <div className="text-sm font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-lg border border-green-100">
+                            {selection.startTime} - {selection.endTime} น.
+                        </div>
                     </div>
-                )}
+                ) : userProfile ? (
+                    <div className="text-right animate-fade-in">
+                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ทีม</div>
+                        <div className="text-sm font-bold text-gray-600">{userProfile.team_name}</div>
+                    </div>
+                ) : null}
             </header>
 
             <DateSelectionModal
@@ -138,9 +147,6 @@ const BookingV3Page: React.FC = () => {
                 finalPrice={finalPrice}
                 couponName={[appliedMainCoupon?.name, appliedOntopCoupon?.name].filter(Boolean).join(' + ') || (appliedCoupon ? appliedCoupon.name : undefined)}
                 isCouponInvalid={!!(manualMainCoupon || manualOntopCoupon) && !appliedMainCoupon && !appliedOntopCoupon}
-                selectedFieldName={selectedField?.name.replace('สนาม', 'สนาม ').trim()}
-                selectedStartTime={selection?.startTime}
-                selectedEndTime={selection?.endTime}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
