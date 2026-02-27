@@ -201,7 +201,13 @@ export const useBookingLogic = () => {
                     const urlCouponId = searchParams.get('couponId');
                     if (urlCouponId) {
                         const target = fetchedCoupons.find(c => c.id === urlCouponId);
-                        if (target) setManualMainCoupon(target as Coupon);
+                        if (target) {
+                            if (target.category === 'ONTOP') {
+                                setManualOntopCoupon(target as Coupon);
+                            } else {
+                                setManualMainCoupon(target as Coupon);
+                            }
+                        }
                     }
                 }
 
