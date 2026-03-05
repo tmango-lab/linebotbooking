@@ -9,6 +9,15 @@ interface BookingSummaryProps {
     onConfirm: () => void;
     onOpenCoupons: () => void;
     isVisible: boolean;
+    // New Props for Referral Terms
+    requireTermConsent?: boolean;
+    termConsentMessage?: string | null;
+    hasConsentedTerms?: boolean;
+    onConsentChange?: (consented: boolean) => void;
+    // New Props for Booking Context (Time)
+    selectedDate?: string;
+    selectedTimeStart?: string;
+    selectedTimeEnd?: string;
 }
 
 const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -19,7 +28,14 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     isCouponInvalid: explicitInvalid,
     onConfirm,
     onOpenCoupons,
-    isVisible
+    isVisible,
+    requireTermConsent,
+    termConsentMessage,
+    hasConsentedTerms,
+    onConsentChange,
+    selectedDate,
+    selectedTimeStart,
+    selectedTimeEnd
 }) => {
     if (!isVisible) return null;
 
@@ -63,9 +79,47 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                 </div>
             </div>
 
+            {/* Time Summary Area (Small reminder above button) */}
+            {(selectedDate && selectedTimeStart && selectedTimeEnd) && (
+                <div className="mb-3 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between text-sm">
+                    <div className="font-medium text-indigo-900 flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        เวลาที่เลือก:
+                    </div>
+                    <div className="font-bold text-indigo-700">{selectedTimeStart} - {selectedTimeEnd}</div>
+                </div>
+            )}
+
+            {/* Referral Consent Checkbox */}
+            {requireTermConsent && (
+                <div className="mb-4">
+                    <label className="flex items-start gap-3 cursor-pointer group bg-red-50 p-3 rounded-xl border border-red-200 transition-all hover:bg-red-100">
+                        <div className="relative flex items-center h-5 mt-0.5">
+                            <input
+                                type="checkbox"
+                                checked={hasConsentedTerms}
+                                onChange={(e) => onConsentChange?.(e.target.checked)}
+                                className="peer appearance-none w-5 h-5 border-2 border-red-300 rounded cursor-pointer checked:bg-red-500 checked:border-red-500 focus:outline-none transition-all"
+                            />
+                            <svg className="absolute w-5 h-5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 flex items-center justify-center p-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div className="text-sm font-medium text-red-800 leading-snug">
+                            {termConsentMessage || "ข้าพเจ้ายอมรับว่าโปรโมชั่นนี้ไม่สามารถเปลี่ยงแปลงเวลาและคืนเงินได้"}
+                            <span className="text-red-500 ml-1 font-bold">*</span>
+                        </div>
+                    </label>
+                </div>
+            )}
+
             <button
                 onClick={onConfirm}
-                className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-green-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                disabled={requireTermConsent ? !hasConsentedTerms : false}
+                className={`w-full py-4 rounded-2xl font-black text-lg shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${requireTermConsent && !hasConsentedTerms
+                    ? "bg-gray-300 text-gray-500 shadow-none cursor-not-allowed"
+                    : "bg-[#06C755] hover:bg-[#05b34c] text-white shadow-green-200"
+                    }`}
             >
                 ยืนยันการจอง
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>

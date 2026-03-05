@@ -35,10 +35,20 @@ const BookingV2Page: React.FC = () => {
         handleFinalConfirm,
         appliedMainCoupon,
         appliedOntopCoupon,
+        manualMainCoupon,
+        manualOntopCoupon,
         setManualMainCoupon,
         setManualOntopCoupon,
-        allowedPaymentMethods // [NEW] added for validation
+        allowedPaymentMethods, // [NEW] added for validation
+        referralCode,
+        referralDiscount,
+        referralValid,
+        referralError,
+        referralRequireTermConsent,
+        referralTermConsentMessage
     } = useBookingLogic();
+
+    const [hasConsentedTerms, setHasConsentedTerms] = React.useState(false);
 
     if (!isReady) {
         return (
@@ -113,6 +123,30 @@ const BookingV2Page: React.FC = () => {
                     </div>
                 )}
 
+                {/* Referral Error Banner */}
+                {referralError && (
+                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mx-4 mt-4 shadow-sm border border-red-100 flex items-center">
+                        <span className="mr-3 text-xl">❌</span>
+                        <div>
+                            <div className="font-bold text-sm">ไม่สามารถใช้รหัสแนะนำได้</div>
+                            <div className="text-xs opacity-90">{referralError}</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Referral Discount Banner */}
+                {referralValid && referralCode && (
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-4 rounded-xl mx-4 mt-4 shadow-md">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">🎉</span>
+                            <div>
+                                <div className="font-bold text-sm">ส่วนลดจากเพื่อน!</div>
+                                <div className="text-xs opacity-90">คุณได้รับส่วนลด {referralDiscount}% สำหรับการจองครั้งแรก</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="bg-white overflow-hidden overflow-x-auto border-b border-gray-200 shadow-sm">
                     <BookingGrid
                         key={selectedDate}
@@ -128,10 +162,20 @@ const BookingV2Page: React.FC = () => {
                 originalPrice={originalPrice}
                 discount={discount}
                 finalPrice={finalPrice}
-                couponName={appliedCoupon?.name}
+                couponName={[appliedMainCoupon?.name, appliedOntopCoupon?.name].filter(Boolean).join(' + ') || (appliedCoupon ? appliedCoupon.name : undefined)}
+                isCouponInvalid={!!(manualMainCoupon || manualOntopCoupon) && !appliedMainCoupon && !appliedOntopCoupon}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
+                // [NEW] Props for Requirement Terms Checkbox
+                requireTermConsent={referralValid && referralRequireTermConsent}
+                termConsentMessage={referralTermConsentMessage}
+                hasConsentedTerms={hasConsentedTerms}
+                onConsentChange={setHasConsentedTerms}
+                // [NEW] Props for Time Display in Summary Footer
+                selectedDate={getThaiDateShort(selectedDate)}
+                selectedTimeStart={selection?.startTime}
+                selectedTimeEnd={selection?.endTime}
             />
 
             <CouponBottomSheet

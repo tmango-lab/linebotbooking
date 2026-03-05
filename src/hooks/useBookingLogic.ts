@@ -78,6 +78,8 @@ export const useBookingLogic = () => {
     const [referralDiscount, setReferralDiscount] = useState<number>(0); // e.g. 50 = 50%
     const [referralValid, setReferralValid] = useState<boolean>(false);
     const [referralError, setReferralError] = useState<string | null>(null); // [NEW] Error state
+    const [referralRequireTermConsent, setReferralRequireTermConsent] = useState<boolean>(false);
+    const [referralTermConsentMessage, setReferralTermConsentMessage] = useState<string | null>(null);
     const getThaiDateString = (dateStr?: string) => {
         return formatDate(dateStr || new Date());
     };
@@ -230,6 +232,8 @@ export const useBookingLogic = () => {
                             // [FIX] Access correctly nested program data, fallback to 50
                             const discountPct = refData.program?.discountPercent || 50;
                             setReferralDiscount(discountPct);
+                            setReferralRequireTermConsent(refData.program?.require_term_consent || false);
+                            setReferralTermConsentMessage(refData.program?.term_consent_message || null);
                             setReferralValid(true);
                             setReferralError(null);
 
@@ -432,7 +436,7 @@ export const useBookingLogic = () => {
                     couponIds: [appliedMain?.id, appliedOntop?.id]
                         .filter(id => id && !id.toString().startsWith('REFERRAL-')),
                     paymentMethod: payment,
-                    ...(referralValid && referralCode ? { referralCode } : {})
+                    ...(referralValid && referralCode ? { referralCode, agreed_to_referral_terms: true } : {})
                 })
             });
 
@@ -494,6 +498,8 @@ export const useBookingLogic = () => {
         referralCode: referralValid ? referralCode : null,
         referralDiscount,
         referralValid,
-        referralError
+        referralError,
+        referralRequireTermConsent,
+        referralTermConsentMessage
     };
 };

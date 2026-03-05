@@ -20,6 +20,7 @@ interface BookingDetailModalProps {
         is_promo?: boolean;
         is_refunded?: boolean;
         discount?: number;
+        agreed_to_referral_terms?: boolean;
         status?: string;
         payment_method?: string;
         payment_status?: string;
@@ -431,6 +432,21 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                         </div>
                                                     </div>
                                                 ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* [NEW] Referral Terms Consent Evidence */}
+                                    {booking.agreed_to_referral_terms && (
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <div className="flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                                <div className="bg-indigo-100 p-1.5 rounded-full text-indigo-600">
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold text-indigo-900">ลูกค้ายอมรับเงื่อนไขโปรโมชั่นแล้ว</div>
+                                                    <div className="text-xs text-indigo-700">ยอมรับเงื่อนไขการใช้ส่วนลดแนะนำเพื่อน (ไม่สามารถเปลี่ยนเวลา/คืนเงิน)</div>
+                                                </div>
                                             </div>
                                         </div>
                                     )}

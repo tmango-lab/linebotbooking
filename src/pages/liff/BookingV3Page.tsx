@@ -43,8 +43,12 @@ const BookingV3Page: React.FC = () => {
         referralCode,
         referralDiscount,
         referralValid,
-        referralError
+        referralError,
+        referralRequireTermConsent,
+        referralTermConsentMessage
     } = useBookingLogic();
+
+    const [hasConsentedTerms, setHasConsentedTerms] = React.useState(false);
 
     if (!isReady) {
         return (
@@ -150,6 +154,15 @@ const BookingV3Page: React.FC = () => {
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
+                // [NEW] Props for Requirement Terms Checkbox
+                requireTermConsent={referralValid && referralRequireTermConsent}
+                termConsentMessage={referralTermConsentMessage}
+                hasConsentedTerms={hasConsentedTerms}
+                onConsentChange={setHasConsentedTerms}
+                // [NEW] Props for Time Display in Summary Footer
+                selectedDate={getThaiDateShort(selectedDate)}
+                selectedTimeStart={selection?.startTime}
+                selectedTimeEnd={selection?.endTime}
             />
 
             <CouponBottomSheet

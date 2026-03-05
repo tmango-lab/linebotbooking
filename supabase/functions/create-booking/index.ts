@@ -62,7 +62,7 @@ serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        let { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, couponIds, paymentMethod, campaignId, userId, source, referralCode } = await req.json();
+        let { fieldId, date, startTime, endTime, customerName, phoneNumber, note, couponId, couponIds, paymentMethod, campaignId, userId, source, referralCode, agreed_to_referral_terms } = await req.json();
 
         // Support both single couponId (legacy) and couponIds array
         let usageCouponIds: string[] = [];
@@ -279,6 +279,7 @@ serve(async (req) => {
                 admin_note: adminNote || null,
                 source: source || 'line',
                 is_promo: isPromo,
+                agreed_to_referral_terms: agreed_to_referral_terms || false,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })

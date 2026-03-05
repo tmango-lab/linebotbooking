@@ -30,6 +30,30 @@ serve(async (req) => {
             );
         }
 
+        // [TESTING MOCK]
+        if (referralCode === 'TESTREF50') {
+            return new Response(
+                JSON.stringify({
+                    valid: true,
+                    referrer: {
+                        teamName: 'Test Referrer',
+                        userId: 'TEST-USER'
+                    },
+                    program: {
+                        id: 'test-program-id',
+                        name: 'Test Program',
+                        discountPercent: 50,
+                        rewardAmount: 100,
+                        allow_ontop_stacking: true,
+                        allowed_payment_methods: null,
+                        require_term_consent: true,
+                        term_consent_message: 'ยอมรับเงื่อนไขการใช้ส่วนลดแนะนำเพื่อน (ห้ามคืนเงินเด็ดขาด)'
+                    }
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
         // 4. Find Affiliate with this code
         const { data: affiliate, error: affiliateError } = await supabase
             .from('affiliates')
@@ -82,10 +106,9 @@ serve(async (req) => {
             // [MODIFIED] Booking check removed - allow existing users who never referred before
         }
 
-        // 5. Check active referral program
         const { data: activeProgram } = await supabase
             .from('referral_programs')
-            .select('id, name, discount_percent, reward_amount, end_date, allow_ontop_stacking, allowed_payment_methods')
+            .select('id, name, discount_percent, reward_amount, end_date, allow_ontop_stacking, allowed_payment_methods, require_term_consent, term_consent_message')
             .eq('is_active', true)
             .maybeSingle();
 
@@ -126,13 +149,15 @@ serve(async (req) => {
                     discountPercent: activeProgram.discount_percent,
                     rewardAmount: activeProgram.reward_amount,
                     allow_ontop_stacking: activeProgram.allow_ontop_stacking ?? true,
-                    allowed_payment_methods: activeProgram.allowed_payment_methods || null
+                    allowed_payment_methods: activeProgram.allowed_payment_methods || null,
+                    require_term_consent: activeProgram.require_term_consent || false,
+                    term_consent_message: activeProgram.term_consent_message || null
                 }
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
-    } catch (err) {
+    } catch (err: any) {
         console.error('[Validate Referral Error]', err);
         return new Response(
             JSON.stringify({ valid: false, error: err.message || 'Internal Server Error' }),

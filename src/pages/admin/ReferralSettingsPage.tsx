@@ -14,6 +14,8 @@ interface ReferralProgram {
     reward_amount: number;
     allow_ontop_stacking: boolean;
     allowed_payment_methods: string[] | null;
+    require_term_consent: boolean;
+    term_consent_message: string | null;
     created_at: string;
 }
 
@@ -117,7 +119,9 @@ export default function ReferralSettingsPage() {
                     discount_percent: program.discount_percent,
                     reward_amount: program.reward_amount,
                     allow_ontop_stacking: program.allow_ontop_stacking,
-                    allowed_payment_methods: program.allowed_payment_methods
+                    allowed_payment_methods: program.allowed_payment_methods,
+                    require_term_consent: program.require_term_consent,
+                    term_consent_message: program.term_consent_message
                 })
                 .eq('id', program.id);
             if (error) throw error;
@@ -349,6 +353,42 @@ export default function ReferralSettingsPage() {
                                     </div>
                                 </label>
                             </div>
+                        </div>
+
+                        {/* Terms and Conditions */}
+                        <div className="pt-4 border-t border-gray-100">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 className="text-sm font-bold text-gray-900">บังคับกดยอมรับเงื่อนไข</h3>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        ลูกค้าต้องกดยอมรับเงื่อนไขเหล่านี้ก่อนทำการจองด้วยส่วนลด
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setProgram({ ...program, require_term_consent: !program.require_term_consent })}
+                                    disabled={saving}
+                                    className={`transition-colors flex-shrink-0 ${saving ? 'opacity-50' : ''}`}
+                                >
+                                    {program.require_term_consent ? (
+                                        <ToggleRight className="w-10 h-10 text-indigo-600" />
+                                    ) : (
+                                        <ToggleLeft className="w-10 h-10 text-gray-300" />
+                                    )}
+                                </button>
+                            </div>
+
+                            {program.require_term_consent && (
+                                <div className="mt-3">
+                                    <label className="text-sm font-medium text-gray-700">ข้อความเงื่อนไข (สิ่งที่ลูกค้าจะเห็น)</label>
+                                    <textarea
+                                        value={program.term_consent_message || ''}
+                                        onChange={(e) => setProgram({ ...program, term_consent_message: e.target.value })}
+                                        placeholder="เช่น ข้าพเจ้ายอมรับว่าโปรโมชั่นนี้ไม่สามารถเปลี่ยงแปลงเวลาและคืนเงินได้"
+                                        rows={3}
+                                        className="w-full mt-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-sm"
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <button
