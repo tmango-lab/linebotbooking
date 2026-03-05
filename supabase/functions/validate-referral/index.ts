@@ -30,29 +30,7 @@ serve(async (req) => {
             );
         }
 
-        // [TESTING MOCK]
-        if (referralCode === 'TESTREF50') {
-            return new Response(
-                JSON.stringify({
-                    valid: true,
-                    referrer: {
-                        teamName: 'Test Referrer',
-                        userId: 'TEST-USER'
-                    },
-                    program: {
-                        id: 'test-program-id',
-                        name: 'Test Program',
-                        discountPercent: 50,
-                        rewardAmount: 100,
-                        allow_ontop_stacking: true,
-                        allowed_payment_methods: null,
-                        require_term_consent: true,
-                        term_consent_message: 'ยอมรับเงื่อนไขการใช้ส่วนลดแนะนำเพื่อน (ห้ามคืนเงินเด็ดขาด)'
-                    }
-                }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-        }
+
 
         // 4. Find Affiliate with this code
         const { data: affiliate, error: affiliateError } = await supabase

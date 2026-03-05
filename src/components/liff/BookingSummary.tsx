@@ -11,13 +11,11 @@ interface BookingSummaryProps {
     isVisible: boolean;
     // New Props for Referral Terms
     requireTermConsent?: boolean;
-    termConsentMessage?: string | null;
     hasConsentedTerms?: boolean;
     onConsentChange?: (consented: boolean) => void;
+    termConsentMessage?: string; // Added missing prop
     // New Props for Booking Context (Time)
-    selectedDate?: string;
-    selectedTimeStart?: string;
-    selectedTimeEnd?: string;
+    userProfile?: { team_name: string } | null;
 }
 
 const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -33,9 +31,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     termConsentMessage,
     hasConsentedTerms,
     onConsentChange,
-    selectedDate,
-    selectedTimeStart,
-    selectedTimeEnd
+    userProfile
 }) => {
     if (!isVisible) return null;
 
@@ -79,14 +75,11 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                 </div>
             </div>
 
-            {/* Time Summary Area (Small reminder above button) */}
-            {(selectedDate && selectedTimeStart && selectedTimeEnd) && (
-                <div className="mb-3 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between text-sm">
-                    <div className="font-medium text-indigo-900 flex items-center gap-1.5">
-                        <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        เวลาที่เลือก:
-                    </div>
-                    <div className="font-bold text-indigo-700">{selectedTimeStart} - {selectedTimeEnd}</div>
+            {/* Team or Context Summary */}
+            {userProfile?.team_name && (
+                <div className="mb-2 px-1 flex items-center gap-1.5 text-xs text-gray-500">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    ทีมจอง: <span className="font-bold text-gray-700">{userProfile.team_name}</span>
                 </div>
             )}
 
