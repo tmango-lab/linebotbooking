@@ -81,42 +81,42 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                 </div>
             </div>
 
-            {/* Prominent Time Display */}
+            {/* Compact Time Display */}
             {(selectedDate && selectedTimeStart && selectedTimeEnd) && (
-                <div className="mb-4 bg-white rounded-xl p-3 border-2 border-indigo-100 flex items-center justify-between shadow-sm relative overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
-                    <div className="flex items-center gap-3 pl-2">
-                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="mb-2 bg-indigo-50/50 rounded-lg p-2 border border-indigo-100 flex items-center justify-between shadow-sm relative overflow-hidden">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+                    <div className="flex items-center gap-2 pl-2">
+                        <div className="w-7 h-7 rounded-md bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
                         <div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">เวลาจองที่เลือก</div>
-                            <div className="font-black text-indigo-900 text-lg leading-none tracking-tight">{selectedTimeStart} - {selectedTimeEnd} น.</div>
+                            <div className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">เวลาที่เลือก</div>
+                            <div className="font-black text-indigo-900 text-sm leading-none tracking-tight">{selectedTimeStart} - {selectedTimeEnd} น.</div>
                         </div>
                     </div>
                     <div className="text-right">
-                        <div className="text-[10px] text-gray-400 font-medium mb-0.5">{selectedDate}</div>
-                        <div className="font-bold text-gray-700 text-xs bg-gray-100 px-2 py-0.5 rounded-md inline-block">{selectedFieldName || 'สนาม'}</div>
+                        <div className="text-[10px] text-gray-500 font-medium mb-0.5">{selectedDate}</div>
+                        <div className="font-bold text-gray-600 text-[10px] bg-white border border-gray-100 px-1.5 py-0.5 rounded inline-block">{selectedFieldName || 'สนาม'}</div>
                     </div>
                 </div>
             )}
 
-            {/* Referral Consent Checkbox */}
+            {/* Compact Referral Consent Checkbox */}
             {requireTermConsent && (
-                <div className="mb-4">
-                    <label className="flex items-start gap-3 cursor-pointer group bg-red-50 p-3 rounded-xl border border-red-200 transition-all hover:bg-red-100">
-                        <div className="relative flex items-center h-5 mt-0.5">
+                <div className="mb-3">
+                    <label className="flex items-start gap-2 cursor-pointer group bg-red-50/80 p-2.5 rounded-lg border border-red-100 transition-all hover:bg-red-50">
+                        <div className="relative flex items-center h-4 mt-0.5 shrink-0">
                             <input
                                 type="checkbox"
                                 checked={hasConsentedTerms}
                                 onChange={(e) => onConsentChange?.(e.target.checked)}
-                                className="peer appearance-none w-5 h-5 border-2 border-red-300 rounded cursor-pointer checked:bg-red-500 checked:border-red-500 focus:outline-none transition-all"
+                                className="peer appearance-none w-4 h-4 border border-red-300 rounded cursor-pointer checked:bg-red-500 checked:border-red-500 focus:outline-none transition-all"
                             />
-                            <svg className="absolute w-5 h-5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 flex items-center justify-center p-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <svg className="absolute w-4 h-4 text-white pointer-events-none opacity-0 peer-checked:opacity-100 flex items-center justify-center p-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                         </div>
-                        <div className="text-sm font-medium text-red-800 leading-snug">
+                        <div className="text-[11px] font-medium text-red-800 leading-snug">
                             {termConsentMessage || "ข้าพเจ้ายอมรับว่าโปรโมชั่นนี้ไม่สามารถเปลี่ยงแปลงเวลาและคืนเงินได้"}
                             <span className="text-red-500 ml-1 font-bold">*</span>
                         </div>
