@@ -158,11 +158,6 @@ const BookingV2Page: React.FC = () => {
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
-                // [NEW] Props for Requirement Terms Checkbox
-                requireTermConsent={referralValid && referralRequireTermConsent}
-                termConsentMessage={referralTermConsentMessage}
-                hasConsentedTerms={hasConsentedTerms}
-                onConsentChange={setHasConsentedTerms}
                 selectedDate={getThaiDateShort(selectedDate)}
                 selectedTimeStart={selection?.startTime}
                 selectedTimeEnd={selection?.endTime}
@@ -210,6 +205,10 @@ const BookingV2Page: React.FC = () => {
                     phone_number: userProfile.phone_number
                 } : null}
                 allowedPaymentMethods={allowedPaymentMethods} // [NEW] Pass allowed methods
+                requireTermConsent={referralValid && referralRequireTermConsent}
+                termConsentMessage={referralTermConsentMessage}
+                hasConsentedTerms={hasConsentedTerms}
+                onConsentChange={setHasConsentedTerms}
             />
         </div>
     );

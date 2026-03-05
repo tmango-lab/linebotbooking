@@ -11,21 +11,29 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function resetReferral() {
+async function deepResetReferral() {
     const userId = 'U503d2128e37c22c055f6bc493a39f2e4';
-    console.log(`Resetting referral status for user: ${userId}`);
+    console.log(`Deep resetting history for user: ${userId}`);
 
-    // Delete from referrals table to allow them to be referred again
-    const { data, error } = await supabase
+    // 1. Delete from referrals table
+    const { error: refError } = await supabase
         .from('referrals')
         .delete()
         .eq('referee_id', userId);
 
-    if (error) {
-        console.error('Error deleting referral record:', error.message);
-    } else {
-        console.log('Successfully deleted referral record for the user.');
-    }
+    if (refError) console.error('Error deleting referral record:', refError.message);
+    else console.log('✅ Cleared referrals record');
+
+    // 2. Delete all their bookings to pretend they are completely new (or at least recent ones using the promo)
+    const { error: bookingError } = await supabase
+        .from('bookings')
+        .delete()
+        .eq('user_id', userId);
+
+    if (bookingError) console.error('Error deleting bookings:', bookingError.message);
+    else console.log('✅ Cleared bookings record');
+
+    console.log('Deep reset complete.');
 }
 
-resetReferral();
+deepResetReferral();

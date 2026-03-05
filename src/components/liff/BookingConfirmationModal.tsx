@@ -19,6 +19,10 @@ interface BookingConfirmationModalProps {
         team_name: string;
         phone_number: string;
     } | null;
+    requireTermConsent?: boolean;
+    termConsentMessage?: string | null;
+    hasConsentedTerms?: boolean;
+    onConsentChange?: (consented: boolean) => void;
 }
 
 const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
@@ -27,7 +31,11 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     onConfirm,
     bookingDetails,
     initialProfile,
-    allowedPaymentMethods
+    allowedPaymentMethods,
+    requireTermConsent,
+    termConsentMessage,
+    hasConsentedTerms,
+    onConsentChange
 }) => {
     const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,6 +84,11 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
         }
         if (!paymentMethod) {
             alert("กรุณาเลือกวิธีชำระเงิน");
+            return;
+        }
+
+        if (requireTermConsent && !hasConsentedTerms) {
+            // Usually the button is disabled, but just in case
             return;
         }
 
@@ -205,22 +218,48 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                             )}
                         </div>
                     </div>
+
+                    {/* Compact Referral Consent Checkbox */}
+                    {requireTermConsent && (
+                        <>
+                            <hr className="border-gray-100" />
+                            <div className="pt-2 px-2">
+                                <label className="flex items-start gap-2 cursor-pointer group bg-red-50/80 p-2.5 rounded-lg border border-red-100 transition-all hover:bg-red-50">
+                                    <div className="relative flex items-center h-4 mt-0.5 shrink-0">
+                                        <input
+                                            type="checkbox"
+                                            checked={hasConsentedTerms}
+                                            onChange={(e) => onConsentChange?.(e.target.checked)}
+                                            className="peer appearance-none w-4 h-4 border border-red-300 rounded cursor-pointer checked:bg-red-500 checked:border-red-500 focus:outline-none transition-all"
+                                        />
+                                        <svg className="absolute w-4 h-4 text-white pointer-events-none opacity-0 peer-checked:opacity-100 flex items-center justify-center p-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                    <div className="text-[11px] font-medium text-red-800 leading-snug">
+                                        {termConsentMessage || "ข้าพเจ้ายอมรับว่าโปรโมชั่นนี้ไม่สามารถเปลี่ยงแปลงเวลาและคืนเงินได้"}
+                                        <span className="text-red-500 ml-1 font-bold">*</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="p-6 bg-gray-50 flex space-x-3">
                     <button onClick={onClose} className="flex-1 py-4 font-bold text-gray-400 hover:text-gray-600 transition-colors">ยกเลิก</button>
                     <button
                         onClick={handleConfirm}
-                        disabled={isSubmitting}
-                        className={`flex-[2] bg-[#06C755] text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all
-                            ${isSubmitting ? 'opacity-50 grayscale' : 'hover:bg-green-600'}
+                        disabled={isSubmitting || (requireTermConsent ? !hasConsentedTerms : false)}
+                        className={`flex-[2] py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all
+                            ${isSubmitting || (requireTermConsent && !hasConsentedTerms) ? 'bg-gray-300 text-gray-500 opacity-50 shadow-none cursor-not-allowed' : 'bg-[#06C755] text-white hover:bg-green-600'}
                         `}
                     >
                         {isSubmitting ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
