@@ -66,6 +66,7 @@ CREATE TABLE bookings (
     payment_status TEXT,            -- [NEW] pending, paid, deposit_paid
     payment_slip_url TEXT,          -- [NEW] URL to uploaded slip in Supabase Storage
     deposit_amount NUMERIC,         -- [LOCK] Deposit amount locked at booking time (from system_settings)
+    agreed_to_referral_terms BOOLEAN DEFAULT FALSE, -- [NEW] User consent for referral promo terms
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
@@ -805,6 +806,8 @@ The system incentivizes user growth through a "Refer-a-Friend" program.
 3.  **`referral_programs`**: Configuration.
     -   Defines `discount_percent` (50%) and `reward_amount` (100).
     -   **[NEW]** `allowed_payment_methods`: `text[]` (e.g. `['qr']` or `['qr', 'field']`). Restricts how the referee can pay when using a referral link.
+    -   **[NEW]** `require_term_consent`: `boolean`. If true, forces referee to agree to terms before booking.
+    -   **[NEW]** `term_consent_message`: `text`. The custom warning message displayed to the referee.
 
 #### B. Reward Storage
 -   **`user_coupons`**: Rewards are issued as standard V2 Coupons.
