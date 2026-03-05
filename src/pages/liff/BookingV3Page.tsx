@@ -159,10 +159,7 @@ const BookingV3Page: React.FC = () => {
                 termConsentMessage={referralTermConsentMessage}
                 hasConsentedTerms={hasConsentedTerms}
                 onConsentChange={setHasConsentedTerms}
-                // [NEW] Props for Time Display in Summary Footer
-                selectedDate={getThaiDateShort(selectedDate)}
-                selectedTimeStart={selection?.startTime}
-                selectedTimeEnd={selection?.endTime}
+                userProfile={userProfile}
             />
 
             <CouponBottomSheet

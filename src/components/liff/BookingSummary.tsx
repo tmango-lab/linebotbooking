@@ -13,7 +13,7 @@ interface BookingSummaryProps {
     requireTermConsent?: boolean;
     hasConsentedTerms?: boolean;
     onConsentChange?: (consented: boolean) => void;
-    termConsentMessage?: string; // Added missing prop
+    termConsentMessage?: string | null;
     // New Props for Booking Context (Time)
     userProfile?: { team_name: string } | null;
 }
