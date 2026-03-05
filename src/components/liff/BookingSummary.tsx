@@ -10,10 +10,8 @@ interface BookingSummaryProps {
     onOpenCoupons: () => void;
     isVisible: boolean;
     // New Props for Booking Context (Time)
-    selectedDate?: string;
     selectedTimeStart?: string;
     selectedTimeEnd?: string;
-    selectedFieldName?: string;
 }
 
 const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -25,10 +23,8 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     onConfirm,
     onOpenCoupons,
     isVisible,
-    selectedDate,
     selectedTimeStart,
-    selectedTimeEnd,
-    selectedFieldName
+    selectedTimeEnd
 }) => {
     if (!isVisible) return null;
 
@@ -72,32 +68,24 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                 </div>
             </div>
 
-            {/* Compact Time Display */}
-            {(selectedDate && selectedTimeStart && selectedTimeEnd) && (
-                <div className="mb-2 bg-indigo-50/50 rounded-lg p-2 border border-indigo-100 flex items-center justify-between shadow-sm relative overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-                    <div className="flex items-center gap-2 pl-2">
-                        <div className="w-7 h-7 rounded-md bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <div>
-                            <div className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">เวลาที่เลือก</div>
-                            <div className="font-black text-indigo-900 text-sm leading-none tracking-tight">{selectedTimeStart} - {selectedTimeEnd} น.</div>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-[10px] text-gray-500 font-medium mb-0.5">{selectedDate}</div>
-                        <div className="font-bold text-gray-600 text-[10px] bg-white border border-gray-100 px-1.5 py-0.5 rounded inline-block">{selectedFieldName || 'สนาม'}</div>
-                    </div>
-                </div>
-            )}
-
             <button
                 onClick={onConfirm}
-                className={`w-full py-4 rounded-2xl font-black text-lg shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34c] text-white shadow-green-200`}
+                className={`w-full py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34c] text-white shadow-green-200`}
             >
-                ยืนยันการจอง
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                {selectedTimeStart && selectedTimeEnd ? (
+                    <div className="flex flex-col items-center leading-tight">
+                        <div className="text-[10px] font-medium text-green-100 uppercase tracking-wider mb-0.5">ยืนยันการจอง</div>
+                        <div className="text-lg font-black flex items-center gap-2">
+                            <span>{selectedTimeStart} - {selectedTimeEnd} น.</span>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <span className="font-black text-lg">ยืนยันการจอง</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                    </>
+                )}
             </button>
         </div>
     );

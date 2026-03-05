@@ -145,10 +145,8 @@ const BookingV3Page: React.FC = () => {
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
-                selectedDate={getThaiDateShort(selectedDate)}
                 selectedTimeStart={selection?.startTime}
                 selectedTimeEnd={selection?.endTime}
-                selectedFieldName={selectedField ? selectedField.name.replace('สนาม ', '') : undefined}
             />
 
             <CouponBottomSheet
