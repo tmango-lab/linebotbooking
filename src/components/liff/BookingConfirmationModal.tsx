@@ -142,16 +142,9 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                             <span className="font-bold text-gray-800 text-right">{bookingDetails.date}</span>
                         </div>
 
-                        {/* [MODIFIED] Emphasized Time Summary */}
-                        <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                            <div className="flex flex-col mb-1">
-                                <span className="text-indigo-800 font-bold mb-1 text-sm">เวลาที่เลือกจอง</span>
-                                <div className="text-3xl font-black text-indigo-700 tracking-tight">
-                                    {bookingDetails.startTime} - {bookingDetails.endTime} น.
-                                </div>
-                            </div>
-                            <div className="text-xs text-indigo-600 font-medium">โปรดตรวจสอบเวลาให้ถูกต้องก่อนยืนยัน</div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500 text-sm">เวลา</span>
+                            <span className="font-bold text-gray-800 text-right">{bookingDetails.startTime} - {bookingDetails.endTime}</span>
                         </div>
                     </div>
 
