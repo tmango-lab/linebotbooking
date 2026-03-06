@@ -13,6 +13,8 @@ export interface LiffUser {
     isLoggingIn?: boolean; // [NEW] Flag to indicate if we are in the middle of a login redirect
 }
 
+let liffInitPromise: Promise<void> | null = null;
+
 export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Promise<LiffUser> => {
     console.log("Initializing LIFF with ID:", LIFF_ID);
 
@@ -25,7 +27,11 @@ export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Pro
             return { userId: urlUserId, error: "Missing LIFF ID" };
         }
 
-        await liff.init({ liffId: LIFF_ID });
+        // [MOD] Prevent concurrent liff.init() calls
+        if (!liffInitPromise) {
+            liffInitPromise = liff.init({ liffId: LIFF_ID });
+        }
+        await liffInitPromise;
 
         if (!liff.isLoggedIn()) {
             console.log("Not logged in.");
