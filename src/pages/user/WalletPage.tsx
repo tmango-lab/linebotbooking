@@ -253,19 +253,19 @@ export default function WalletPage() {
                     <div className="flex-1 pr-4">
                         <div className="flex items-center gap-2 mb-2">
                             <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${badgeClass}`}>
-                                {isHistory ? coupon.status : type}
+                                {isHistory ? (coupon.status === 'USED' ? 'ใช้แล้ว' : coupon.status === 'EXPIRED' ? 'หมดอายุ' : coupon.status) : type}
                             </span>
                             {isExpiring && (
                                 <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold animate-pulse">
-                                    <Clock className="w-3 h-3" /> Expiring
+                                    <Clock className="w-3 h-3" /> ใกล้หมดอายุ
                                 </span>
                             )}
                         </div>
                         <h3 className="font-bold text-lg leading-tight mb-1">{coupon.name}</h3>
                         <p className={`text-sm ${isMain && !isHistory ? 'text-gray-400' : 'text-gray-500'}`}>
                             {coupon.benefit?.type === 'DISCOUNT'
-                                ? (coupon.benefit?.value?.amount ? `Save ฿${coupon.benefit.value.amount}` : `Save ${coupon.benefit?.value?.percent ?? 0}%`)
-                                : `Free ${coupon.benefit?.value?.item ?? 'Reward'}`
+                                ? (coupon.benefit?.value?.amount ? `ลด ฿${coupon.benefit.value.amount}` : `ลด ${coupon.benefit?.value?.percent ?? 0}%`)
+                                : `ฟรี ${coupon.benefit?.value?.item ?? 'รางวัล'}`
                             }
                         </p>
                     </div>
@@ -278,14 +278,14 @@ export default function WalletPage() {
 
                 <div className="flex justify-between items-end">
                     <div className="text-xs opacity-60">
-                        <p>Exp: {coupon.expiry ? formatDate(coupon.expiry) : 'No Expiry'}</p>
+                        <p>หมดอายุ: {coupon.expiry ? formatDate(coupon.expiry) : 'ไม่มีวันหมดอายุ'}</p>
                     </div>
                     {!isHistory && (
                         <button
                             onClick={(e) => handleUseCoupon(e, coupon)}
                             className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}
                         >
-                            Use Now
+                            ใช้เลย
                         </button>
                     )}
                 </div>
@@ -299,15 +299,15 @@ export default function WalletPage() {
             <div className="bg-white pt-8 px-6 pb-4 shadow-sm rounded-b-[2rem] mb-4 sticky top-0 z-40">
                 <div className="flex justify-between items-center mb-4">
                     <div>
-                        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Wallet</h1>
-                        <p className="text-gray-500 text-xs">Your Rewards & Coupons</p>
+                        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">กระเป๋าคูปอง</h1>
+                        <p className="text-gray-500 text-xs">คูปองและของรางวัลของคุณ</p>
                     </div>
                     <button
                         onClick={() => setIsRedeemOpen(!isRedeemOpen)}
                         className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-100 transition-colors"
                     >
                         <Lock className="w-3 h-3" />
-                        Redeem Code
+                        กรอกโค้ด
                     </button>
                 </div>
 
@@ -317,7 +317,7 @@ export default function WalletPage() {
                         <div className="flex gap-2">
                             <input
                                 className="flex-1 bg-gray-100 border-0 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="Enter secret code..."
+                                placeholder="กรอกรหัสคูปอง..."
                                 value={collectDetails.secretCode}
                                 onChange={(e) => setCollectDetails({ secretCode: e.target.value })}
                             />
@@ -326,7 +326,7 @@ export default function WalletPage() {
                                 disabled={!collectDetails.secretCode || collecting}
                                 className="bg-indigo-600 text-white px-4 rounded-xl font-bold shadow-md hover:bg-indigo-700"
                             >
-                                {collecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get'}
+                                {collecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'รับ'}
                             </button>
                         </div>
                     </div>
@@ -338,13 +338,13 @@ export default function WalletPage() {
                         onClick={() => setActiveTab('my_coupons')}
                         className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'my_coupons' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        My Coupons
+                        คูปองของฉัน
                     </button>
                     <button
                         onClick={() => setActiveTab('market')}
                         className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'market' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        Coupon Center
+                        ศูนย์คูปอง
                     </button>
                 </div>
             </div>
@@ -380,7 +380,7 @@ export default function WalletPage() {
                                 className="flex items-center gap-1 text-xs text-gray-400 font-medium hover:text-gray-600 transition-colors"
                             >
                                 <History className="w-3 h-3" />
-                                {showHistory ? 'Hide History' : 'View History'}
+                                {showHistory ? 'ซ่อนประวัติ' : 'ดูประวัติ'}
                             </button>
                         </div>
 
@@ -390,9 +390,9 @@ export default function WalletPage() {
                             <div className="space-y-4">
                                 {showHistory && (
                                     <div className="space-y-4 mb-6">
-                                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">History</h3>
+                                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">ประวัติ</h3>
                                         {historyCoupons.length === 0 && !loading ? (
-                                            <p className="text-center text-xs text-gray-400 italic">No history found</p>
+                                            <p className="text-center text-xs text-gray-400 italic">ไม่มีประวัติการใช้งาน</p>
                                         ) : (
                                             historyCoupons.map(c => <CouponCard key={c.coupon_id} coupon={c} type="Main" isHistory={true} />)
                                         )}
@@ -453,13 +453,13 @@ export default function WalletPage() {
                                                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
                                                     <Ticket className="w-8 h-8 text-gray-300" />
                                                 </div>
-                                                <h3 className="text-gray-900 font-medium">No Active Coupons</h3>
-                                                <p className="text-gray-400 text-sm mt-1">Check "Coupon Center" to get more.</p>
+                                                <h3 className="text-gray-900 font-medium">ไม่มีคูปองที่ใช้งานได้</h3>
+                                                <p className="text-gray-400 text-sm mt-1">ตรวจสอบ "ศูนย์คูปอง" เพื่อรับเพิ่ม</p>
                                                 <button
                                                     onClick={() => setActiveTab('market')}
                                                     className="mt-4 text-indigo-600 text-sm font-bold hover:underline"
                                                 >
-                                                    Go to Coupon Center
+                                                    ไปที่ศูนย์คูปอง
                                                 </button>
                                             </div>
                                         )}
@@ -474,7 +474,7 @@ export default function WalletPage() {
                 {activeTab === 'market' && (
                     <div className="space-y-4">
                         <div className="flex justify-between items-center mb-2 px-1">
-                            <h2 className="font-bold text-gray-900">Available for you</h2>
+                            <h2 className="font-bold text-gray-900">คูปองสำหรับคุณ</h2>
                         </div>
 
                         <div className="grid grid-cols-1 gap-4">
@@ -491,7 +491,7 @@ export default function WalletPage() {
                                             </span>
                                             {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
                                                 <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
-                                                    <AlertCircle className="w-3 h-3" /> Only {camp.remaining_quantity} left
+                                                    <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity} สิทธิ์
                                                 </span>
                                             )}
                                         </div>
@@ -506,12 +506,12 @@ export default function WalletPage() {
                                         disabled={collecting}
                                         className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
                                     >
-                                        Get
+                                        เก็บ
                                     </button>
                                 </div>
                             )) : (
                                 <div className="text-center py-12">
-                                    <p className="text-gray-400 text-sm">No new coupons available at the moment.</p>
+                                    <p className="text-gray-400 text-sm">ไม่มีคูปองใหม่ในขณะนี้</p>
                                 </div>
                             )}
                         </div>
