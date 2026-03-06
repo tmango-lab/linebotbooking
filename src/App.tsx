@@ -130,19 +130,9 @@ function RootRedirect() {
   const searchParams = new URLSearchParams(window.location.search);
   const redirect = searchParams.get('redirect');
 
-  const liffState = searchParams.get('liff.state');
-  const code = searchParams.get('code');
-  const state = searchParams.get('state');
-
   // [NEW] Check App Mode from Environment
   const appMode = import.meta.env.VITE_APP_MODE; // 'admin', 'booking', 'wallet'
   const searchStr = window.location.search; // Preserve all params (ref, userId, etc.)
-
-  const { isReady } = useLiff();
-
-  if ((liffState || code || state) && !isReady) {
-    return <PageLoader text="Verifying Secure Login..." />;
-  }
 
   // 1. Priority: Explicit Redirect Param (Deep Links)
   if (redirect === 'wallet') {

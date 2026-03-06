@@ -10,6 +10,7 @@ export interface LiffUser {
     displayName?: string;
     pictureUrl?: string;
     error?: string;
+    isLoggingIn?: boolean; // [NEW] Flag to indicate if we are in the middle of a login redirect
 }
 
 export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Promise<LiffUser> => {
@@ -48,7 +49,7 @@ export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Pro
             if (options.requireLogin) {
                 console.log("Login required. Calling login()...");
                 liff.login();
-                return { userId: null }; // Redirecting...
+                return { userId: null, isLoggingIn: true }; // [MOD] indicate redirecting
             } else {
                 console.log("Login not required. Returning null user.");
                 return { userId: null };

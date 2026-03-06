@@ -98,6 +98,12 @@ export const useBookingLogic = () => {
         const init = async () => {
             setErrorMsg(null);
             const liffUser = await getLiffUser({ requireLogin: true }); // [MOD] Enforce login for booking
+
+            if (liffUser.isLoggingIn) {
+                // Browser is about to redirect to LINE Login, so stay in the loading state
+                return;
+            }
+
             const currentUserId = liffUser.userId || userId;
 
             if (!currentUserId) {
