@@ -344,7 +344,7 @@ export default function WalletPage() {
                         onClick={() => setActiveTab('market')}
                         className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'market' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        ศูนย์คูปอง
+                        เก็บคูปอง
                     </button>
                 </div>
             </div>
@@ -454,12 +454,12 @@ export default function WalletPage() {
                                                     <Ticket className="w-8 h-8 text-gray-300" />
                                                 </div>
                                                 <h3 className="text-gray-900 font-medium">ไม่มีคูปองที่ใช้งานได้</h3>
-                                                <p className="text-gray-400 text-sm mt-1">ตรวจสอบ "ศูนย์คูปอง" เพื่อรับเพิ่ม</p>
+                                                <p className="text-gray-400 text-sm mt-1">สามารถดูเพิ่มได้ที่หน้า "เก็บคูปอง"</p>
                                                 <button
                                                     onClick={() => setActiveTab('market')}
                                                     className="mt-4 text-indigo-600 text-sm font-bold hover:underline"
                                                 >
-                                                    ไปที่ศูนย์คูปอง
+                                                    ไปหน้าเก็บคูปอง
                                                 </button>
                                             </div>
                                         )}
