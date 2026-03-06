@@ -52,8 +52,12 @@ const BookingV2Page: React.FC = () => {
 
     if (!isReady) {
         return (
-            <div className="p-4 flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            <div className="h-screen flex items-center justify-center flex-col bg-[#F0F2F5]">
+                <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="mt-6 text-center animate-pulse">
+                    <h3 className="text-lg font-bold text-gray-800">Booking System</h3>
+                    <p className="text-sm text-gray-500 mt-1">กำลังเตรียมข้อมูล...</p>
+                </div>
             </div>
         );
     }
