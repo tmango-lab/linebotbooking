@@ -869,3 +869,46 @@ DELETE FROM referrals WHERE referee_id = 'REFEREE_UID';
 UPDATE affiliates SET total_referrals = 0, total_earnings = 0 WHERE user_id = 'REFERRER_UID';
 DELETE FROM user_coupons WHERE user_id = 'REFERRER_UID' AND campaign_id = '...';
 ```
+
+---
+
+## 20. Membership & Points System (Phase 4)
+
+### 20.1 Overview
+The system includes a loyalty points mechanism to encourage repeat bookings. Users earn points automatically when their bookings are paid, and can redeem these points for special coupons in the Wallet UI.
+
+### 20.2 Data Schema
+
+1. **`profiles.points`**:
+   - The primary balance of the user's points (Integer).
+2. **`point_history`**:
+   - Ledger of all point transactions.
+   - `transaction_type`: `EARN_BOOKING`, `REDEEM_COUPON`, `ADMIN_ADJUST`.
+   - `reference_type`, `reference_id`: Links back to `bookings` or `campaigns`.
+   - `amount`: Positive for earning, negative for redemption.
+3. **`campaigns.point_cost`**:
+   - Admin-configurable integer. Specifies how many points are required to collect/redeem this specific campaign coupon. Defaults to 0 (free to collect).
+
+### 20.3 Earn Points Flow (Automated)
+Points are strictly awarded via a PostgreSQL Trigger (`handle_booking_points_earn`) to ensure absolute data consistency.
+
+1. **Trigger Condition**: Fires `AFTER UPDATE` on the `bookings` table.
+2. **Logic**: If `payment_status` changes to `paid` AND `price_total_thb > 0`.
+3. **Calculation**: `FLOOR(price_total_thb / 100) * 10`. (e.g., 1550 THB -> 150 points).
+4. **Idempotency**: The trigger checks `point_history` using `reference_id` to ensure points are never awarded twice for the same booking.
+5. **Execution**: Updates `profiles.points` and inserts a log into `point_history` natively within the database.
+
+### 20.4 Redeem Points Flow
+1. **Frontend (Wallet UI)**:
+   - Displays campaigns where `point_cost > 0` under the "**แลกแต้ม**" (Redeem) tab, separately from free campaigns.
+   - User clicks to redeem.
+2. **RPC Function (`redeem_points_for_campaign`)**:
+   - Atomic transaction written in PL/pgSQL.
+   - **Validation**: Checks if Campaign is active, quantity is available, and `points >= point_cost`.
+   - **Deduction**: Subtracts points from `profiles.points` and logs an entry (`transaction_type = 'REDEEM_COUPON'`) in `point_history`.
+   - **Issuance**: Deducts `remaining_quantity` from `campaigns` and inserts a new active coupon into `user_coupons`.
+   - **Expiry**: Automatically computes `expires_at` based on `duration_days` setup in the campaign.
+
+### 20.5 Admin Interface
+- Admins configure the `point_cost` in the **Campaign Management (V2)** page (`CampaignModal.tsx`) under the **"C. เงื่อนไขการใช้งาน"** section.
+- If `point_cost` is > 0, the coupon transitions from a standard "Market" item to a "Redeemable" reward.
