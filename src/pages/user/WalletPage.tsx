@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Lock, Clock, AlertCircle, Share2, Award } from 'lucide-react';
+import { Loader2, Ticket, Clock, AlertCircle, Share2, Award } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 import { formatDate } from '../../utils/date';
 
@@ -39,8 +39,6 @@ export default function WalletPage() {
     const [isDetailOpen, setIsDetailOpen] = useState(false);
 
     // Collect Logic
-    const [collectDetails, setCollectDetails] = useState({ secretCode: '' });
-    const [isRedeemOpen, setIsRedeemOpen] = useState(false);
     const [collecting, setCollecting] = useState(false);
     const collectingRef = useRef(false);
 
@@ -212,13 +210,6 @@ export default function WalletPage() {
         }
     };
 
-    const handleRedeemCode = async () => {
-        if (!userId || !collectDetails.secretCode) return;
-        await doAutoCollect(userId, '', collectDetails.secretCode);
-        setCollectDetails({ secretCode: '' });
-        setIsRedeemOpen(false);
-    };
-
     const handleUseCoupon = (e: React.MouseEvent, coupon: Coupon) => {
         e.stopPropagation(); // Don't open detail modal
         const target = `/booking-v3?userId=${userId}&couponId=${coupon.coupon_id}`;
@@ -312,35 +303,10 @@ export default function WalletPage() {
                         <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">กระเป๋าคูปอง</h1>
                         <p className="text-gray-500 text-xs">คูปองและของรางวัลของคุณ</p>
                     </div>
-                    <button
-                        onClick={() => setIsRedeemOpen(!isRedeemOpen)}
-                        className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-100 transition-colors"
-                    >
-                        <Lock className="w-3 h-3" />
-                        กรอกโค้ด
-                    </button>
-                </div>
-
-                {/* Redeem Input (Collapsible) */}
-                {isRedeemOpen && (
-                    <div className="mb-4 animate-in slide-in-from-top-2">
-                        <div className="flex gap-2">
-                            <input
-                                className="flex-1 bg-gray-100 border-0 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="กรอกรหัสคูปอง..."
-                                value={collectDetails.secretCode}
-                                onChange={(e) => setCollectDetails({ secretCode: e.target.value })}
-                            />
-                            <button
-                                onClick={handleRedeemCode}
-                                disabled={!collectDetails.secretCode || collecting}
-                                className="bg-indigo-600 text-white px-4 rounded-xl font-bold shadow-md hover:bg-indigo-700"
-                            >
-                                {collecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'รับ'}
-                            </button>
-                        </div>
+                    <div className="flex flex-col items-end">
+                        <span className="font-black text-xl text-orange-600 leading-none">{points.toLocaleString()} <span className="text-xs font-bold">Points</span></span>
                     </div>
-                )}
+                </div>
 
                 {/* Tabs */}
                 <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
@@ -363,20 +329,6 @@ export default function WalletPage() {
                         <Award className="w-4 h-4" />
                         แลกแต้ม
                     </button>
-                </div>
-
-                {/* Compact Points Display */}
-                <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-3 border border-orange-100 mt-4">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-orange-100 p-1.5 rounded-full">
-                            <Award className="w-5 h-5 text-orange-500" />
-                        </div>
-                        <span className="font-bold text-gray-800 text-sm">แต้มสะสมปัจจุบัน</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="font-black text-xl text-orange-600 leading-none">{points.toLocaleString()}</span>
-                        <span className="text-xs font-bold text-orange-600">Points</span>
-                    </div>
                 </div>
             </div>
 
