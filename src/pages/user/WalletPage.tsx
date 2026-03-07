@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2, Star, Award } from 'lucide-react';
+import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2, Award } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 import { formatDate } from '../../utils/date';
 
@@ -224,8 +224,6 @@ export default function WalletPage() {
 
         setCollecting(true);
         try {
-            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
             // Call the new RPC function we just created
             const { data, error } = await supabase.rpc('redeem_points_for_campaign', {
                 p_user_id: uid,
@@ -589,8 +587,8 @@ export default function WalletPage() {
                                                 }}
                                                 disabled={collecting || points < camp.point_cost}
                                                 className={`relative z-10 ml-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex flex-col items-center leading-none ${points >= camp.point_cost
-                                                        ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
-                                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                                                    ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
+                                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                                                     }`}
                                             >
                                                 <span>แลก</span>
