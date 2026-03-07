@@ -36,8 +36,7 @@ export default function WalletPage() {
     const [pointHistory, setPointHistory] = useState<any[]>([]);
 
     // UI State
-    const [activeTab, setActiveTab] = useState<'my_coupons' | 'market' | 'points_history'>('my_coupons');
-    const [showHistory, setShowHistory] = useState(false);
+    const [activeTab, setActiveTab] = useState<'my_coupons' | 'market' | 'redeem'>('my_coupons');
     const [selectedCoupon, setSelectedCoupon] = useState<Coupon | any | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -156,33 +155,6 @@ export default function WalletPage() {
             setLoading(false);
         }
     };
-
-    const fetchHistory = async () => {
-        if (!userId) return;
-        setLoading(true);
-        try {
-            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ userId, filter: 'history' })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                // Merge main and on_top for history view
-                setHistoryCoupons([...data.main, ...data.on_top]);
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // Actions
     const doAutoCollect = async (uid: string, cid: string, code: string) => {
         setCollecting(true);
@@ -236,9 +208,8 @@ export default function WalletPage() {
                 alert(`🎉 ${data.message}`);
                 // Update local points state to reflect the change immediately
                 setPoints(data.points_remaining);
-                // Refresh wallet and history
+                // Refresh wallet
                 fetchWallet(uid);
-                fetchHistory(); // refresh history so the new deduct log shows up
             } else {
                 throw new Error(data?.error || 'เกิดข้อผิดพลาดในการแลกแต้ม');
             }
@@ -380,52 +351,44 @@ export default function WalletPage() {
                 )}
 
                 {/* Tabs */}
-                <div className="flex bg-gray-100 p-1 rounded-xl">
+                <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
                     <button
                         onClick={() => setActiveTab('my_coupons')}
-                        className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'my_coupons' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'my_coupons' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         คูปองของฉัน
                     </button>
                     <button
                         onClick={() => setActiveTab('market')}
-                        className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'market' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'market' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         เก็บคูปอง
                     </button>
+                    <button
+                        onClick={() => setActiveTab('redeem')}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'redeem' ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Award className="w-4 h-4" />
+                        แลกแต้ม
+                    </button>
+                </div>
+
+                {/* Compact Points Display */}
+                <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-3 border border-orange-100 mt-4">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-orange-100 p-1.5 rounded-full">
+                            <Award className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <span className="font-bold text-gray-800 text-sm">แต้มสะสมปัจจุบัน</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="font-black text-xl text-orange-600 leading-none">{points.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-orange-600">Points</span>
+                    </div>
                 </div>
             </div>
 
-            <div className="px-5 space-y-6">
-                {/* Points Card */}
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden mt-2">
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-                    <div className="absolute top-10 -left-10 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-
-                    <div className="relative z-10 flex justify-between items-start">
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-1 opacity-90">
-                                <Award className="w-4 h-4" />
-                                <span className="text-sm font-bold">คะแนนสะสม</span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-black">{points.toLocaleString()}</span>
-                                <span className="text-sm opacity-90">แต้ม</span>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setActiveTab('points_history');
-                                setShowHistory(false);
-                            }}
-                            className="bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"
-                        >
-                            <History className="w-3 h-3" />
-                            ประวัติแต้ม
-                        </button>
-                    </div>
-                </div>
-
+            <div className="px-5 space-y-6 mt-4">
                 {/* Invite Friend CTA */}
                 {userId && (
                     <div
@@ -446,116 +409,141 @@ export default function WalletPage() {
                 {/* 1. My Coupons Tab */}
                 {activeTab === 'my_coupons' && (
                     <>
-                        {/* Toggle History */}
-                        <div className="flex justify-end">
-                            <button
-                                onClick={() => {
-                                    if (!showHistory && historyCoupons.length === 0) fetchHistory();
-                                    setShowHistory(!showHistory);
-                                }}
-                                className="flex items-center gap-1 text-xs text-gray-400 font-medium hover:text-gray-600 transition-colors"
-                            >
-                                <History className="w-3 h-3" />
-                                {showHistory ? 'ซ่อนประวัติ' : 'ดูประวัติ'}
-                            </button>
-                        </div>
-
                         {loading && wallet.main.length === 0 ? (
                             <div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-gray-300 mx-auto" /></div>
                         ) : (
                             <div className="space-y-4">
-                                {showHistory && (
-                                    <div className="space-y-4 mb-6">
-                                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">ประวัติ</h3>
-                                        {historyCoupons.length === 0 && !loading ? (
-                                            <p className="text-center text-xs text-gray-400 italic">ไม่มีประวัติการใช้งาน</p>
-                                        ) : (
-                                            historyCoupons.map(c => <CouponCard key={c.coupon_id} coupon={c} type="Main" isHistory={true} />)
-                                        )}
-                                        <div className="border-b border-dashed border-gray-200 my-4"></div>
-                                    </div>
-                                )}
-
-                                {!showHistory && (
-                                    <>
-                                        {(() => {
-                                            // Group main coupons by campaign_id
-                                            const mainGroups = new Map<string, { coupon: Coupon; count: number }>();
-                                            wallet.main.forEach(c => {
-                                                const key = c.campaign_id;
-                                                if (mainGroups.has(key)) {
-                                                    mainGroups.get(key)!.count++;
-                                                } else {
-                                                    mainGroups.set(key, { coupon: c, count: 1 });
-                                                }
-                                            });
-                                            // Group on_top coupons by campaign_id
-                                            const ontopGroups = new Map<string, { coupon: Coupon; count: number }>();
-                                            wallet.on_top.forEach(c => {
-                                                const key = c.campaign_id;
-                                                if (ontopGroups.has(key)) {
-                                                    ontopGroups.get(key)!.count++;
-                                                } else {
-                                                    ontopGroups.set(key, { coupon: c, count: 1 });
-                                                }
-                                            });
-                                            return (
-                                                <>
-                                                    {Array.from(mainGroups.values()).map(({ coupon, count }) => (
-                                                        <div key={coupon.coupon_id} className="relative">
-                                                            {count > 1 && (
-                                                                <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
-                                                                    x{count}
-                                                                </div>
-                                                            )}
-                                                            <CouponCard coupon={coupon} type="Main" />
-                                                        </div>
-                                                    ))}
-                                                    {Array.from(ontopGroups.values()).map(({ coupon, count }) => (
-                                                        <div key={coupon.coupon_id} className="relative">
-                                                            {count > 1 && (
-                                                                <div className="absolute -top-2 -right-2 z-20 bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
-                                                                    x{count}
-                                                                </div>
-                                                            )}
-                                                            <CouponCard coupon={coupon} type="On-top" />
-                                                        </div>
-                                                    ))}
-                                                </>
-                                            );
-                                        })()}
-                                        {wallet.main.length === 0 && wallet.on_top.length === 0 && (
-                                            <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-                                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                                    <Ticket className="w-8 h-8 text-gray-300" />
-                                                </div>
-                                                <h3 className="text-gray-900 font-medium">ไม่มีคูปองที่ใช้งานได้</h3>
-                                                <p className="text-gray-400 text-sm mt-1">สามารถดูเพิ่มได้ที่หน้า "เก็บคูปอง"</p>
-                                                <button
-                                                    onClick={() => setActiveTab('market')}
-                                                    className="mt-4 text-indigo-600 text-sm font-bold hover:underline"
-                                                >
-                                                    ไปหน้าเก็บคูปอง
-                                                </button>
+                                <>
+                                    {(() => {
+                                        // Group main coupons by campaign_id
+                                        const mainGroups = new Map<string, { coupon: Coupon; count: number }>();
+                                        wallet.main.forEach(c => {
+                                            const key = c.campaign_id;
+                                            if (mainGroups.has(key)) {
+                                                mainGroups.get(key)!.count++;
+                                            } else {
+                                                mainGroups.set(key, { coupon: c, count: 1 });
+                                            }
+                                        });
+                                        // Group on_top coupons by campaign_id
+                                        const ontopGroups = new Map<string, { coupon: Coupon; count: number }>();
+                                        wallet.on_top.forEach(c => {
+                                            const key = c.campaign_id;
+                                            if (ontopGroups.has(key)) {
+                                                ontopGroups.get(key)!.count++;
+                                            } else {
+                                                ontopGroups.set(key, { coupon: c, count: 1 });
+                                            }
+                                        });
+                                        return (
+                                            <>
+                                                {Array.from(mainGroups.values()).map(({ coupon, count }) => (
+                                                    <div key={coupon.coupon_id} className="relative">
+                                                        {count > 1 && (
+                                                            <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                x{count}
+                                                            </div>
+                                                        )}
+                                                        <CouponCard coupon={coupon} type="Main" />
+                                                    </div>
+                                                ))}
+                                                {Array.from(ontopGroups.values()).map(({ coupon, count }) => (
+                                                    <div key={coupon.coupon_id} className="relative">
+                                                        {count > 1 && (
+                                                            <div className="absolute -top-2 -right-2 z-20 bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                x{count}
+                                                            </div>
+                                                        )}
+                                                        <CouponCard coupon={coupon} type="On-top" />
+                                                    </div>
+                                                ))}
+                                            </>
+                                        );
+                                    })()}
+                                    {wallet.main.length === 0 && wallet.on_top.length === 0 && (
+                                        <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                <Ticket className="w-8 h-8 text-gray-300" />
                                             </div>
-                                        )}
-                                    </>
-                                )}
+                                            <h3 className="text-gray-900 font-medium">ไม่มีคูปองที่ใช้งานได้</h3>
+                                            <p className="text-gray-400 text-sm mt-1">สามารถดูเพิ่มได้ที่หน้า "เก็บคูปอง"</p>
+                                            <button
+                                                onClick={() => setActiveTab('market')}
+                                                className="mt-4 text-indigo-600 text-sm font-bold hover:underline"
+                                            >
+                                                ไปหน้าเก็บคูปอง
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             </div>
                         )}
                     </>
                 )}
 
-                {/* 2. Market Tab */}
+                {/* 2. Market Tab (คูปองฟรี) */}
                 {activeTab === 'market' && (
                     <div className="space-y-6">
-                        {/* Section: ใช้แต้มแลกคูปอง */}
-                        {availableCampaigns.filter(c => c.point_cost > 0).length > 0 && (
+                        <div>
+                            <div className="flex justify-between items-center mb-3 px-1 mt-4">
+                                <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                    <Ticket className="w-5 h-5 text-indigo-500" />
+                                    คูปองเก็บฟรี
+                                </h2>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4">
+                                {availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).length > 0 ? (
+                                    availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).map(camp => (
+                                        <div
+                                            key={camp.id}
+                                            onClick={() => openDetail({ campaign: camp })}
+                                            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
+                                        >
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {camp.is_stackable ? 'On-Top' : 'Main'}
+                                                    </span>
+                                                    {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
+                                                        <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
+                                                            <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity} สิทธิ์
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="font-bold text-gray-900">{camp.name}</h3>
+                                                <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    doAutoCollect(userId, camp.id, '');
+                                                }}
+                                                disabled={collecting}
+                                                className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
+                                            >
+                                                เก็บ
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                                        <p className="text-gray-400 text-sm">ไม่มีคูปองแจกฟรีในขณะนี้</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. Redeem Tab (แลกแต้ม) */}
+                {activeTab === 'redeem' && (
+                    <div className="space-y-6">
+                        {availableCampaigns.filter(c => c.point_cost > 0).length > 0 ? (
                             <div>
                                 <div className="flex justify-between items-center mb-3 px-1">
                                     <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
                                         <Award className="w-5 h-5 text-orange-500" />
-                                        ใช้แต้มแลกคูปอง
+                                        คูปองพิเศษแลกด้วยแต้ม
                                     </h2>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
@@ -598,92 +586,13 @@ export default function WalletPage() {
                                     ))}
                                 </div>
                             </div>
+                        ) : (
+                            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                                <Award className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-400 text-sm font-medium">ยังไม่มีคูปองให้แลกด้วยแต้ม</p>
+                                <p className="text-gray-400 text-xs mt-1">โปรดติดตามกิจกรรมใหม่ๆ เร็วๆ นี้</p>
+                            </div>
                         )}
-
-                        {/* Section: คูปองแจกฟรี (ไม่มี point_cost) */}
-                        <div>
-                            <div className="flex justify-between items-center mb-3 px-1 mt-4">
-                                <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
-                                    <Ticket className="w-5 h-5 text-indigo-500" />
-                                    คูปองเก็บฟรี
-                                </h2>
-                            </div>
-                            <div className="grid grid-cols-1 gap-4">
-                                {availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).length > 0 ? (
-                                    availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).map(camp => (
-                                        <div
-                                            key={camp.id}
-                                            onClick={() => openDetail({ campaign: camp })} // Open detail for campaigns too
-                                            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
-                                        >
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
-                                                        {camp.is_stackable ? 'On-Top' : 'Main'}
-                                                    </span>
-                                                    {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
-                                                        <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
-                                                            <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity} สิทธิ์
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <h3 className="font-bold text-gray-900">{camp.name}</h3>
-                                                <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
-                                            </div>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    doAutoCollect(userId, camp.id, '');
-                                                }}
-                                                disabled={collecting}
-                                                className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
-                                            >
-                                                เก็บ
-                                            </button>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
-                                        <p className="text-gray-400 text-sm">ไม่มีคูปองแจกฟรีในขณะนี้</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* 3. Points History Tab */}
-                {activeTab === 'points_history' && (
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center mb-2 px-1">
-                            <h2 className="font-bold text-gray-900">ประวัติคะแนนสะสม</h2>
-                        </div>
-
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                            {pointHistory.length === 0 ? (
-                                <div className="text-center py-10">
-                                    <Award className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-gray-400 text-sm">ยังไม่มีประวัติคะแนน</p>
-                                </div>
-                            ) : (
-                                <div className="divide-y divide-gray-100">
-                                    {pointHistory.map(ph => (
-                                        <div key={ph.id} className="p-4 flex justify-between items-center">
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm">{ph.description || (ph.amount > 0 ? 'ได้รับคะแนน' : 'ใช้คะแนน')}</p>
-                                                <p className="text-xs text-gray-500 mt-0.5">{formatDate(ph.created_at)}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className={`font-black ${ph.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                    {ph.amount > 0 ? '+' : ''}{ph.amount}
-                                                </span>
-                                                <p className="text-[10px] text-gray-400">คงเหลือ {ph.balance_after}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
                     </div>
                 )}
             </div>
