@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2, Award } from 'lucide-react';
+import { Loader2, Ticket, Lock, Clock, AlertCircle, Share2, Award } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 import { formatDate } from '../../utils/date';
 
@@ -30,10 +30,8 @@ export default function WalletPage() {
     // State
     const [userId, setUserId] = useState('');
     const [wallet, setWallet] = useState<Wallet>({ main: [], on_top: [] }); // Active Coupons
-    const [historyCoupons, setHistoryCoupons] = useState<Coupon[]>([]);
     const [loading, setLoading] = useState(false);
     const [points, setPoints] = useState<number>(0);
-    const [pointHistory, setPointHistory] = useState<any[]>([]);
 
     // UI State
     const [activeTab, setActiveTab] = useState<'my_coupons' | 'market' | 'redeem'>('my_coupons');
@@ -105,12 +103,6 @@ export default function WalletPage() {
                 .maybeSingle();
             if (profile) setPoints(profile.points || 0);
 
-            const { data: pHist } = await supabase
-                .from('point_history')
-                .select('*')
-                .eq('user_id', uid)
-                .order('created_at', { ascending: false });
-            if (pHist) setPointHistory(pHist);
 
             // 1. Fetch Active
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
