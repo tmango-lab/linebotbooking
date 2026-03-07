@@ -303,8 +303,11 @@ export default function WalletPage() {
                         <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">กระเป๋าคูปอง</h1>
                         <p className="text-gray-500 text-xs">คูปองและของรางวัลของคุณ</p>
                     </div>
+                    {/* Compact Points in Header */}
                     <div className="flex flex-col items-end">
-                        <span className="font-black text-xl text-orange-600 leading-none">{points.toLocaleString()} <span className="text-xs font-bold">Points</span></span>
+                        <span className="font-black text-xl text-orange-600 leading-none">
+                            {points.toLocaleString()} <span className="text-xs font-bold text-orange-500">Points</span>
+                        </span>
                     </div>
                 </div>
 
