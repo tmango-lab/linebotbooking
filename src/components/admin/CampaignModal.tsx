@@ -27,6 +27,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         reward_item: '', // New: For 'item' type
         is_stackable: false, // false = Main, true = On-Top
         is_public: true, // New: true = Public, false = Secret
+        point_cost: 0, // Points required to redeem
 
         // Conditions
         start_date: '',
@@ -67,6 +68,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     reward_item: campaign.reward_item || '',
                     is_stackable: campaign.is_stackable || false,
                     is_public: campaign.is_public ?? true,
+                    point_cost: campaign.point_cost || 0,
 
                     start_date: campaign.start_date ? campaign.start_date.split('T')[0] : '',
                     end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
@@ -98,6 +100,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     reward_item: '',
                     is_stackable: false,
                     is_public: true,
+                    point_cost: 0,
                     start_date: new Date().toISOString().split('T')[0],
                     end_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
                     valid_time_start: '',
@@ -194,6 +197,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                 duration_days: formData.duration_days > 0 ? Number(formData.duration_days) : null,
                 secret_codes: formData.secret_codes.length > 0 ? formData.secret_codes : null,
                 status: formData.status,
+                point_cost: Number(formData.point_cost) || 0,
             };
 
             if (campaign) {
@@ -431,19 +435,34 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                     เงื่อนไขการใช้งาน
                                 </h4>
                                 <div className="space-y-4">
-                                    {/* Min Spend */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ยอดใช้จ่ายขั้นต่ำ (ไม่ระบุได้)</label>
-                                        <div className="relative rounded-md shadow-sm max-w-xs">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <span className="text-gray-500 sm:text-sm">฿</span>
+                                    {/* Point Cost & Min Spend */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">แต้มที่ต้องใช้แลก (Point Cost)</label>
+                                            <div className="relative rounded-md shadow-sm max-w-xs">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 sm:text-sm">⭐</span>
+                                                </div>
+                                                <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-9 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                    value={formData.point_cost}
+                                                    onChange={e => setFormData({ ...formData, point_cost: parseInt(e.target.value) || 0 })}
+                                                    placeholder="0" />
                                             </div>
-                                            <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md border p-2"
-                                                value={formData.min_spend}
-                                                onChange={e => setFormData({ ...formData, min_spend: parseFloat(e.target.value) })}
-                                                placeholder="0" />
+                                            <p className="mt-1 text-xs text-gray-500">ใส่ 0 หากเป็นคูปองแจกฟรีไม่ต้องใช้แต้ม</p>
                                         </div>
-                                        <p className="mt-1 text-xs text-gray-500">ยอดจองต้องไม่ต่ำกว่าราคาที่กำหนดจึงจะใช้คูปองได้</p>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">ยอดใช้จ่ายขั้นต่ำ (ไม่ระบุได้)</label>
+                                            <div className="relative rounded-md shadow-sm max-w-xs">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 sm:text-sm">฿</span>
+                                                </div>
+                                                <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                    value={formData.min_spend}
+                                                    onChange={e => setFormData({ ...formData, min_spend: parseFloat(e.target.value) })}
+                                                    placeholder="0" />
+                                            </div>
+                                            <p className="mt-1 text-xs text-gray-500">ยอดจองต้องไม่ต่ำกว่าราคาที่กำหนดจึงจะใช้คูปองได้</p>
+                                        </div>
                                     </div>
 
                                     {/* Eligible Days */}
