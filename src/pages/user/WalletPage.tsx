@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2 } from 'lucide-react';
+import { Loader2, Ticket, Lock, Clock, History, AlertCircle, Share2, Star, Award } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 import { formatDate } from '../../utils/date';
 
@@ -32,9 +32,11 @@ export default function WalletPage() {
     const [wallet, setWallet] = useState<Wallet>({ main: [], on_top: [] }); // Active Coupons
     const [historyCoupons, setHistoryCoupons] = useState<Coupon[]>([]);
     const [loading, setLoading] = useState(false);
+    const [points, setPoints] = useState<number>(0);
+    const [pointHistory, setPointHistory] = useState<any[]>([]);
 
     // UI State
-    const [activeTab, setActiveTab] = useState<'my_coupons' | 'market'>('my_coupons');
+    const [activeTab, setActiveTab] = useState<'my_coupons' | 'market' | 'points_history'>('my_coupons');
     const [showHistory, setShowHistory] = useState(false);
     const [selectedCoupon, setSelectedCoupon] = useState<Coupon | any | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -95,6 +97,21 @@ export default function WalletPage() {
         setLoading(true);
         try {
             const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            // 0. Fetch Points & History
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('points')
+                .eq('user_id', uid)
+                .maybeSingle();
+            if (profile) setPoints(profile.points || 0);
+
+            const { data: pHist } = await supabase
+                .from('point_history')
+                .select('*')
+                .eq('user_id', uid)
+                .order('created_at', { ascending: false });
+            if (pHist) setPointHistory(pHist);
 
             // 1. Fetch Active
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
@@ -197,6 +214,38 @@ export default function WalletPage() {
             fetchWallet(uid);
         } catch (error: any) {
             alert(`เสียใจด้วยครับ 😅\n${error.message}`);
+        } finally {
+            setCollecting(false);
+        }
+    };
+
+    const doRedeemPoints = async (uid: string, cid: string, cost: number) => {
+        if (!confirm(`ยืนยันการใช้ ${cost} แต้ม เพื่อแลกคูปองนี้?`)) return;
+
+        setCollecting(true);
+        try {
+            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            // Call the new RPC function we just created
+            const { data, error } = await supabase.rpc('redeem_points_for_campaign', {
+                p_user_id: uid,
+                p_campaign_id: cid
+            });
+
+            if (error) throw error;
+
+            if (data && data.success) {
+                alert(`🎉 ${data.message}`);
+                // Update local points state to reflect the change immediately
+                setPoints(data.points_remaining);
+                // Refresh wallet and history
+                fetchWallet(uid);
+                fetchHistory(); // refresh history so the new deduct log shows up
+            } else {
+                throw new Error(data?.error || 'เกิดข้อผิดพลาดในการแลกแต้ม');
+            }
+        } catch (error: any) {
+            alert(`ไม่สามารถแลกแต้มได้: ${error.message}`);
         } finally {
             setCollecting(false);
         }
@@ -350,6 +399,35 @@ export default function WalletPage() {
             </div>
 
             <div className="px-5 space-y-6">
+                {/* Points Card */}
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden mt-2">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
+                    <div className="absolute top-10 -left-10 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+
+                    <div className="relative z-10 flex justify-between items-start">
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1 opacity-90">
+                                <Award className="w-4 h-4" />
+                                <span className="text-sm font-bold">คะแนนสะสม</span>
+                            </div>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-4xl font-black">{points.toLocaleString()}</span>
+                                <span className="text-sm opacity-90">แต้ม</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setActiveTab('points_history');
+                                setShowHistory(false);
+                            }}
+                            className="bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"
+                        >
+                            <History className="w-3 h-3" />
+                            ประวัติแต้ม
+                        </button>
+                    </div>
+                </div>
+
                 {/* Invite Friend CTA */}
                 {userId && (
                     <div
@@ -472,46 +550,139 @@ export default function WalletPage() {
 
                 {/* 2. Market Tab */}
                 {activeTab === 'market' && (
+                    <div className="space-y-6">
+                        {/* Section: ใช้แต้มแลกคูปอง */}
+                        {availableCampaigns.filter(c => c.point_cost > 0).length > 0 && (
+                            <div>
+                                <div className="flex justify-between items-center mb-3 px-1">
+                                    <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                        <Award className="w-5 h-5 text-orange-500" />
+                                        ใช้แต้มแลกคูปอง
+                                    </h2>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {availableCampaigns.filter(c => c.point_cost > 0).map(camp => (
+                                        <div
+                                            key={camp.id}
+                                            onClick={() => openDetail({ campaign: camp })}
+                                            className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform relative overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-orange-50 to-orange-100 rounded-bl-full -z-0"></div>
+                                            <div className="flex-1 relative z-10 pr-2">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {camp.is_stackable ? 'On-Top' : 'Main'}
+                                                    </span>
+                                                    {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
+                                                        <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
+                                                            <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="font-bold text-gray-900 leading-tight mb-1">{camp.name}</h3>
+                                                <p className="text-xs text-gray-500 line-clamp-1">{camp.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    doRedeemPoints(userId, camp.id, camp.point_cost);
+                                                }}
+                                                disabled={collecting || points < camp.point_cost}
+                                                className={`relative z-10 ml-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex flex-col items-center leading-none ${points >= camp.point_cost
+                                                        ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
+                                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                                                    }`}
+                                            >
+                                                <span>แลก</span>
+                                                <span className="text-[10px] font-medium opacity-90">{camp.point_cost} แต้ม</span>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Section: คูปองแจกฟรี (ไม่มี point_cost) */}
+                        <div>
+                            <div className="flex justify-between items-center mb-3 px-1 mt-4">
+                                <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                    <Ticket className="w-5 h-5 text-indigo-500" />
+                                    คูปองเก็บฟรี
+                                </h2>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4">
+                                {availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).length > 0 ? (
+                                    availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).map(camp => (
+                                        <div
+                                            key={camp.id}
+                                            onClick={() => openDetail({ campaign: camp })} // Open detail for campaigns too
+                                            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
+                                        >
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {camp.is_stackable ? 'On-Top' : 'Main'}
+                                                    </span>
+                                                    {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
+                                                        <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
+                                                            <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity} สิทธิ์
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="font-bold text-gray-900">{camp.name}</h3>
+                                                <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    doAutoCollect(userId, camp.id, '');
+                                                }}
+                                                disabled={collecting}
+                                                className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
+                                            >
+                                                เก็บ
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                                        <p className="text-gray-400 text-sm">ไม่มีคูปองแจกฟรีในขณะนี้</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. Points History Tab */}
+                {activeTab === 'points_history' && (
                     <div className="space-y-4">
                         <div className="flex justify-between items-center mb-2 px-1">
-                            <h2 className="font-bold text-gray-900">คูปองสำหรับคุณ</h2>
+                            <h2 className="font-bold text-gray-900">ประวัติคะแนนสะสม</h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4">
-                            {availableCampaigns.length > 0 ? availableCampaigns.map(camp => (
-                                <div
-                                    key={camp.id}
-                                    onClick={() => openDetail({ campaign: camp })} // Open detail for campaigns too
-                                    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
-                                >
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
-                                                {camp.is_stackable ? 'On-Top' : 'Main'}
-                                            </span>
-                                            {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
-                                                <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
-                                                    <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity} สิทธิ์
-                                                </span>
-                                            )}
-                                        </div>
-                                        <h3 className="font-bold text-gray-900">{camp.name}</h3>
-                                        <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            doAutoCollect(userId, camp.id, '');
-                                        }}
-                                        disabled={collecting}
-                                        className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
-                                    >
-                                        เก็บ
-                                    </button>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            {pointHistory.length === 0 ? (
+                                <div className="text-center py-10">
+                                    <Award className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                    <p className="text-gray-400 text-sm">ยังไม่มีประวัติคะแนน</p>
                                 </div>
-                            )) : (
-                                <div className="text-center py-12">
-                                    <p className="text-gray-400 text-sm">ไม่มีคูปองใหม่ในขณะนี้</p>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {pointHistory.map(ph => (
+                                        <div key={ph.id} className="p-4 flex justify-between items-center">
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-sm">{ph.description || (ph.amount > 0 ? 'ได้รับคะแนน' : 'ใช้คะแนน')}</p>
+                                                <p className="text-xs text-gray-500 mt-0.5">{formatDate(ph.created_at)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`font-black ${ph.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {ph.amount > 0 ? '+' : ''}{ph.amount}
+                                                </span>
+                                                <p className="text-[10px] text-gray-400">คงเหลือ {ph.balance_after}</p>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
