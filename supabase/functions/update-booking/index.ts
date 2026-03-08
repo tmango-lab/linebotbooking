@@ -364,7 +364,7 @@ serve(async (req) => {
         return new Response(
             JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }),
             {
-                status: 200, // CHANGED TO 200 FOR DEBUGGING
+                status: 500, // Fixed: Return 500 so frontend knows it failed
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             }
         );
