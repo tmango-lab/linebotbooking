@@ -615,7 +615,7 @@ export default function DashboardPage() {
 
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
+        <div className="absolute inset-0 flex flex-col bg-white">
             {/* Header */}
             <header className="flex flex-none items-center justify-between border-b border-gray-200 px-6 py-4">
                 <div>
