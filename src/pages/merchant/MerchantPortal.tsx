@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/api';
-import { LogIn, QrCode, Store, Loader2, Camera, CheckCircle2, XCircle, BarChart3, LogOut, Hash, RefreshCw } from 'lucide-react';
+import { LogIn, QrCode, Store, Loader2, Camera, CheckCircle2, XCircle, BarChart3, LogOut, Hash, RefreshCw, Keyboard, ScanLine } from 'lucide-react';
 
 interface MerchantInfo {
     id: string;
@@ -145,22 +145,27 @@ function PinLoginPage({ onLogin }: { onLogin: (m: MerchantInfo) => void }) {
 }
 
 // ============================================================
-// Scanner View — manual token input
+// Scanner View — camera QR + manual token input
 // ============================================================
 function ScannerView({ merchantId }: { merchantId: string }) {
+    const [mode, setMode] = useState<'camera' | 'manual'>('camera');
     const [token, setToken] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [cameraError, setCameraError] = useState('');
+    const scannerRef = useRef<any>(null);
+    const scannerContainerId = 'qr-scanner-container';
+    const isProcessingRef = useRef(false);
 
-    const handleRedeem = async () => {
-        if (!token.trim()) return;
+    const handleRedeem = useCallback(async (redemptionToken: string) => {
+        if (!redemptionToken.trim() || isProcessingRef.current) return;
+        isProcessingRef.current = true;
         setLoading(true);
         setResult(null);
 
         try {
-            // Call Edge Function for redemption
             const { data, error } = await supabase.functions.invoke('use-merchant-coupon', {
-                body: { merchantId, redemptionToken: token.trim() }
+                body: { merchantId, redemptionToken: redemptionToken.trim() }
             });
 
             if (error) throw error;
@@ -175,40 +180,150 @@ function ScannerView({ merchantId }: { merchantId: string }) {
             setResult({ success: false, message: err.message || 'เกิดข้อผิดพลาด' });
         } finally {
             setLoading(false);
+            // Allow next scan after 3 seconds
+            setTimeout(() => { isProcessingRef.current = false; }, 3000);
         }
-    };
+    }, [merchantId]);
+
+    // Init/destroy camera scanner
+    useEffect(() => {
+        if (mode !== 'camera') return;
+
+        let html5QrCode: any = null;
+
+        const initScanner = async () => {
+            try {
+                const { Html5Qrcode } = await import('html5-qrcode');
+                html5QrCode = new Html5Qrcode(scannerContainerId);
+                scannerRef.current = html5QrCode;
+
+                await html5QrCode.start(
+                    { facingMode: 'environment' },
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1,
+                    },
+                    (decodedText: string) => {
+                        // On successful scan
+                        handleRedeem(decodedText);
+                    },
+                    () => { /* ignore scan failures */ }
+                );
+                setCameraError('');
+            } catch (err: any) {
+                console.error('Camera error:', err);
+                setCameraError(
+                    err?.message?.includes('NotAllowed') || err?.toString?.()?.includes('NotAllowed')
+                        ? 'กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์'
+                        : 'ไม่สามารถเปิดกล้องได้ ลองใช้โหมดกรอกรหัสแทน'
+                );
+            }
+        };
+
+        // Small delay to ensure DOM element is rendered
+        const timer = setTimeout(initScanner, 300);
+
+        return () => {
+            clearTimeout(timer);
+            if (html5QrCode) {
+                html5QrCode.stop().catch(() => {});
+                html5QrCode.clear();
+            }
+            scannerRef.current = null;
+        };
+    }, [mode, handleRedeem]);
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
-                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <QrCode className="w-8 h-8 text-blue-600" />
-                </div>
-                <h2 className="font-bold text-gray-900 text-lg mb-2">สแกนคูปองลูกค้า</h2>
-                <p className="text-sm text-gray-500 mb-6">กรอกรหัสคูปองจาก QR Code ของลูกค้า</p>
-
-                {/* Manual Input */}
-                <div className="space-y-3">
-                    <div className="relative">
-                        <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            value={token}
-                            onChange={e => setToken(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl text-center font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                            placeholder="กรอก Redemption Token"
-                        />
-                    </div>
-                    <button
-                        onClick={handleRedeem}
-                        disabled={loading || !token.trim()}
-                        className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                        ยืนยันการใช้คูปอง
-                    </button>
-                </div>
+        <div className="space-y-4">
+            {/* Mode Toggle */}
+            <div className="flex bg-white rounded-xl border overflow-hidden">
+                <button
+                    onClick={() => { setResult(null); setMode('camera'); }}
+                    className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                        mode === 'camera' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                >
+                    <ScanLine className="w-4 h-4" /> สแกน QR
+                </button>
+                <button
+                    onClick={() => { setResult(null); setMode('manual'); }}
+                    className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                        mode === 'manual' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                >
+                    <Keyboard className="w-4 h-4" /> กรอกรหัส
+                </button>
             </div>
+
+            {/* Camera Mode */}
+            {mode === 'camera' && (
+                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                    <div className="p-4 text-center">
+                        <h2 className="font-bold text-gray-900 mb-1">📷 สแกน QR Code</h2>
+                        <p className="text-xs text-gray-500 mb-3">ส่องกล้องไปที่ QR Code ของลูกค้า</p>
+                    </div>
+
+                    {cameraError ? (
+                        <div className="px-4 pb-6 text-center">
+                            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
+                                <XCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                                <p className="text-sm text-red-600 font-medium">{cameraError}</p>
+                            </div>
+                            <button
+                                onClick={() => setMode('manual')}
+                                className="text-indigo-600 text-sm font-bold hover:underline"
+                            >
+                                ใช้โหมดกรอกรหัสแทน →
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <div id={scannerContainerId} style={{ width: '100%' }} />
+                            {loading && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                    <div className="bg-white rounded-xl px-6 py-4 flex items-center gap-3">
+                                        <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                                        <span className="text-sm font-bold">กำลังตรวจสอบ...</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Manual Mode */}
+            {mode === 'manual' && (
+                <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
+                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <QrCode className="w-7 h-7 text-blue-600" />
+                    </div>
+                    <h2 className="font-bold text-gray-900 text-lg mb-1">กรอกรหัสคูปอง</h2>
+                    <p className="text-sm text-gray-500 mb-5">กรอกรหัส Redemption Token จากลูกค้า</p>
+
+                    <div className="space-y-3">
+                        <div className="relative">
+                            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                                type="text"
+                                value={token}
+                                onChange={e => setToken(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl text-center font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                placeholder="กรอก Redemption Token"
+                            />
+                        </div>
+                        <button
+                            onClick={() => handleRedeem(token)}
+                            disabled={loading || !token.trim()}
+                            className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                            ยืนยันการใช้คูปอง
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Result */}
             {result && (
@@ -219,6 +334,9 @@ function ScannerView({ merchantId }: { merchantId: string }) {
                         <XCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
                     )}
                     <p className={`font-bold ${result.success ? 'text-green-700' : 'text-red-700'}`}>{result.message}</p>
+                    {result.success && mode === 'camera' && (
+                        <p className="text-xs text-gray-500 mt-2">กล้องจะพร้อมสแกนใหม่อัตโนมัติ</p>
+                    )}
                 </div>
             )}
         </div>
