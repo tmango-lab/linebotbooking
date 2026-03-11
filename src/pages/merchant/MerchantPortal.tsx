@@ -172,11 +172,22 @@ function ScannerView({ merchantId }: { merchantId: string }) {
         } catch { /* not JSON, use raw string */ }
 
         try {
-            const { data, error } = await supabase.functions.invoke('use-merchant-coupon', {
-                body: { merchantId, redemptionToken: actualToken }
+            // Use direct fetch instead of supabase.functions.invoke
+            // because merchant portal has no Supabase auth session (PIN-based login)
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const response = await fetch(`${supabaseUrl}/functions/v1/use-merchant-coupon`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': anonKey,
+                    'Authorization': `Bearer ${anonKey}`,
+                },
+                body: JSON.stringify({ merchantId, redemptionToken: actualToken }),
             });
 
-            if (error) throw error;
+            const data = await response.json();
 
             if (data?.success) {
                 setResult({ success: true, message: data.message || 'สแกนสำเร็จ! คูปองถูกใช้งานแล้ว ✅' });
