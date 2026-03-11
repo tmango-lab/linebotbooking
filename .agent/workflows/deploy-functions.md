@@ -73,7 +73,13 @@ npx supabase functions deploy validate-referral --no-verify-jwt
 npx supabase functions deploy process-referral-reward --no-verify-jwt
 ```
 
-11. Verify deployment
+// turbo
+11. Deploy use-merchant-coupon function
+```bash
+npx supabase functions deploy use-merchant-coupon --no-verify-jwt
+```
+
+12. Verify deployment
 ```bash
 npx supabase functions list
 ```

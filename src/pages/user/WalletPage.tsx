@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
-import { Loader2, Ticket, Clock, AlertCircle, Share2, Award } from 'lucide-react';
+import { Loader2, Ticket, Clock, AlertCircle, Share2, Award, Store } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
+import MerchantCouponPopup from '../../components/ui/MerchantCouponPopup';
 import { formatDate } from '../../utils/date';
 
 interface Coupon {
@@ -19,6 +20,9 @@ interface Coupon {
         value: any;
     };
     conditions: any;
+    merchant_id?: string | null;
+    merchant_name?: string | null;
+    reward_item?: string | null;
 }
 
 interface Wallet {
@@ -37,6 +41,7 @@ export default function WalletPage() {
     const [activeTab, setActiveTab] = useState<'my_coupons' | 'market' | 'redeem'>('my_coupons');
     const [selectedCoupon, setSelectedCoupon] = useState<Coupon | any | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [merchantPopup, setMerchantPopup] = useState<{ open: boolean; coupon: Coupon | null }>({ open: false, coupon: null });
 
     // Collect Logic
     const [collecting, setCollecting] = useState(false);
@@ -114,12 +119,41 @@ export default function WalletPage() {
 
             if (res.ok) {
                 const data = await res.json();
+
+                // Fetch merchant info for partner coupons
+                const { data: partnerCampaigns } = await supabase
+                    .from('campaigns')
+                    .select('id, merchant_id, reward_item, merchants(name)')
+                    .not('merchant_id', 'is', null);
+
+                const merchantMap = new Map<string, { merchant_id: string; merchant_name: string; reward_item: string | null }>();
+                if (partnerCampaigns) {
+                    partnerCampaigns.forEach((pc: any) => {
+                        merchantMap.set(pc.id, {
+                            merchant_id: pc.merchant_id,
+                            merchant_name: pc.merchants?.name || '',
+                            reward_item: pc.reward_item,
+                        });
+                    });
+                }
+
+                // Enrich wallet coupons with merchant info
+                const enrichCoupon = (c: Coupon): Coupon => {
+                    const info = merchantMap.get(c.campaign_id);
+                    if (info) {
+                        return { ...c, merchant_id: info.merchant_id, merchant_name: info.merchant_name, reward_item: info.reward_item };
+                    }
+                    return c;
+                };
+                data.main = data.main.map(enrichCoupon);
+                data.on_top = data.on_top.map(enrichCoupon);
+
                 setWallet(data);
 
                 // Fetch Market (Available)
                 const { data: campaigns } = await supabase
                     .from('campaigns')
-                    .select('*')
+                    .select('*, merchants(name)')
                     .eq('is_public', true)
                     .eq('status', 'active')
                     .gt('end_date', new Date().toISOString())
@@ -129,9 +163,7 @@ export default function WalletPage() {
                     const myCoupons = [...data.main, ...data.on_top];
 
                     const availableToCollect = campaigns.filter(c => {
-                        // Count how many ACTIVE coupons of this campaign the user already has
                         const collectedCount = myCoupons.filter(userCoupon => userCoupon.campaign_id === c.id).length;
-                        // Allow displaying if collected count is less than the campaign limit
                         return collectedCount < (c.limit_per_user || 1);
                     });
 
@@ -282,12 +314,22 @@ export default function WalletPage() {
                         <p>หมดอายุ: {coupon.expiry ? formatDate(coupon.expiry) : 'ไม่มีวันหมดอายุ'}</p>
                     </div>
                     {!isHistory && (
-                        <button
-                            onClick={(e) => handleUseCoupon(e, coupon)}
-                            className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}
-                        >
-                            ใช้เลย
-                        </button>
+                        coupon.merchant_id ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setMerchantPopup({ open: true, coupon }); }}
+                                className="text-xs font-bold px-4 py-2 rounded-lg transition-colors bg-orange-500 hover:bg-orange-400 text-white flex items-center gap-1"
+                            >
+                                <Store className="w-3.5 h-3.5" />
+                                ใช้ที่ร้าน
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => handleUseCoupon(e, coupon)}
+                                className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}
+                            >
+                                ใช้เลย
+                            </button>
+                        )
                     )}
                 </div>
             </div>
@@ -487,14 +529,55 @@ export default function WalletPage() {
                     <div className="space-y-6">
                         {availableCampaigns.filter(c => c.point_cost > 0).length > 0 ? (
                             <div>
+                                {/* Partner Rewards Section */}
+                                {availableCampaigns.filter(c => c.point_cost > 0 && c.merchant_id).length > 0 && (
+                                    <div className="mb-6">
+                                        <div className="flex justify-between items-center mb-3 px-1">
+                                            <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                                <Store className="w-5 h-5 text-orange-500" />
+                                                ของรางวัลร้านค้าพาร์ทเนอร์
+                                            </h2>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {availableCampaigns.filter(c => c.point_cost > 0 && c.merchant_id).map(camp => (
+                                                <div
+                                                    key={camp.id}
+                                                    onClick={() => openDetail({ campaign: camp })}
+                                                    className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform relative overflow-hidden"
+                                                >
+                                                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-orange-50 to-orange-100 rounded-bl-full -z-0"></div>
+                                                    <div className="flex-1 relative z-10 pr-2">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                                                🏪 {(camp as any).merchants?.name || 'ร้านค้า'}
+                                                            </span>
+                                                        </div>
+                                                        <h3 className="font-bold text-gray-900 leading-tight mb-1">{camp.name}</h3>
+                                                        <p className="text-xs text-gray-500 line-clamp-1">{camp.reward_item || camp.description}</p>
+                                                    </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); doRedeemPoints(userId, camp.id, camp.point_cost); }}
+                                                        disabled={collecting || points < camp.point_cost}
+                                                        className={`relative z-10 ml-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex flex-col items-center leading-none ${points >= camp.point_cost
+                                                            ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
+                                                            : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'}`}>
+                                                        <span>แลก</span>
+                                                        <span className="text-[10px] font-medium opacity-90">{camp.point_cost} แต้ม</span>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Regular Booking Coupons Section */}
                                 <div className="flex justify-between items-center mb-3 px-1">
                                     <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
                                         <Award className="w-5 h-5 text-orange-500" />
-                                        คูปองพิเศษแลกด้วยแต้ม
+                                        คูปองส่วนลดสนาม
                                     </h2>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
-                                    {availableCampaigns.filter(c => c.point_cost > 0).map(camp => (
+                                    {availableCampaigns.filter(c => c.point_cost > 0 && !c.merchant_id).map(camp => (
                                         <div
                                             key={camp.id}
                                             onClick={() => openDetail({ campaign: camp })}
@@ -516,16 +599,11 @@ export default function WalletPage() {
                                                 <p className="text-xs text-gray-500 line-clamp-1">{camp.description}</p>
                                             </div>
                                             <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    doRedeemPoints(userId, camp.id, camp.point_cost);
-                                                }}
+                                                onClick={(e) => { e.stopPropagation(); doRedeemPoints(userId, camp.id, camp.point_cost); }}
                                                 disabled={collecting || points < camp.point_cost}
                                                 className={`relative z-10 ml-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex flex-col items-center leading-none ${points >= camp.point_cost
                                                     ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
-                                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
-                                                    }`}
-                                            >
+                                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'}`}>
                                                 <span>แลก</span>
                                                 <span className="text-[10px] font-medium opacity-90">{camp.point_cost} แต้ม</span>
                                             </button>
@@ -550,6 +628,18 @@ export default function WalletPage() {
                 onClose={() => setIsDetailOpen(false)}
                 coupon={selectedCoupon}
             />
+
+            {/* Merchant Coupon QR Popup */}
+            {merchantPopup.coupon && (
+                <MerchantCouponPopup
+                    isOpen={merchantPopup.open}
+                    onClose={() => setMerchantPopup({ open: false, coupon: null })}
+                    couponId={merchantPopup.coupon.coupon_id}
+                    couponName={merchantPopup.coupon.name}
+                    rewardItem={merchantPopup.coupon.reward_item || merchantPopup.coupon.name}
+                    merchantName={merchantPopup.coupon.merchant_name || ''}
+                />
+            )}
         </div>
     );
 }

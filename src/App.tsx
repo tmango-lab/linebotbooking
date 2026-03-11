@@ -25,6 +25,8 @@ const RefundPage = lazy(() => import('./pages/admin/RefundPage'));
 const BookingSearchPage = lazy(() => import('./pages/admin/BookingSearchPage'));
 const ReferralSettingsPage = lazy(() => import('./pages/admin/ReferralSettingsPage'));
 const SystemSettingsPage = lazy(() => import('./pages/admin/SystemSettingsPage'));
+const PartnerCampaignPage = lazy(() => import('./pages/admin/PartnerCampaignPage'));
+const MerchantPortal = lazy(() => import('./pages/merchant/MerchantPortal'));
 
 // Branded Loader
 const PageLoader = ({ text = "Loading..." }) => (
@@ -182,6 +184,7 @@ function App() {
             <Route path="/booking-success" element={<BookingSuccessPage />} />
             <Route path="/affiliate-register" element={<AffiliateRegisterPage />} />
             <Route path="/affiliate-dashboard" element={<AffiliateDashboardPage />} />
+            <Route path="/merchant" element={<MerchantPortal />} />
 
             {/* Admin Routes */}
             <Route path="/admin/login" element={<LoginPage />} />
@@ -196,6 +199,7 @@ function App() {
               <Route path="reports" element={<ReportPage />} />
               <Route path="promo-codes" element={<PromoCodePage />} />
               <Route path="refunds" element={<RefundPage />} />
+              <Route path="partners" element={<PartnerCampaignPage />} />
               <Route path="referral-settings" element={<ReferralSettingsPage />} />
               <Route path="system-settings" element={<SystemSettingsPage />} />
             </Route>
