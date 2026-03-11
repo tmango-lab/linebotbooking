@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, QrCode, Clock, AlertCircle, Loader2, Copy, CheckCircle2 } from 'lucide-react';
+import { X, QrCode, Clock, AlertCircle, Loader2, Copy, CheckCircle2, ShieldCheck, TicketCheck } from 'lucide-react';
 import QRCode from 'qrcode';
 
 interface MerchantCouponPopupProps {
@@ -21,16 +21,57 @@ export default function MerchantCouponPopup({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         if (isOpen) {
+            setIsSuccess(false);
             generateToken();
         }
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
+            if (pollRef.current) clearInterval(pollRef.current);
         };
     }, [isOpen]);
+
+    // Polling logic to check if merchant has scanned the coupon
+    useEffect(() => {
+        if (!isOpen || isSuccess || timeLeft <= 0 || loading || !token) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            return;
+        }
+
+        const checkStatus = async () => {
+            try {
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                
+                // Direct fetch to bypass standard client auth issues for this specific check
+                const response = await fetch(`${supabaseUrl}/rest/v1/user_coupons?id=eq.${couponId}&select=status`, {
+                    headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` }
+                });
+                const data = await response.json();
+                
+                if (data && data[0] && data[0].status === 'USED') {
+                    setIsSuccess(true);
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    if (pollRef.current) clearInterval(pollRef.current);
+                    // Inform parent to refresh wallet after a delay
+                    setTimeout(onClose, 4000); 
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        };
+
+        pollRef.current = setInterval(checkStatus, 3000); // Poll every 3 seconds
+
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+        };
+    }, [isOpen, isSuccess, timeLeft, loading, token, couponId]);
 
     const generateToken = async () => {
         setLoading(true);
@@ -144,6 +185,22 @@ export default function MerchantCouponPopup({
                                 className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700">
                                 สร้าง QR ใหม่
                             </button>
+                        </div>
+                    ) : isSuccess ? (
+                        <div className="text-center py-8 animate-in zoom-in duration-300">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center relative">
+                                <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-75"></div>
+                                <div className="relative bg-gradient-to-tr from-green-500 to-emerald-400 w-full h-full rounded-full flex items-center justify-center shadow-lg shadow-green-500/30">
+                                    <TicketCheck className="w-10 h-10 text-white" />
+                                </div>
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900 mb-2">ใช้งานสำเร็จ!</h3>
+                            <p className="text-gray-500 text-sm mb-6 pb-2">ร้านค้าได้สแกนคูปองของคุณเรียบร้อยแล้ว<br/>ขอให้มีความสุขกับบริการครับ 😊</p>
+                            
+                            <div className="bg-emerald-50 rounded-2xl p-3 flex justify-center items-center gap-2 mb-2 border border-emerald-100">
+                                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                                <span className="font-bold text-emerald-700 text-sm">คูปองถูกตัดออกจากระบบแล้ว</span>
+                            </div>
                         </div>
                     ) : (
                         <>
