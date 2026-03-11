@@ -227,8 +227,17 @@ function ScannerView({ merchantId }: { merchantId: string }) {
         return () => {
             clearTimeout(timer);
             if (html5QrCode) {
-                html5QrCode.stop().catch(() => {});
-                html5QrCode.clear();
+                const scanner = html5QrCode;
+                // Must check isScanning before calling stop
+                if (scanner.isScanning) {
+                    scanner.stop().then(() => {
+                        scanner.clear();
+                    }).catch(() => {
+                        try { scanner.clear(); } catch { /* ignore */ }
+                    });
+                } else {
+                    try { scanner.clear(); } catch { /* ignore */ }
+                }
             }
             scannerRef.current = null;
         };
