@@ -157,15 +157,23 @@ function ScannerView({ merchantId }: { merchantId: string }) {
     const scannerContainerId = 'qr-scanner-container';
     const isProcessingRef = useRef(false);
 
-    const handleRedeem = useCallback(async (redemptionToken: string) => {
-        if (!redemptionToken.trim() || isProcessingRef.current) return;
+    const handleRedeem = useCallback(async (rawInput: string) => {
+        if (!rawInput.trim() || isProcessingRef.current) return;
         isProcessingRef.current = true;
         setLoading(true);
         setResult(null);
 
+        // QR code encodes JSON: {"couponId":"...","token":"..."}
+        // Manual input is just the token string
+        let actualToken = rawInput.trim();
+        try {
+            const parsed = JSON.parse(rawInput);
+            if (parsed.token) actualToken = parsed.token;
+        } catch { /* not JSON, use raw string */ }
+
         try {
             const { data, error } = await supabase.functions.invoke('use-merchant-coupon', {
-                body: { merchantId, redemptionToken: redemptionToken.trim() }
+                body: { merchantId, redemptionToken: actualToken }
             });
 
             if (error) throw error;
