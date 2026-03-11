@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
 import { LogIn, QrCode, Store, Loader2, Camera, CheckCircle2, XCircle, BarChart3, LogOut, Hash, RefreshCw } from 'lucide-react';
 
