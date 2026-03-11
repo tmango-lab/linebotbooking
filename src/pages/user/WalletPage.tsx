@@ -638,6 +638,7 @@ export default function WalletPage() {
                     couponName={merchantPopup.coupon.name}
                     rewardItem={merchantPopup.coupon.reward_item || merchantPopup.coupon.name}
                     merchantName={merchantPopup.coupon.merchant_name || ''}
+                    userId={userId}
                 />
             )}
         </div>

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/api';
 import { X, QrCode, Clock, AlertCircle, Loader2, Copy, CheckCircle2 } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -10,10 +9,11 @@ interface MerchantCouponPopupProps {
     couponName: string;
     rewardItem: string;
     merchantName: string;
+    userId: string;
 }
 
 export default function MerchantCouponPopup({
-    isOpen, onClose, couponId, couponName, rewardItem, merchantName
+    isOpen, onClose, couponId, couponName, rewardItem, merchantName, userId
 }: MerchantCouponPopupProps) {
     const [token, setToken] = useState<string | null>(null);
     const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -36,22 +36,27 @@ export default function MerchantCouponPopup({
         setLoading(true);
         setError('');
         try {
-            // Generate a random token
-            const newToken = crypto.randomUUID();
-            const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+            // Call Edge Function to generate and save token (bypasses RLS)
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-            // Save token to user_coupons
-            const { error: updateError } = await supabase
-                .from('user_coupons')
-                .update({
-                    redemption_token: newToken,
-                    redemption_token_expires_at: expiresAt
-                })
-                .eq('id', couponId)
-                .eq('status', 'ACTIVE');
+            const response = await fetch(`${supabaseUrl}/functions/v1/generate-redemption-token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': anonKey,
+                    'Authorization': `Bearer ${anonKey}`,
+                },
+                body: JSON.stringify({ couponId, userId }),
+            });
 
-            if (updateError) throw updateError;
+            const data = await response.json();
 
+            if (!data.success) {
+                throw new Error(data.error || 'ไม่สามารถสร้าง Token ได้');
+            }
+
+            const newToken = data.token;
             setToken(newToken);
 
             // Generate QR code
