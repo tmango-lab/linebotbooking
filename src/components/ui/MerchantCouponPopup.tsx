@@ -147,7 +147,7 @@ export default function MerchantCouponPopup({
             <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 text-white">
-                    <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white">
+                    <button onClick={onClose} className="bg-transparent absolute top-4 right-4 text-white/70 hover:text-white">
                         <X className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-3 mb-2">
