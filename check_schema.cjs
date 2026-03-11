@@ -1,24 +1,11 @@
-require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-);
-
-async function check() {
-  console.log('--- Checking Referrals Foreign Keys ---');
-  // Use a query that would fail if foreign key is missing
-  const { data, error } = await supabase
-    .from('referrals')
-    .select('*, referee:profiles!referee_id(team_name)')
-    .limit(1);
-    
-  if (error) {
-    console.log('Join Failed:', error.message);
-  } else {
-    console.log('Join Succeeded');
-  }
+async function checkSchema() {
+  const supabase = createClient(
+    'https://kyprnvazjyilthdzhqxh.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5cHJudmF6anlpbHRoZHpocXhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODQ2ODg0MCwiZXhwIjoyMDg0MDQ0ODQwfQ.38YYSQQeZuT8BOyb1-nKUp2wzF8RYtFBeo4j2mRcAG0'
+  );
+  const { data, error } = await supabase.from('user_coupons').select('*').limit(1);
+  console.log("data:", data, "error:", error);
 }
-
-check();
+checkSchema();

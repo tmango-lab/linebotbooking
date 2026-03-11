@@ -38,8 +38,7 @@ export default function MerchantCouponPopup({
 
     // Polling logic to check if merchant has scanned the coupon
     useEffect(() => {
-        if (!isOpen || isSuccess || timeLeft <= 0 || loading || !token) {
-            if (pollRef.current) clearInterval(pollRef.current);
+        if (!isOpen || isSuccess || !token) {
             return;
         }
 
@@ -56,8 +55,6 @@ export default function MerchantCouponPopup({
                 
                 if (data && data[0] && data[0].status === 'USED') {
                     setIsSuccess(true);
-                    if (timerRef.current) clearInterval(timerRef.current);
-                    if (pollRef.current) clearInterval(pollRef.current);
                     // Inform parent to refresh wallet after a delay
                     setTimeout(onClose, 4000); 
                 }
@@ -66,12 +63,9 @@ export default function MerchantCouponPopup({
             }
         };
 
-        pollRef.current = setInterval(checkStatus, 3000); // Poll every 3 seconds
-
-        return () => {
-            if (pollRef.current) clearInterval(pollRef.current);
-        };
-    }, [isOpen, isSuccess, timeLeft, loading, token, couponId]);
+        const interval = setInterval(checkStatus, 3000); // Poll every 3 seconds
+        return () => clearInterval(interval);
+    }, [isOpen, isSuccess, token, couponId, onClose]);
 
     const generateToken = async () => {
         setLoading(true);
