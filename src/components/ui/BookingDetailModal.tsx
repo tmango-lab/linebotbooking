@@ -514,11 +514,6 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                     <div className="flex items-center justify-between mb-3">
                                         <div>
                                             <h4 className="font-bold text-indigo-900 text-lg">{booking.court_name || 'สนามไม่ระบุ'}</h4>
-                                            {booking.created_at && (
-                                                <div className="text-xs text-indigo-600 mt-1">
-                                                    ทำการจองเมื่อ: {formatDateTime(booking.created_at)}
-                                                </div>
-                                            )}
                                         </div>
                                         <span className="bg-white text-indigo-600 text-xs font-bold px-2 py-1 rounded border border-indigo-200">
                                             ID: {booking.id}
