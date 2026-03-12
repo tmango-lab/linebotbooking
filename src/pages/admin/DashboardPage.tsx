@@ -22,6 +22,7 @@ interface MatchdayMatch {
     is_promo?: boolean;
     discount?: number;
     is_refunded?: boolean;
+    created_at?: string | null;
     [key: string]: any;
 }
 
