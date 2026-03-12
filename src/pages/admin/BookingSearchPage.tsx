@@ -346,6 +346,7 @@ export default function BookingSearchPage() {
             payment_status: b.payment_status || 'unpaid',
             payment_slip_url: b.payment_slip_url,
             timeout_at: b.timeout_at,
+            created_at: b.created_at,
         });
         setModalOpen(true);
     }

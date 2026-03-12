@@ -190,7 +190,8 @@ serve(async (req) => {
             payment_slip_url: b.payment_slip_url || null,
             timeout_at: b.timeout_at || null,
             attendance_status: b.attendance_status || null, // [NEW] Pass attendance status
-            agreed_to_referral_terms: b.agreed_to_referral_terms || false // [NEW] Referral consent
+            agreed_to_referral_terms: b.agreed_to_referral_terms || false, // [NEW] Referral consent
+            created_at: b.created_at || null // [NEW] Pass booking creation time
         }));
 
         console.log(`[Response] Returning ${bookings.length} bookings. Sample Coupon Count: ${bookings[0]?.coupons?.length || 0}`);
