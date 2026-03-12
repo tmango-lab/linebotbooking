@@ -912,3 +912,53 @@ Points are strictly awarded via a PostgreSQL Trigger (`handle_booking_points_ear
 ### 20.5 Admin Interface
 - Admins configure the `point_cost` in the **Campaign Management (V2)** page (`CampaignModal.tsx`) under the **"C. เงื่อนไขการใช้งาน"** section.
 - If `point_cost` is > 0, the coupon transitions from a standard "Market" item to a "Redeemable" reward.
+
+---
+
+## 21. Merchant Redemption & Partner Campaigns (Phase 5)
+
+### 21.1 Overview
+The system allows the booking system to partner with external merchants (e.g., local cafes, sports shops). Users can spend their accumulated points to redeem coupons that are valid at these partner stores, and merchants have a dedicated app interface to scan and invalidate these coupons in real-time.
+
+### 21.2 Data Schema
+
+1. **`merchants` Table**:
+   - `id`: UUID.
+   - `name`: Name of the partner store.
+   - `pin_code`: A secure 6-digit PIN used by the merchant to log into their dedicated portal.
+2. **`campaigns` Table Extensions**:
+   - `merchant_id`: Links a campaign (the reward) to a specific `merchant`.
+   - `reward_item`: Describes the specific item being redeemed (e.g., "Free Americano 1 Cup").
+
+### 21.3 The Merchant Portal Architecture
+Located at `/#/merchant`, this is a separate Single Page Application (SPA) flow explicitly designed for external partners.
+
+1. **Authentication (PIN-Based)**:
+   - Instead of complex email/password flows, merchants log in using a simple 6-digit PIN.
+   - This checks against the `merchants` table via a standard Supabase query.
+2. **Scanner & Dashboard**:
+   - Built with Tailwind CSS for a premium mobile-first experience.
+   - Uses `html5-qrcode` to scan customer QR codes.
+   - Automatically polls the server for "Session Scans" and aggregate data (Today/Month/Total).
+
+### 21.4 Real-time Redemption Protocol (RLS Bypass Flow)
+To handle redeeming coupons securely without requiring the merchant app to have a full Supabase Auth session, the system uses a signed token architecture and an Edge Function payload.
+
+1. **Customer Generation (QR creation)**:
+   - When a customer clicks "Use at Store", the `MerchantCouponPopup.tsx` calls the Edge Function `generate-redemption-token`.
+   - **Edge Function Role**: Uses `Supabase Service Role Key` to bypass Row Level Security (RLS) constraints. It creates a short-lived random string (`redemption_token`), saves it to `user_coupons`, and sets `expires_at` to 15 minutes.
+   - The Customer UI generates a QR Code containing `{"couponId": "...", "token": "..."}`.
+2. **Merchant Execution**:
+   - The merchant scans the QR code.
+   - The Merchant Portal calls the Edge Function `use-merchant-coupon` via a direct `fetch` using the Supabase `anon` key.
+   - **Edge Function Role**: Validates the `token` against the DB. If it matches and hasn't expired, it updates `user_coupons.status` to `USED` and records `used_at = NOW()`.
+3. **Real-time UX Polling**:
+   - To provide "magic" feedback to the customer, `MerchantCouponPopup.tsx` polls the database every 3 seconds to check `status === 'USED'`.
+   - Once the merchant edge function completes the update, the next poll loop detects the `USED` status, and the customer's phone immediately transitions to a full-screen "Success" animation.
+
+### 21.5 Dynamic Points Accumulation
+Instead of hardcoding point formulas, the system calculates points dynamically based on global settings:
+- **`system_settings.point_earn_condition_thb`**: The THB threshold (e.g., Every 100 THB).
+- **`system_settings.point_earn_reward`**: The points awarded per threshold (e.g., earn 10 points).
+- The Postgres trigger `handle_booking_points_earn` uses these settings. Formula: `FLOOR(Price / point_earn_condition_thb) * point_earn_reward`.
+

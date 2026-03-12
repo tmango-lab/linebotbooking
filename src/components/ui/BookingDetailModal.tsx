@@ -33,6 +33,7 @@ interface BookingDetailModalProps {
             amount: number;
             type: 'main' | 'ontop';
         }[];
+        created_at?: string | null;
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void;
@@ -525,6 +526,12 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                             <Clock className="w-4 h-4 opacity-70" />
                                             <span className="font-medium">{formatTime(booking.time_start)} - {formatTime(booking.time_end)}</span>
                                         </div>
+                                        {booking.created_at && (
+                                            <div className="flex items-center gap-2 text-xs text-indigo-600 bg-indigo-100/50 px-2 py-1 rounded">
+                                                <Calendar className="w-3 h-3 opacity-70" />
+                                                <span className="font-medium">ทำการจองเมื่อ: {formatDateTime(booking.created_at)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
