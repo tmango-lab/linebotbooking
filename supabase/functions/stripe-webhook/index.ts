@@ -300,14 +300,29 @@ serve(async (req) => {
 
             if (bookingId) {
                 console.log(`[Stripe Webhook] Payment failed for booking: ${bookingId}`);
-                // Optionally update booking status
-                await supabase
+                
+                // Fetch the booking first to check its current status
+                const { data: currentBooking, error: fetchError } = await supabase
                     .from('bookings')
-                    .update({
-                        payment_status: 'failed',
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('booking_id', bookingId);
+                    .select('payment_status')
+                    .eq('booking_id', bookingId)
+                    .single();
+
+                if (!fetchError && currentBooking) {
+                    // Only update to failed if it hasn't been paid already
+                    if (currentBooking.payment_status !== 'paid' && currentBooking.payment_status !== 'deposit_paid') {
+                        await supabase
+                            .from('bookings')
+                            .update({
+                                payment_status: 'failed',
+                                updated_at: new Date().toISOString(),
+                            })
+                            .eq('booking_id', bookingId);
+                        console.log(`[Stripe Webhook] Booking ${bookingId} payment_status updated to failed`);
+                    } else {
+                        console.log(`[Stripe Webhook] Ignored payment_failed for ${bookingId} as it is already ${currentBooking.payment_status}`);
+                    }
+                }
             }
 
             return new Response(JSON.stringify({ received: true }), { status: 200 });

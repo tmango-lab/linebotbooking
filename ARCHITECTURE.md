@@ -453,6 +453,11 @@ To solve the "Missing required fields" issue, the system now uses a two-tier str
 2.  **URL Fallback**: If LIFF is not initialized or in a browser, fallback to `?userId=` parameter.
  Implementation: `src/lib/liff.ts` -> `getLiffUser()`.
 
+### Flash Deal Link Automation (Force Payment)
+For promotional broadcasts, the LIFF URL can enforce payment methods and pre-fill fields:
+- **`?forcePayment=QR`**: Enforces QR payment, hiding cash options and showing an alert banner.
+- **`?field=6&time=17:00`**: Pre-fills the court selection and time slot.
+
 ---
 
 ## 11. QR Deposit & Payment Flow (2026-02)
@@ -591,6 +596,12 @@ Admins can manage tags directly from the **Customer Detail Page**:
 2.  **Add Tag**: Users can type a new tag name and press Enter to add it.
 3.  **Remove Tag**: Clicking the "X" on a tag chip removes it immediately.
 4.  **Sync**: Changes are synced to the `profiles` table in real-time via Supabase.
+
+### 14.4 Full Admin Broadcast Page (2026-03)
+A dedicated interface located at `/admin/broadcast` to empower marketing efforts via LINE Flex Messages:
+1.  **Campaign Integration**: Direct dropdown to link active campaigns. Automatically extracts the first `secret_code` to embed into the generated Flash Deal link.
+2.  **Force Payment Settings**: Admins can easily configure the final LIFF link to contain `&forcePayment=QR`, ensuring flash sales are strictly paid via PromptPay without manual error.
+3.  **Audience Control**: Connects with `send-broadcast` Edge Function, allowing targeting 'Everyone' (broadcast) or specific tags (multicast) up to 500 users per API call.
 
 ---
 
