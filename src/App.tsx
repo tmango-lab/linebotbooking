@@ -27,6 +27,7 @@ const ReferralSettingsPage = lazy(() => import('./pages/admin/ReferralSettingsPa
 const SystemSettingsPage = lazy(() => import('./pages/admin/SystemSettingsPage'));
 const PartnerCampaignPage = lazy(() => import('./pages/admin/PartnerCampaignPage'));
 const MerchantPortal = lazy(() => import('./pages/merchant/MerchantPortal'));
+const BroadcastPage = lazy(() => import('./pages/admin/BroadcastPage'));
 
 // Branded Loader
 const PageLoader = ({ text = "Loading..." }) => (
@@ -202,6 +203,7 @@ function App() {
               <Route path="partners" element={<PartnerCampaignPage />} />
               <Route path="referral-settings" element={<ReferralSettingsPage />} />
               <Route path="system-settings" element={<SystemSettingsPage />} />
+              <Route path="broadcast" element={<BroadcastPage />} />
             </Route>
 
             {/* Catch All - Redirect to Status Page */}

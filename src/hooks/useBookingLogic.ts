@@ -67,8 +67,14 @@ export const useBookingLogic = () => {
 
     // Date State
     const todayStr = new Date().toISOString().split('T')[0];
-    const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+    const urlDate = searchParams.get('date');
+    const [selectedDate, setSelectedDate] = useState<string>(urlDate || todayStr);
     const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+
+    // [FLASH DEAL] URL Params for pre-selecting field + time
+    const urlFieldId = searchParams.get('fieldId') ? Number(searchParams.get('fieldId')) : null;
+    const urlStartTime = searchParams.get('startTime');
+    const urlEndTime = searchParams.get('endTime');
 
     const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
 
@@ -164,6 +170,21 @@ export const useBookingLogic = () => {
                         price_pre: f.price_pre || 0,
                         price_post: f.price_post || 0
                     })));
+
+                    // [FLASH DEAL] Auto-select field + time from URL params
+                    if (urlFieldId && urlStartTime && urlEndTime) {
+                        const fieldExists = fieldsData.some(f => f.id === urlFieldId);
+                        if (fieldExists) {
+                            setSelection({
+                                fieldId: urlFieldId,
+                                startTime: urlStartTime,
+                                endTime: urlEndTime
+                            });
+                            console.log(`[Flash Deal] Auto-selected: Field ${urlFieldId} | ${urlStartTime}-${urlEndTime}`);
+                        } else {
+                            console.warn(`[Flash Deal] Field ${urlFieldId} not found in active fields.`);
+                        }
+                    }
                 }
 
                 // 2. Process Bookings
