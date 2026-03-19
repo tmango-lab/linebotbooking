@@ -39,7 +39,8 @@ const BookingV3Page: React.FC = () => {
         manualOntopCoupon,
         setManualMainCoupon,
         setManualOntopCoupon,
-        allowedPaymentMethods, // [NEW] From hook
+        allowedPaymentMethods,
+        forcePayment,
         referralCode,
         referralDiscount,
         referralValid,
@@ -190,7 +191,8 @@ const BookingV3Page: React.FC = () => {
                     finalPrice,
                     couponName: appliedCoupon?.name
                 }}
-                allowedPaymentMethods={allowedPaymentMethods} // [new]
+                allowedPaymentMethods={allowedPaymentMethods}
+                forcedPayment={forcePayment as 'QR' | 'CASH' | null | undefined}
                 initialProfile={userProfile ? {
                     team_name: userProfile.team_name,
                     phone_number: userProfile.phone_number

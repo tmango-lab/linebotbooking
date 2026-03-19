@@ -39,7 +39,8 @@ const BookingV2Page: React.FC = () => {
         manualOntopCoupon,
         setManualMainCoupon,
         setManualOntopCoupon,
-        allowedPaymentMethods, // [NEW] added for validation
+        allowedPaymentMethods,
+        forcePayment,
         referralCode,
         referralDiscount,
         referralValid,
@@ -206,7 +207,8 @@ const BookingV2Page: React.FC = () => {
                     team_name: userProfile.team_name,
                     phone_number: userProfile.phone_number
                 } : null}
-                allowedPaymentMethods={allowedPaymentMethods} // [NEW] Pass allowed methods
+                allowedPaymentMethods={allowedPaymentMethods}
+                forcedPayment={forcePayment as 'QR' | 'CASH' | null | undefined}
                 requireTermConsent={referralValid && referralRequireTermConsent}
                 termConsentMessage={referralTermConsentMessage}
                 hasConsentedTerms={hasConsentedTerms}

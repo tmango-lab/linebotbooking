@@ -14,7 +14,8 @@ interface BookingConfirmationModalProps {
         finalPrice: number;
         couponName?: string;
     };
-    allowedPaymentMethods: string[] | null; // [new]
+    allowedPaymentMethods: string[] | null;
+    forcedPayment?: 'QR' | 'CASH' | null; // [FLASH DEAL] Force a specific payment method
     initialProfile: {
         team_name: string;
         phone_number: string;
@@ -32,12 +33,15 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     bookingDetails,
     initialProfile,
     allowedPaymentMethods,
+    forcedPayment,
     requireTermConsent,
     termConsentMessage,
     hasConsentedTerms,
     onConsentChange
 }) => {
-    const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(
+        forcedPayment === 'QR' ? 'qr' : forcedPayment === 'CASH' ? 'field' : null
+    );
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form State
@@ -54,24 +58,20 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
 
     if (!isOpen) return null;
 
-    // Filter payment methods based on coupon
-    const allowedMethods = (allowedPaymentMethods || []).map((m: string) => m.toLowerCase());
+    // Filter payment methods based on coupon OR forced payment
+    const effectiveAllowed = forcedPayment
+        ? (forcedPayment === 'QR' ? ['qr'] : ['field'])
+        : (allowedPaymentMethods || []).map((m: string) => m.toLowerCase());
 
-    // Check if empty (allow all) or contains QR variations
-    const showQR = !allowedPaymentMethods || allowedMethods.length === 0 ||
-        allowedMethods.some((m: string) =>
-            m.includes('qr') ||
-            m.includes('promt') ||
-            m.includes('prompt')
-        );
+    const showQR = !forcedPayment
+        ? (!allowedPaymentMethods || effectiveAllowed.length === 0 ||
+            effectiveAllowed.some((m: string) => m.includes('qr') || m.includes('promt') || m.includes('prompt')))
+        : forcedPayment === 'QR';
 
-    // Check if empty (allow all) or contains Cash variations
-    const showField = !allowedPaymentMethods || allowedMethods.length === 0 ||
-        allowedMethods.some((m: string) =>
-            m.includes('field') ||
-            m.includes('เงินสด') ||
-            m.includes('cash')
-        );
+    const showField = !forcedPayment
+        ? (!allowedPaymentMethods || effectiveAllowed.length === 0 ||
+            effectiveAllowed.some((m: string) => m.includes('field') || m.includes('เงินสด') || m.includes('cash')))
+        : forcedPayment === 'CASH';
 
     const handleConfirm = () => {
         if (!teamName.trim()) {
@@ -182,6 +182,16 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
 
                     <div className="space-y-3">
                         <h3 className="font-bold text-gray-800 text-xs uppercase tracking-wider text-center">เลือกวิธีชำระเงิน</h3>
+
+                        {/* [FLASH DEAL] Forced payment banner */}
+                        {forcedPayment && (
+                            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 text-center">
+                                <p className="text-xs font-bold text-orange-700">
+                                    {forcedPayment === 'QR' ? '📲 โปรนี้ต้องชำระผ่าน QR PromptPay เท่านั้น' : '💵 โปรนี้ต้องชำระเงินสดที่สนามเท่านั้น'}
+                                </p>
+                            </div>
+                        )}
+
                         <div className={`grid gap-3 ${(showQR && showField) ? 'grid-cols-2' : 'grid-cols-1 max-w-[200px] mx-auto'}`}>
                             {showQR && (
                                 <button

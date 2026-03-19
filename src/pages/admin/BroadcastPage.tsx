@@ -1,10 +1,20 @@
-import { useState, useMemo } from 'react';
-import { Send, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Plus, Trash2, Radio } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Send, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Plus, Trash2, Radio, Lock } from 'lucide-react';
+import { supabase } from '../../lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TemplateType = 'flash_deal' | 'simple_message' | 'custom_json';
 type AudienceMode = 'broadcast' | 'multicast';
+type ForcePayment = '' | 'QR' | 'CASH';
+
+interface Campaign {
+    id: number;
+    name: string;
+    discount_amount: number;
+    discount_percent: number;
+    description?: string;
+}
 
 interface TimeSlot {
     startTime: string;
@@ -26,7 +36,8 @@ function buildFlashDealCarousel(
     fieldName: string,
     slots: TimeSlot[],
     promoCode: string,
-    date: string
+    date: string,
+    forcePayment: ForcePayment = ''
 ) {
     const color = FIELD_COLORS[fieldId] || '#334155';
     const bubbles = slots.map((slot) => ({
@@ -101,7 +112,7 @@ function buildFlashDealCarousel(
                 action: {
                     type: 'uri',
                     label: `จองคิว ${slot.startTime} เลย!`,
-                    uri: `${LIFF_BASE}/?fieldId=${fieldId}&startTime=${slot.startTime}&endTime=${slot.endTime}${date ? `&date=${date}` : ''}`
+                    uri: `${LIFF_BASE}/?fieldId=${fieldId}&startTime=${slot.startTime}&endTime=${slot.endTime}${date ? `&date=${date}` : ''}${forcePayment ? `&forcePayment=${forcePayment}` : ''}`
                 }
             }]
         }
@@ -241,8 +252,12 @@ export default function BroadcastPage() {
         { startTime: '17:00', endTime: '18:00' },
         { startTime: '18:00', endTime: '19:00' },
     ]);
-    const [promoCode, setPromoCode] = useState('FLASH100');
+    const [promoCode, setPromoCode] = useState('');
+    const [selectedCampaignId, setSelectedCampaignId] = useState<number | ''>('');
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [campaignsLoading, setCampaignsLoading] = useState(false);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [forcePayment, setForcePayment] = useState<ForcePayment>('');
 
     // Simple message fields
     const [msgHeader, setMsgHeader] = useState('');
@@ -263,10 +278,33 @@ export default function BroadcastPage() {
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
     const [showPreview, setShowPreview] = useState(true);
 
+    // Load campaigns on mount
+    useEffect(() => {
+        const fetchCampaigns = async () => {
+            setCampaignsLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('campaigns')
+                    .select('id, name, discount_amount, discount_percent, description')
+                    .eq('is_active', true)
+                    .order('id', { ascending: false });
+                if (!error && data) setCampaigns(data);
+            } catch (e) {
+                console.error('Failed to fetch campaigns:', e);
+            } finally {
+                setCampaignsLoading(false);
+            }
+        };
+        fetchCampaigns();
+    }, []);
+
     // ── Build message object for preview + sending ──
+    const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+    const effectivePromoCode = promoCode || (selectedCampaign ? `CAMP-${selectedCampaign.id}` : '');
+
     const builtMessage = useMemo(() => {
         if (template === 'flash_deal') {
-            return buildFlashDealCarousel(fieldId, fieldName, slots, promoCode, date);
+            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment);
         }
         if (template === 'simple_message') {
             return buildSimpleMessage(msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor);
@@ -275,7 +313,7 @@ export default function BroadcastPage() {
             try { return JSON.parse(customJson); } catch { return null; }
         }
         return null;
-    }, [template, fieldId, fieldName, slots, promoCode, date, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson]);
+    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson]);
 
     // ── Handlers ──
     const addSlot = () => setSlots(s => [...s, { startTime: '19:00', endTime: '20:00' }]);
@@ -379,17 +417,60 @@ export default function BroadcastPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">วันที่</label>
-                                        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" />
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">วันที่</label>
+                                    <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" />
+                                </div>
+
+                                {/* Campaign / Promo Code row */}
+
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs font-medium text-gray-600">แคมเปญ / โค้ดส่วนลด</label>
+                                        <a href="#/admin/campaigns" target="_blank"
+                                            className="text-xs text-indigo-500 hover:text-indigo-700 underline">
+                                            + สร้างแคมเปญใหม่
+                                        </a>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">โค้ดส่วนลด</label>
-                                        <input value={promoCode} onChange={e => setPromoCode(e.target.value)}
-                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
-                                            placeholder="เช่น FLASH100" />
+                                    <select
+                                        value={selectedCampaignId}
+                                        onChange={e => setSelectedCampaignId(e.target.value === '' ? '' : Number(e.target.value))}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300 mb-2"
+                                    >
+                                        <option value="">-- ไม่เชื่อมแคมเปญ --</option>
+                                        {campaignsLoading && <option disabled>กำลังโหลด...</option>}
+                                        {campaigns.map(c => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name} {c.discount_amount ? `(-฿${c.discount_amount})` : c.discount_percent ? `(-${c.discount_percent}%)` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input value={promoCode} onChange={e => setPromoCode(e.target.value)}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                                        placeholder={selectedCampaignId ? `โค้ดแคมเปญ (optional override)` : "โค้ดส่วนลด เช่น FLASH100"} />
+                                    {effectivePromoCode && (
+                                        <p className="text-xs text-indigo-500 mt-1">📌 โค้ดที่จะแสดงในข้อความ: <span className="font-bold">{effectivePromoCode}</span></p>
+                                    )}
+                                </div>
+
+                                {/* Force Payment */}
+                                <div>
+                                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-2">
+                                        <Lock size={11} /> บังคับวิธีชำระเงิน
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {([
+                                            { val: '' as ForcePayment, label: '🔓 เปิดทั้งคู่', desc: 'QR + เงินสด' },
+                                            { val: 'QR' as ForcePayment, label: '📲 QR เท่านั้น', desc: 'PromptPay' },
+                                            { val: 'CASH' as ForcePayment, label: '💵 เงินสด', desc: 'หน้าสนาม' },
+                                        ]).map(opt => (
+                                            <button key={opt.val} onClick={() => setForcePayment(opt.val)}
+                                                className={`p-2.5 rounded-xl border-2 text-left transition-all ${forcePayment === opt.val ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                <p className="font-semibold text-xs text-gray-800">{opt.label}</p>
+                                                <p className="text-[10px] text-gray-400">{opt.desc}</p>
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -567,7 +648,7 @@ export default function BroadcastPage() {
                                 <div className="mt-3 border-t border-gray-100 pt-3">
                                     <p className="text-[11px] text-gray-500 font-medium mb-1">ตัวอย่าง URL สล็อตแรก:</p>
                                     <p className="text-[10px] text-indigo-500 break-all font-mono bg-indigo-50 p-2 rounded-lg">
-                                        {`${LIFF_BASE}/?fieldId=${fieldId}&startTime=${slots[0].startTime}&endTime=${slots[0].endTime}&date=${date}`}
+                                        {`${LIFF_BASE}/?fieldId=${fieldId}&startTime=${slots[0].startTime}&endTime=${slots[0].endTime}&date=${date}${forcePayment ? `&forcePayment=${forcePayment}` : ''}`}
                                     </p>
                                 </div>
                             )}

@@ -76,6 +76,9 @@ export const useBookingLogic = () => {
     const urlStartTime = searchParams.get('startTime');
     const urlEndTime = searchParams.get('endTime');
 
+    // [FLASH DEAL] Force payment method from URL (e.g. forcePayment=QR)
+    const urlForcePayment = searchParams.get('forcePayment'); // 'QR' | 'CASH' | null
+
     const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
 
     // [REFERRAL] Referral code from URL
@@ -527,6 +530,7 @@ export const useBookingLogic = () => {
         referralValid,
         referralError,
         referralRequireTermConsent,
-        referralTermConsentMessage
+        referralTermConsentMessage,
+        forcePayment: urlForcePayment, // [FLASH DEAL] expose forced payment method
     };
 };
