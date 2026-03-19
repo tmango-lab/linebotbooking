@@ -9,7 +9,7 @@ type AudienceMode = 'broadcast' | 'multicast';
 type ForcePayment = '' | 'QR' | 'CASH';
 
 interface Campaign {
-    id: number;
+    id: string;
     name: string;
     discount_amount: number;
     discount_percent: number;
@@ -254,7 +254,7 @@ export default function BroadcastPage() {
         { startTime: '18:00', endTime: '19:00' },
     ]);
     const [promoCode, setPromoCode] = useState('');
-    const [selectedCampaignId, setSelectedCampaignId] = useState<number | ''>('');
+    const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [campaignsLoading, setCampaignsLoading] = useState(false);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -437,7 +437,7 @@ export default function BroadcastPage() {
                                     </div>
                                     <select
                                         value={selectedCampaignId}
-                                        onChange={e => setSelectedCampaignId(e.target.value === '' ? '' : Number(e.target.value))}
+                                        onChange={e => setSelectedCampaignId(e.target.value)}
                                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300 mb-2"
                                     >
                                         <option value="">-- ไม่เชื่อมแคมเปญ --</option>
