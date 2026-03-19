@@ -14,6 +14,7 @@ interface Campaign {
     discount_amount: number;
     discount_percent: number;
     description?: string;
+    secret_codes?: string[];
 }
 
 interface TimeSlot {
@@ -285,9 +286,9 @@ export default function BroadcastPage() {
             try {
                 const { data, error } = await supabase
                     .from('campaigns')
-                    .select('id, name, discount_amount, discount_percent, description')
-                    .eq('is_active', true)
-                    .order('id', { ascending: false });
+                    .select('id, name, discount_amount, discount_percent, description, secret_codes')
+                    .eq('status', 'active')
+                    .order('created_at', { ascending: false });
                 if (!error && data) setCampaigns(data);
             } catch (e) {
                 console.error('Failed to fetch campaigns:', e);
@@ -300,7 +301,8 @@ export default function BroadcastPage() {
 
     // ── Build message object for preview + sending ──
     const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
-    const effectivePromoCode = promoCode || (selectedCampaign ? `CAMP-${selectedCampaign.id}` : '');
+    // Use: manual code > campaign secret_codes[0] > empty
+    const effectivePromoCode = promoCode || (selectedCampaign?.secret_codes?.[0] ?? '');
 
     const builtMessage = useMemo(() => {
         if (template === 'flash_deal') {
