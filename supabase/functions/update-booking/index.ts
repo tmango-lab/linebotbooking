@@ -146,9 +146,30 @@ serve(async (req) => {
         // Check Existence and Fetch Details for Anti-Gaming Logic
         const { data: existing, error: fetchError } = await supabase
             .from('bookings')
-            .select('booking_id, price_total_thb, duration_h, field_no, time_from')
+            .select('booking_id, user_id, price_total_thb, duration_h, field_no, time_from')
             .eq('booking_id', String(matchId))
             .single();
+
+        // Auto-link user by phone if needed
+        if (tel !== undefined) {
+            if (!existing || !existing.user_id || existing.user_id === 'admin') {
+                const cleanPhone = tel.replace(/\D/g, '');
+                if (cleanPhone.length >= 9) {
+                    const { data: userMatch } = await supabase
+                        .from('profiles')
+                        .select('user_id')
+                        .eq('phone_number', cleanPhone)
+                        .not('user_id', 'like', 'manual_%')
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (userMatch) {
+                        updatePayload.user_id = userMatch.user_id;
+                        console.log(`[Update Booking] Auto-linked existing user: ${userMatch.user_id} from phone: ${cleanPhone}`);
+                    }
+                }
+            }
+        }
 
         let localData, localError;
 
@@ -298,7 +319,7 @@ serve(async (req) => {
 
             const insertPayload = {
                 booking_id: String(matchId),
-                user_id: 'admin',
+                user_id: updatePayload.user_id || 'admin',
                 status: 'confirmed',
                 source: source || 'admin',
                 ...updatePayload

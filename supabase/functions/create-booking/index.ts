@@ -84,6 +84,27 @@ serve(async (req) => {
         let isPromo = false;
         let adminNote = note || '';
 
+        // 2.5 Auto-link User by Phone Number for Admin Bookings
+        let finalUserId = userId;
+        if (!finalUserId && phoneNumber) {
+            // Clean phone number (e.g., remove spaces or dashes) - though usually admin enters digits
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            if (cleanPhone.length >= 9) {
+                const { data: userMatch } = await supabase
+                    .from('profiles')
+                    .select('user_id')
+                    .eq('phone_number', cleanPhone)
+                    .not('user_id', 'like', 'manual_%') // Avoid linking to dummy manual profiles if possible
+                    .limit(1)
+                    .maybeSingle();
+
+                if (userMatch) {
+                    finalUserId = userMatch.user_id;
+                    console.log(`[Create Booking] Auto-linked existing user: ${finalUserId} from phone: ${cleanPhone}`);
+                }
+            }
+        }
+
         // 3. Process Coupon/Campaign (V2 Redemption Logic)
         let campaign: any = null;
 
@@ -207,7 +228,7 @@ serve(async (req) => {
         const { data: booking, error: insertError } = await supabase
             .from('bookings')
             .insert({
-                user_id: userId,
+                user_id: finalUserId,
                 booking_id: Date.now().toString(),
                 field_no: fieldNo,
                 status: isQR ? 'pending_payment' : 'confirmed',
@@ -247,9 +268,9 @@ serve(async (req) => {
                 price: finalPrice,
                 paymentMethod: paymentMethod || 'N/A'
             });
-            if (userId) {
-                await pushMessage(userId, successFlex);
-                console.log(`[Notification Sent] User: ${userId}`);
+            if (finalUserId) {
+                await pushMessage(finalUserId, successFlex);
+                console.log(`[Notification Sent] User: ${finalUserId}`);
             } else {
                 console.log(`[Notification Skipped] No User ID provided (Admin Booking)`);
             }
