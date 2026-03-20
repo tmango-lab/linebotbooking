@@ -378,8 +378,10 @@ export const useBookingLogic = () => {
 
         // 4. Valid Time Range
         if (selection) {
-            if (coupon.valid_time_start && selection.startTime < coupon.valid_time_start) return false;
-            if (coupon.valid_time_end && selection.startTime > coupon.valid_time_end) return false;
+            const getHM = (t: string) => t.substring(0, 5);
+            const selStart = getHM(selection.startTime);
+            if (coupon.valid_time_start && selStart < getHM(coupon.valid_time_start)) return false;
+            if (coupon.valid_time_end && selStart > getHM(coupon.valid_time_end)) return false;
         }
 
         // 5. Expiry Date (Booking Date vs Coupon Expiry)
