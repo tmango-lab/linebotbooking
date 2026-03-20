@@ -7,6 +7,7 @@
 ### 1. LINE Bot Integration
 - ค้นหาเวลาว่าง (ทีละสนาม / ทั้งหมด)
 - จองสนามผ่าน LINE
+- **Stripe PromptPay QR**: ระบบชำระเงินมัดจำ 200 บาทอัตโนมัติ (ไม่ต้องแนบสลิป)
 - สร้างโค้ดโปรโมชั่นอัตโนมัติ (ส่วนลด 10%)
 - แสดงราคาตามช่วงเวลา (ก่อน/หลัง 18:00)
 
@@ -16,31 +17,29 @@
 - ใช้โค้ดโปรโมชั่นที่ลูกค้าได้รับจาก LINE
 - ยกเลิกการจอง
 - จัดการข้อมูลสนาม
+- **Tag Management & Broadcast**: ระบบแบ่งกลุ่มลูกค้า (Tags) และส่งข้อความตามกลุ่มเป้าหมาย (Broadcasting)
 - **Member Management**: เพิ่มข้อมูลลูกค้าแมนนวล และรองรับการดึงข้อมูลมาเชื่อมกับ LINE อัตโนมัติ
 
-### 3. Promo Code System
+### 3. Promo Code & Campaign System
 - สร้างโค้ด 6 หลักอัตโนมัติ
 - ส่วนลด 10% หรือจำนวนเงินคงที่
-- หมดอายุ 30 นาที
-- ตรวจสอบสถานะ (active/used/expired)
-- **ราคาส่วนลดแสดงถูกต้องทั้ง 3 ที่:**
-  - Admin Dashboard
-  - Matchday Booking Card
-  - Matchday Details Modal
-
-### 4. Price Calculation
-- คำนวณราคาตามช่วงเวลา:
-  - ก่อน 18:00: ราคาปกติ
-  - หลัง 18:00: ราคาพิเศษ
-- ปัดขึ้นเป็นร้อย (เช่น 850 → 900)
-- รองรับการจองข้ามช่วงเวลา
-- คำนวณราคาสุทธิหลังหักส่วนลด (Pre/Post Time Logic)
+- ระบบ Campaign สำหรับสร้างคอนเทนต์ Flex Message
+- **Targeted Broadcasting**: ส่ง Campaign หาลูกค้าตาม Tag ที่ระบุ
 
 ### 5. Regular Booking (VIP Only) [[NEW]](ARCHITECTURE.md#12-regular-booking-vip-implementation)
 - **Secret Booking Flow**: พิมพ์รหัสลับ (เช่น "จองประจำ") เพื่อเข้าสู่โหมดจองพิเศษ
-- **VIP Validation**: เฉพาะ user ที่มี role `vip` ในตาราง `profiles`
+- **VIP Validation**: เฉพาะ user ที่มีแท็ก `vip` ในตาราง `profiles`
 - **Manual Promo Codes**: ใช้โค้ดส่วนลดพิเศษ (เช่น "TMG100") ที่สร้างจาก Admin Dashboard
 - **Usage Tracking**: บันทึกจำนวนการใช้โค้ดและจำกัดสิทธิ์การใช้งาน
+
+### 6. Multi-App Architecture & Performance
+- **Smart Routing**: รองรับการแยก App บน Vercel โดยใช้ Git Repo เดียวกัน
+    - `linebotbooking-chi.vercel.app` -> Admin App (Default)
+    - `app-booking-sand.vercel.app` -> Customer App (Booking Mode)
+- **Performance Optimization**:
+    - **Instant Load**: หน้า Wallet และ Booking ถูกโหลดแบบ Static Import เพื่อความลื่นไหลสูงสุด
+    - **Parallel Data Fetching**: ดึงข้อมูลสนาม, ตารางจอง, และคูปอง พร้อมกัน (เร็วขึ้น 40%)
+    - **Branded Loader**: หน้าโหลดแบบ Custom UI ลดความรู้สึกว่ารอนาน
 
 - **Frontend**: React + TypeScript + Vite
 - **Backend**: Supabase Edge Functions (Deno)
@@ -53,16 +52,17 @@
 ```
 ระบบจองสนาม/
 ├── src/                          # Frontend React
+│   ├── App.tsx                   # Main Router & Smart Redirect Logic
 │   ├── pages/
-│   │   └── admin/
-│   │       └── DashboardPage.tsx # หน้าหลัก Admin
-│   └── components/
-│       └── ui/
-│           ├── PromoCodeModal.tsx      # Modal ใช้โค้ดโปรโมชั่น
-│           └── BookingDetailModal.tsx  # รายละเอียดการจอง
+│   │   ├── admin/                # Admin Pages (Lazy Loaded)
+│   │   └── liff/                 # Customer Pages (Static Loaded for Speed)
+│   └── hooks/
+│       └── useBookingLogic.ts    # Centralized Booking Logic (Parallel Fetching)
 │
 ├── supabase/functions/           # Edge Functions
 │   ├── webhook/                  # LINE Bot webhook
+│   ├── stripe-webhook/           # [NEW] Stripe payment confirmation
+│   ├── create-payment-intent/    # [NEW] Create Stripe PromptPay session
 │   ├── create-booking/           # สร้างการจอง
 │   ├── use-promo-code-and-book/  # จองด้วยโค้ดโปรโมชั่น
 │   ├── validate-promo-code/      # ตรวจสอบโค้ด
@@ -97,6 +97,7 @@ npm install
 ```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_APP_MODE=booking  # Optional: 'booking', 'wallet', or leave empty for 'admin'
 ```
 
 ตั้งค่า Supabase Secrets (ใน Dashboard):
@@ -124,6 +125,7 @@ npm run dev
 ## 📖 เอกสารเพิ่มเติม
 
 - **[System Architecture](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/system_architecture.md)** - สถาปัตยกรรมระบบแบบละเอียด
+- **[Wallet & LIFF Guide](docs/WALLET_SYSTEM_AND_LIFF.md)** - คู่มือการติดตั้งและใช้งานระบบ Wallet/LIFF ฉบับสมบูรณ์
 - **[Implementation Plan](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/implementation_plan.md)** - แผนการพัฒนาฟีเจอร์โค้ดโปรโมชั่น
 - **[Walkthrough](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/walkthrough.md)** - สรุปการแก้ไขและทดสอบ
 

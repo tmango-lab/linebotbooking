@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code } from 'lucide-react';
+import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users, Send } from 'lucide-react';
+import { formatDate } from '../../utils/date';
 import CampaignModal from '../../components/admin/CampaignModal';
+import BroadcastModal from '../../components/admin/BroadcastModal';
 
 export default function CampaignPage() {
     const [campaigns, setCampaigns] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCampaign, setEditingCampaign] = useState<any | null>(null);
+
+    // Broadcast Modal State
+    const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+    const [broadcastCampaign, setBroadcastCampaign] = useState<any | null>(null);
 
     useEffect(() => {
         fetchCampaigns();
@@ -43,7 +48,7 @@ export default function CampaignPage() {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: string) => {
         if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแคมเปญนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
 
         try {
@@ -54,9 +59,9 @@ export default function CampaignPage() {
 
             if (error) throw error;
             fetchCampaigns();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting campaign:', error);
-            alert('ลบแคมเปญไม่สำเร็จ');
+            alert(`ลบแคมเปญไม่สำเร็จ: ${error.message || 'โปรดตรวจสอบความสัมพันธ์ของข้อมูล'}`);
         }
     };
 
@@ -132,25 +137,27 @@ export default function CampaignPage() {
 
     const handleCopyLink = (campaign: any) => {
         // Construct Deep Link
-        // For Public: Link to wallet
-        // For Secret: Link with auto-fill query params
-        // But since we simplified WalletPage to just auto-show public ones, 
-        // we can just link to wallet page generally for public, 
-        // or specifically for secret code auto-fill if we want to be fancy.
+        // Construct Direct Collection Link
+        // Format: https://.../wallet?id=CAMPAIGN_ID&action=collect
+        // If it has a secret code, add &code=...
 
-        // Let's make it smart:
-        // Public -> https://.../wallet
-        // Secret -> https://.../wallet?code={SECRET_CODE} (Need to pick one code if multiple)
-
-        let url = `${window.location.origin}/#/wallet`;
+        let url = `${window.location.origin}/#/wallet?id=${campaign.id}&action=collect`;
 
         if (!campaign.is_public && campaign.secret_codes && campaign.secret_codes.length > 0) {
-            // Pick first secret code for convenience
-            url += `?code=${campaign.secret_codes[0]}`;
+            url += `&code=${campaign.secret_codes[0]}`;
+        } else if (campaign.is_public) {
+            // Even for public, adding action=collect makes it a "one-click" link
+            // We pass an empty code for public ones
+            url += `&code=`;
         }
 
         navigator.clipboard.writeText(url);
-        alert(`คัดลอกลิงก์แล้ว!\n${url}`);
+        alert(`คัดลอกลิงก์เก็บคูปองด่วนแล้ว!\n${url}\n\n(หมายเหตุ: ลิงก์นี้ต้องการ userId=... ต่อท้ายเพื่อให้ทำงานสมบูรณ์ใน LINE)`);
+    };
+
+    const handleBroadcastClick = (campaign: any) => {
+        setBroadcastCampaign(campaign);
+        setIsBroadcastOpen(true);
     };
 
     const filteredCampaigns = campaigns.filter(c =>
@@ -256,13 +263,19 @@ export default function CampaignPage() {
                                     <div className="flex items-center">
                                         <Calendar className="w-4 h-4 mr-2 text-gray-400" />
                                         <span>
-                                            {new Date(campaign.start_date).toLocaleDateString()} - {new Date(campaign.end_date).toLocaleDateString()}
+                                            {formatDate(campaign.start_date)} - {formatDate(campaign.end_date)}
                                         </span>
                                     </div>
                                     <div className="flex items-center">
                                         <Layers className="w-4 h-4 mr-2 text-gray-400" />
                                         <span>
                                             จำนวน: {campaign.total_quantity} | สิทธิ์ต่อคน: {campaign.limit_per_user}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center text-red-600 font-medium mt-1">
+                                        <Users className="w-4 h-4 mr-2" />
+                                        <span>
+                                            ใช้ไปแล้ว: {campaign.redemption_count || 0} / {campaign.redemption_limit ? campaign.redemption_limit : '∞'}
                                         </span>
                                     </div>
                                 </div>
@@ -282,7 +295,15 @@ export default function CampaignPage() {
                                         className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all"
                                     >
                                         <Share2 className="w-3 h-3 mr-1.5" />
-                                        แชร์ลิงก์
+                                        Share Link
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleBroadcastClick(campaign)}
+                                        className="text-xs font-medium text-white flex items-center bg-green-600 border border-transparent rounded-lg px-3 py-1.5 shadow-sm hover:bg-green-700 transition-all ml-2"
+                                    >
+                                        <Send className="w-3 h-3 mr-1.5" />
+                                        Broadcast
                                     </button>
 
                                     <div className="flex gap-2">
@@ -320,6 +341,13 @@ export default function CampaignPage() {
                 onClose={() => setIsModalOpen(false)}
                 campaign={editingCampaign}
                 onSuccess={fetchCampaigns}
+            />
+
+            <BroadcastModal
+                isOpen={isBroadcastOpen}
+                onClose={() => setIsBroadcastOpen(false)}
+                campaign={broadcastCampaign}
+                onSuccess={() => { }}
             />
         </div>
     );

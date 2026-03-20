@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { validatePromoCode, getFieldInfo, type PromoCode } from '../../lib/promoApi';
 import { Search, CheckCircle, AlertCircle, Clock, Calendar, DollarSign, MapPin, Tag, User } from 'lucide-react';
+import { formatDate, formatDateTime, formatTime } from '../../utils/date';
 
 export default function ValidateCodeTab() {
     const [code, setCode] = useState('');
@@ -58,26 +59,7 @@ export default function ValidateCodeTab() {
 
 
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    };
 
-    const formatTime = (timeStr: string) => {
-        return timeStr.substring(0, 5);
-    };
-
-    const formatDateTime = (isoString: string) => {
-        const date = new Date(isoString);
-        return date.toLocaleString('th-TH', {
-            dateStyle: 'short',
-            timeStyle: 'short'
-        });
-    };
 
     return (
         <div className="max-w-3xl mx-auto">

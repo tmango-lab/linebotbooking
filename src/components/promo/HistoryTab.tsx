@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getPromoHistory, getPromoStats, getFieldInfo, type PromoCode, type PromoStats, type HistoryFilters } from '../../lib/promoApi';
 import { Search, ChevronLeft, ChevronRight, Filter, Tag, CheckCircle, Clock } from 'lucide-react';
+import { formatDate, formatTime } from '../../utils/date';
 
 export default function HistoryTab() {
     const [codes, setCodes] = useState<PromoCode[]>([]);
@@ -48,17 +49,7 @@ export default function HistoryTab() {
         }
     };
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('th-TH', {
-            day: 'numeric',
-            month: 'short'
-        });
-    };
 
-    const formatTime = (timeStr: string) => {
-        return timeStr.substring(0, 5);
-    };
 
     const getStatusBadge = (status: string) => {
         const styles = {

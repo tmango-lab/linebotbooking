@@ -102,6 +102,39 @@ function formatDateToThai(dateStr: string): string {
     return `${dayName} ${d}-${m}-${y}`;
 }
 
+// Helper: Format date for "View Bookings" (e.g., ส. 15 ก.พ. 68)
+function formatBookingDate(dateStr: string): string {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+    const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+    const dayName = dayNames[date.getDay()];
+    const d = date.getDate();
+    const monthName = monthNames[date.getMonth()];
+    const y = (date.getFullYear() + 543) % 100; // Last 2 digits of BE year
+
+    return `${dayName} ${d} ${monthName} ${y.toString().padStart(2, '0')}`;
+}
+
+// Helper: Format action time (e.g., 7 ก.พ. 68 18:30)
+function formatActionTime(isoStr: string): string {
+    if (!isoStr) return "";
+    const date = new Date(isoStr);
+
+    // Adjust to Thailand Time (+7 Hours) for Supabase Edge Functions environment
+    const thaiTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+
+    const day = thaiTime.getDate();
+    const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    const month = monthNames[thaiTime.getMonth()];
+    const year = (thaiTime.getFullYear() + 543) % 100;
+    const hours = thaiTime.getHours().toString().padStart(2, '0');
+    const mins = thaiTime.getMinutes().toString().padStart(2, '0');
+
+    return `${day} ${month} ${year} ${hours}:${mins}`;
+}
+
 export function buildSelectDateFlex() {
     return {
         type: "flex",
@@ -142,7 +175,7 @@ export function buildSelectDateFlex() {
 // 2. Select Time Flex (Carousel of time slots)
 export function buildSelectTimeFlex() {
     const slots = [
-        { label: "16:00 - 18:00", times: ["16:00", "16:30", "17:00", "17:30"] },
+        { label: "15:00 - 18:00", times: ["15:00", "15:30", "16:00", "16:30", "17:00", "17:30"] },
         { label: "18:00 - 20:00", times: ["18:00", "18:30", "19:00", "19:30"] },
         { label: "20:00 - 22:00", times: ["20:00", "20:30", "21:00", "21:30"] },
         { label: "22:00 - 24:00", times: ["22:00", "22:30", "23:00", "23:30"] },
@@ -647,8 +680,9 @@ export function buildSearchAllSlotsCarousel(
 }
 // 7. Coupon Flex Message (Pa-Kao)
 export function buildCouponFlex(campaignId: string, secretCode: string, couponName: string, desc: string, imageUrl?: string, userId?: string) {
-    const LIFF_ID = '2009013698-RcmHMN8h';
-    const cleanPath = `/?userId=${encodeURIComponent(userId || '')}`;
+    const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
+    // [MOD] Add redirect param to target wallet page explicitly
+    const cleanPath = `/?redirect=wallet&userId=${encodeURIComponent(userId || '')}`;
     const collectPath = `/?action=collect&code=${encodeURIComponent(secretCode)}&id=${encodeURIComponent(campaignId)}&userId=${encodeURIComponent(userId || '')}`;
 
     const walletUrl = `https://liff.line.me/${LIFF_ID}${cleanPath}`;
@@ -746,38 +780,35 @@ export function buildBookingSuccessFlex(params: {
     timeTo: string;
     price: number;
     paymentMethod: string;
+    depositAmount?: number;
+    bookingId?: string;
 }) {
-    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod } = params;
+    const { teamName, fieldName, date, timeFrom, timeTo, price, paymentMethod: rawPaymentMethod, depositAmount = 200, bookingId = '-' } = params;
+    const paymentMethod = rawPaymentMethod.toLowerCase();
 
     return {
         type: "flex",
-        altText: "จองสนามสำเร็จ! ✅",
+        altText: paymentMethod === 'qr' ? "กรุณาชำระเงินมัดจำภายใน 10 นาที ⚠️" : "จองสนามสำเร็จ! ✅",
         contents: {
             type: "bubble",
-            hero: (paymentMethod === 'qr') ? {
-                type: "image",
-                url: `https://promptpay.io/${Deno.env.get('PROMPTPAY_ID') || '0839144000'}/200.png`,
-                size: "full",
-                aspectRatio: "1:1",
-                aspectMode: "cover",
-            } : undefined,
             body: {
                 type: "box",
                 layout: "vertical",
                 contents: [
                     {
                         type: "text",
-                        text: paymentMethod === 'qr' ? "💳 ชำระเงินมัดจำ 200 บาท" : "✅ จองสนามสำเร็จแล้ว!",
+                        text: paymentMethod === 'qr' ? "⚠️ รอการชำระเงินมัดจำ" : "✅ จองสนามสำเร็จแล้ว!",
                         weight: "bold",
                         size: "lg",
                         color: paymentMethod === 'qr' ? "#FF9800" : "#06C755"
                     },
                     {
                         type: "text",
-                        text: paymentMethod === 'qr' ? "กรุณาโอนเงินมัดจำภายใน 10 นาที" : "ขอบคุณที่ใช้บริการครับ",
+                        text: paymentMethod === 'qr' ? "กรุณาโอนเงินมัดจำภายใน 10 นาที มิฉะนั้นการจองจะถูกยกเลิกครับ" : "ขอบคุณที่ใช้บริการครับ",
                         size: "sm",
                         color: "#999999",
-                        margin: "xs"
+                        margin: "xs",
+                        wrap: true
                     },
                     { type: "separator", margin: "md" },
                     {
@@ -786,6 +817,15 @@ export function buildBookingSuccessFlex(params: {
                         margin: "lg",
                         spacing: "sm",
                         contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ID", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: bookingId, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
                             {
                                 type: "box",
                                 layout: "baseline",
@@ -837,7 +877,7 @@ export function buildBookingSuccessFlex(params: {
                                 spacing: "sm",
                                 contents: [
                                     { type: "text", text: "ยอดโอน", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: paymentMethod === 'qr' ? "200.00 บาท" : "-", weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
+                                    { type: "text", text: paymentMethod === 'qr' ? `${depositAmount.toFixed(2)} บาท` : "-", weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
                                 ]
                             },
                             {
@@ -846,7 +886,7 @@ export function buildBookingSuccessFlex(params: {
                                 spacing: "sm",
                                 contents: [
                                     { type: "text", text: "การชำระ", color: "#aaaaaa", size: "sm", flex: 2 },
-                                    { type: "text", text: paymentMethod === 'qr' ? 'มัดจำ 200 (QR)' : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
+                                    { type: "text", text: paymentMethod === 'qr' ? `มัดจำ ${depositAmount} (QR)` : 'จ่ายที่สนาม', color: "#666666", size: "sm", flex: 5 }
                                 ]
                             }
                         ]
@@ -859,8 +899,8 @@ export function buildBookingSuccessFlex(params: {
                             { type: "separator" },
                             {
                                 type: "text",
-                                text: "📢 เมื่อโอนเงินแล้ว กรุณาส่งรูปสลิปเข้ามาในช่องแชทนี้เพื่อยืนยันการจองทันที",
-                                color: "#FF5252",
+                                text: "📢 ระบบยืนยันการชำระเงินอัตโนมัติผ่าน Stripe ไม่จำเป็นต้องส่งสลิปเข้ามาในแชทครับ",
+                                color: "#007AFF",
                                 size: "xs",
                                 weight: "bold",
                                 wrap: true,
@@ -869,17 +909,128 @@ export function buildBookingSuccessFlex(params: {
                         ] : []
                     }
                 ]
-            },
-            footer: {
+            }
+        }
+    };
+}
+
+// 8.5 Cancel Timeout Flex Message
+export function buildCancelTimeoutFlex(params: {
+    teamName: string;
+    fieldName: string;
+    date: string;
+    timeFrom: string;
+    timeTo: string;
+    price: number;
+    depositAmount: number;
+    bookingId: string;
+}) {
+    const { teamName, fieldName, date, timeFrom, timeTo, price, depositAmount, bookingId } = params;
+
+    return {
+        type: "flex",
+        altText: "ไม่ได้ชำระภายในเวลาที่กำหนด การจองถูกยกเลิกแล้ว ขอบคุณค่ะ",
+        contents: {
+            type: "bubble",
+            body: {
                 type: "box",
                 layout: "vertical",
-                spacing: "sm",
                 contents: [
                     {
-                        type: "button",
-                        style: "secondary",
-                        height: "sm",
-                        action: { type: "message", label: "ดูรายการจองของฉัน", text: "รายการจอง" }
+                        type: "text",
+                        text: "❌ ยกเลิกการจอง",
+                        weight: "bold",
+                        size: "lg",
+                        color: "#FF0000"
+                    },
+                    {
+                        type: "text",
+                        text: "ไม่ได้ชำระเงินมัดจำภายในเวลา 10 นาที การจองถูกยกเลิกครับ",
+                        size: "sm",
+                        color: "#999999",
+                        margin: "xs",
+                        wrap: true
+                    },
+                    { type: "separator", margin: "md" },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        margin: "lg",
+                        spacing: "sm",
+                        contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ID", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: bookingId, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ทีม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: teamName, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "สนาม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: fieldName, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "วันที่", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: formatThaiDate(date), wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "เวลา", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${timeFrom} - ${timeTo}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ยอดรวม", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${price.toLocaleString()} บาท`, color: "#333333", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "ยอดที่ต้องโอน", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: `${depositAmount.toFixed(2)} บาท`, weight: "bold", color: "#FF5252", size: "sm", flex: 5 }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "หมายเหตุ", color: "#aaaaaa", size: "sm", flex: 2 },
+                                    { type: "text", text: "เกินเวลา 10 นาที (เลยกำหนดชำระ)", color: "#FF0000", size: "sm", flex: 5, wrap: true }
+                                ]
+                            }
+                        ]
                     }
                 ]
             }
@@ -1068,6 +1219,199 @@ export function buildRegularBookingSummaryFlex(params: {
                     }
                 ]
             }
+        }
+    };
+}
+
+// 10. View Bookings Carousel
+export function buildBookingsCarousel(bookings: any[], offset: number, totalCount: number, fieldMap: Record<number, string> = {}) {
+    const bubbles = bookings.map(booking => {
+
+        const timeFrom = booking.time_from.substring(0, 5);
+        const timeTo = booking.time_to.substring(0, 5);
+        const dateStr = formatBookingDate(booking.date);
+        const fieldLabel = fieldMap[booking.field_no] || `สนามฟุตบอล ${booking.field_no || ''}`;
+
+        const isConfirmed = booking.attendance_status === 'confirmed';
+        const isCancelRequested = booking.attendance_status === 'cancel_requested';
+        const actionTime = booking.attendance_updated_at ? formatActionTime(booking.attendance_updated_at) : "";
+
+        return {
+            type: "bubble",
+            size: "mega",
+            hero: {
+                type: "image",
+                url: "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+                size: "full",
+                aspectRatio: "20:8",
+                aspectMode: "cover"
+            },
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                contents: [
+                    // Status Badge (Show only if action taken)
+                    ...(isConfirmed ? [{
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#E8F5E9",
+                        cornerRadius: "sm",
+                        paddingAll: "sm",
+                        contents: [
+                            {
+                                type: "text",
+                                text: actionTime ? `✅ ยืนยันแล้วเมื่อ ${actionTime}` : "✅ ยืนยันแล้ว",
+                                color: "#2E7D32",
+                                size: "xs",
+                                weight: "bold",
+                                align: "center"
+                            }
+                        ]
+                    } as const] : []),
+                    ...(isCancelRequested ? [{
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#FFEBEE",
+                        cornerRadius: "sm",
+                        paddingAll: "sm",
+                        contents: [
+                            {
+                                type: "text",
+                                text: actionTime ? `🚫 ขอยกเลิกเมื่อ ${actionTime}` : "🚫 ขอยกเลิกแล้ว",
+                                color: "#C62828",
+                                size: "xs",
+                                weight: "bold",
+                                align: "center"
+                            }
+                        ]
+                    } as const] : []),
+
+                    {
+                        type: "text",
+                        text: fieldLabel,
+                        weight: "bold",
+                        size: "xxl",
+                        color: "#1DB446"
+                    },
+                    {
+                        type: "box",
+                        layout: "vertical",
+                        spacing: "sm",
+                        contents: [
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "📅", flex: 1, size: "sm" },
+                                    { type: "text", text: dateStr, flex: 9, size: "md", color: "#666666", weight: "bold" }
+                                ]
+                            },
+                            {
+                                type: "box",
+                                layout: "baseline",
+                                spacing: "sm",
+                                contents: [
+                                    { type: "text", text: "⏰", flex: 1, size: "sm" },
+                                    { type: "text", text: `${timeFrom} - ${timeTo} น.`, flex: 9, size: "md", color: "#666666", weight: "bold" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                    // Confirm Button (Hide if already confirmed or cancel requested)
+                    ...(!isConfirmed && !isCancelRequested ? [{
+                        type: "button",
+                        style: "primary",
+                        color: "#06C755",
+                        action: {
+                            type: "postback",
+                            label: "✅ ยืนยันมา",
+                            data: `action=confirmBookingStatus&booking_id=${booking.booking_id}`,
+                            displayText: "ยืนยันการจอง"
+                        },
+                        height: "sm"
+                    } as const] : []),
+                    // Cancel Button (Hide if already cancel requested OR confirmed)
+                    ...(!isCancelRequested && !isConfirmed ? [{
+                        type: "button",
+                        style: "primary",
+                        color: "#FF4B4B",
+                        height: "sm",
+                        action: {
+                            type: "postback",
+                            label: "🚫 ขอยกเลิก",
+                            data: `action=requestCancelBooking&booking_id=${booking.booking_id}`,
+                            displayText: "ขอยกเลิกรายการนี้"
+                        }
+                    } as const] : [])
+                ]
+            }
+        };
+    });
+
+    // Add "Next" card if there are more bookings
+    if (totalCount > offset + bookings.length) {
+        bubbles.push({
+            type: "bubble",
+            size: "mega",
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+                contents: [
+                    {
+                        type: "text",
+                        text: "🔍",
+                        size: "4xl",
+                        align: "center"
+                    },
+                    {
+                        type: "text",
+                        text: "ยังมีรายการที่เหลืออีกนะ",
+                        weight: "bold",
+                        size: "lg",
+                        align: "center"
+                    },
+                    {
+                        type: "text",
+                        text: `แสดงอยู่ ${offset + 1} - ${offset + bookings.length} จากทั้งหมด ${totalCount}`,
+                        size: "xs",
+                        color: "#aaaaaa",
+                        align: "center"
+                    },
+                    {
+                        type: "button",
+                        style: "primary",
+                        color: "#06C755",
+                        action: {
+                            type: "postback",
+                            label: "ดูรายการถัดไป",
+                            data: `action=viewBookings&offset=${offset + 9}`
+                        },
+                        margin: "lg",
+                        height: "sm"
+                    }
+                ],
+                justifyContent: "center",
+                paddingAll: "xxl"
+            }
+        });
+    }
+
+    return {
+        type: "flex",
+        altText: "📅 รายการจองสนามของคุณ",
+        contents: {
+            type: "carousel",
+            contents: bubbles
         }
     };
 }

@@ -15,7 +15,7 @@ interface BookingGridProps {
 }
 
 const TIME_SLOTS = [
-    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
+    "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
     "19:00", "19:30", "20:00", "20:30", "21:00", "21:30",
     "22:00", "22:30", "23:00", "23:30", "00:00"
 ];
@@ -88,7 +88,7 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
                 <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white shadow-sm">
                     {/* Corner Cell (Sticky Top & Left) */}
                     <div className="w-16 shrink-0 p-3 text-xs font-bold text-gray-400 border-r border-gray-100 flex items-center justify-center bg-gray-50 sticky left-0 z-30">
-                        Time
+                        เวลา
                     </div>
                     {/* Field Headers */}
                     <div className="flex">
@@ -142,10 +142,10 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
                                             </div>
                                         )}
                                         {isSelected && selection.startIdx === i && (
-                                            <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
+                                            <div className="absolute top-1 left-1 text-[8px] opacity-75">เริ่ม</div>
                                         )}
                                         {isSelected && selection.endIdx === i && (
-                                            <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
+                                            <div className="absolute bottom-1 right-1 text-[8px] opacity-75">จบ</div>
                                         )}
                                     </div>
                                 );

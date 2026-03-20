@@ -101,7 +101,8 @@ serve(async (req) => {
             .from('user_coupons')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId)
-            .eq('campaign_id', targetCampaignId);
+            .eq('campaign_id', targetCampaignId)
+            .eq('status', 'ACTIVE'); // Refillable: only count coupons not yet used
 
         if (countError) throw countError;
 

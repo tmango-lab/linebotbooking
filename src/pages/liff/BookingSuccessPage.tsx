@@ -1,0 +1,367 @@
+
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { CheckCircle, X, AlertCircle, Loader2, CreditCard, Clock } from 'lucide-react';
+import liff from '@line/liff';
+import { loadStripe } from '@stripe/stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const BookingSuccessPage: React.FC = () => {
+    const [searchParams] = useSearchParams();
+
+    const bookingId = searchParams.get('bookingId');
+    const price = searchParams.get('price');
+    const paymentMethod = searchParams.get('paymentMethod');
+    const fieldName = searchParams.get('fieldName');
+    const date = searchParams.get('date');
+    const time = searchParams.get('time');
+    const userId = searchParams.get('userId');
+    const depositParam = searchParams.get('deposit');
+
+    const isQR = paymentMethod?.toLowerCase() === 'qr';
+
+    // Stripe state
+    const [stripeLoading, setStripeLoading] = useState(false);
+    const [stripeError, setStripeError] = useState<string | null>(null);
+    const [paymentSuccess, setPaymentSuccess] = useState(false);
+    const [paymentStarted, setPaymentStarted] = useState(false);
+    const [depositAmount, setDepositAmount] = useState<number>(depositParam ? Number(depositParam) : 200);
+
+    // Prevent double clicking / multiple API calls
+    const paymentInitiatedRef = useRef(false);
+
+
+    useEffect(() => {
+        document.title = "Booking Success";
+    }, []);
+
+    const INITIAL_COUNTDOWN = 15;
+    const [autoPayCountdown, setAutoPayCountdown] = useState(INITIAL_COUNTDOWN);
+
+    // Auto-trigger Stripe payment when QR is selected (with countdown)
+    useEffect(() => {
+        if (isQR && bookingId && !paymentStarted && !paymentSuccess) {
+
+            // Start countdown
+            const timer = setInterval(() => {
+                setAutoPayCountdown((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        handleStripePayment(); // Trigger!
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+
+            return () => clearInterval(timer);
+        }
+    }, [isQR, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+    /**
+     * Initiate Stripe PromptPay payment flow
+     */
+    const handleStripePayment = useCallback(async () => {
+        if (!bookingId) return;
+        if (paymentInitiatedRef.current) return;
+
+        paymentInitiatedRef.current = true;
+        setStripeLoading(true);
+        setStripeError(null);
+        setPaymentStarted(true);
+
+        try {
+            // 1. Call create-payment-intent
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/create-payment-intent`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({ bookingId }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                throw new Error(data.error || 'Failed to create payment');
+            }
+
+            const { clientSecret, publicKey, amount } = data;
+            if (amount) setDepositAmount(amount);
+
+            // 2. Load Stripe.js
+            const stripePublicKey = publicKey || import.meta.env.VITE_STRIPE_PUBLIC_KEY || '';
+            if (!stripePublicKey) {
+                throw new Error('Stripe public key not configured');
+            }
+
+            const stripe: Stripe | null = await loadStripe(stripePublicKey);
+            if (!stripe) {
+                throw new Error('Failed to load Stripe');
+            }
+
+            // 3. Confirm PromptPay Payment (shows QR modal)
+            setStripeLoading(false);
+
+            const result = await stripe.confirmPromptPayPayment(clientSecret, {
+                payment_method: {
+                    billing_details: {
+                        email: `${userId || bookingId}@booking.local`,
+                    },
+                },
+            });
+
+            if (result.error) {
+                // User cancelled or error
+                if (result.error.code === 'payment_intent_unexpected_state') {
+                    // Already paid
+                    setPaymentSuccess(true);
+                } else {
+                    setStripeError(result.error.message || 'Payment cancelled');
+                    setPaymentStarted(false);
+                    paymentInitiatedRef.current = false;
+                }
+            } else if (result.paymentIntent?.status === 'succeeded') {
+                // Payment succeeded!
+                setPaymentSuccess(true);
+            } else {
+                // User might have closed without paying
+                setStripeError('การชำระเงินถูกยกเลิก กรุณาลองใหม่');
+                setPaymentStarted(false);
+                paymentInitiatedRef.current = false;
+            }
+        } catch (err: any) {
+            console.error('[Stripe Payment Error]:', err);
+            setStripeError(err.message || 'เกิดข้อผิดพลาด');
+            setStripeLoading(false);
+            setPaymentStarted(false);
+            paymentInitiatedRef.current = false;
+        }
+    }, [bookingId]);
+
+    // If payment succeeded, show success UI
+    if (paymentSuccess) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6 pb-24">
+                <div className="bg-white w-full max-w-md rounded-3xl shadow-sm p-8 text-center animate-scale-in">
+                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <CheckCircle className="w-10 h-10 text-green-600" />
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                        ✅ ชำระเงินสำเร็จ!
+                    </h1>
+                    <p className="text-gray-500 text-sm mb-6">Booking ID: {bookingId}</p>
+
+                    <div className="space-y-3 bg-green-50 border border-green-100 rounded-2xl p-5 mb-6 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">สนาม</span>
+                            <span className="font-bold text-gray-800">{fieldName}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">วันที่</span>
+                            <span className="font-bold text-gray-800">{date}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">เวลา</span>
+                            <span className="font-bold text-gray-800">{time}</span>
+                        </div>
+                        <div className="border-t border-dashed border-green-200 my-2 pt-2 flex justify-between">
+                            <span className="text-gray-500">ค่ามัดจำ (Stripe)</span>
+                            <span className="font-bold text-green-600 text-lg">฿{depositAmount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">ยอดคงเหลือ (หน้าสนาม)</span>
+                            <span className="font-bold text-orange-500">฿{Math.max(0, Number(price || 0) - depositAmount)}</span>
+                        </div>
+                        <div className="text-center">
+                            <span className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full font-bold">
+                                ชำระมัดจำผ่าน Stripe PromptPay ✓
+                            </span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => liff.closeWindow()}
+                        className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-95 transition-all shadow-lg"
+                    >
+                        <X className="w-5 h-5" />
+                        ปิดหน้าต่าง
+                    </button>
+                    <p className="text-xs text-gray-400 mt-4">การจองของคุณได้รับการยืนยันแล้ว</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6 pb-24">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-sm p-8 text-center animate-scale-in">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isQR ? 'bg-orange-100' : 'bg-green-100'}`}>
+                    {isQR ? (
+                        <Clock className="w-10 h-10 text-orange-600 animate-pulse" />
+                    ) : (
+                        <CheckCircle className="w-10 h-10 text-green-600" />
+                    )}
+                </div>
+
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                    {isQR ? '⚠️ รอการชำระเงินมัดจำ' : 'จองสนามสำเร็จ!'}
+                </h1>
+                <p className="text-gray-500 text-sm mb-2">Booking ID: {bookingId}</p>
+                {isQR && (
+                    <p className="text-orange-600 text-xs font-bold mb-6">กรุณาชำระมัดจำทันทีเพื่อล็อกสนามให้คุณ</p>
+                )}
+
+                <div className="space-y-3 bg-gray-50 rounded-2xl p-5 mb-6 text-sm">
+                    <div className="flex justify-between">
+                        <span className="text-gray-500">สนาม</span>
+                        <span className="font-bold text-gray-800">{fieldName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-gray-500">วันที่</span>
+                        <span className="font-bold text-gray-800">{date}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-gray-500">เวลา</span>
+                        <span className="font-bold text-gray-800">{time}</span>
+                    </div>
+                    <div className="border-t border-dashed border-gray-200 my-2 pt-2 flex justify-between">
+                        <span className="text-gray-500">{isQR ? 'ราคาทั้งหมด' : 'ยอดชำระสุทธิ'}</span>
+                        <span className="font-bold text-gray-800">฿{price}</span>
+                    </div>
+                </div>
+
+                {isQR && (
+                    <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-6 text-left shadow-sm">
+                        <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <div className="w-1.5 h-4 bg-indigo-600 rounded-full"></div>
+                            ขั้นตอนการยืนยันการจอง
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="flex gap-3">
+                                <div className="bg-indigo-100 text-indigo-600 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                                <div className="text-xs text-gray-600">สแกน QR Code เพื่อชำระมัดจำ ฿{depositAmount}</div>
+                            </div>
+                            <div className="flex gap-3">
+                                <div className="bg-indigo-100 text-indigo-600 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                                <div className="text-xs text-gray-600">ระบบจะยืนยันการจองให้อัตโนมัติทันที</div>
+                            </div>
+                            <div className="flex gap-3">
+                                <div className="bg-indigo-100 text-indigo-600 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</div>
+                                <div className="text-xs text-gray-600">ส่วนที่เหลือ ฿{Math.max(0, Number(price || 0) - depositAmount)} ชำระหน้าสนาม</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isQR ? (
+                    <div className="space-y-4 mb-6">
+                        {/* Stripe PromptPay Button */}
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6">
+                            <h3 className="text-indigo-800 font-bold mb-2 flex items-center justify-center gap-2">
+                                <CreditCard className="w-5 h-5" />
+                                ชำระมัดจำ ฿{depositAmount} ผ่าน PromptPay
+                            </h3>
+                            <p className="text-indigo-500 text-xs mb-4">
+                                สแกน QR Code จ่ายมัดจำ ฿{depositAmount} ส่วนที่เหลือ ฿{Math.max(0, Number(price || 0) - depositAmount)} ชำระหน้าสนาม
+                            </p>
+
+                            <div className="bg-orange-50 text-orange-700 text-[11px] font-bold p-3 rounded-lg mb-4 border border-orange-100 flex items-start gap-2 leading-relaxed">
+                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-orange-600" />
+                                <span>สำคัญ: กรุณาชำระเงินภายใน 10 นาที มิฉะนั้นระบบจะยกเลิกคิวของคุณเพื่อให้ผู้อื่นจองต่อโดยอัตโนมัติ</span>
+                            </div>
+
+                            {stripeError && (
+                                <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-200">
+                                    ⚠️ {stripeError}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleStripePayment}
+                                disabled={stripeLoading || paymentStarted || autoPayCountdown > 0}
+                                className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2
+                                    ${(stripeLoading || paymentStarted || autoPayCountdown > 0)
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95'
+                                    }`}
+                            >
+                                {stripeLoading ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        กำลังโหลด...
+                                    </>
+                                ) : paymentStarted ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        รอการชำระ...
+                                    </>
+                                ) : autoPayCountdown > 0 ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        กำลังเปิด QR ใน {autoPayCountdown}...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CreditCard className="w-5 h-5" />
+                                        สแกน QR Code ชำระเงิน
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Countdown Overlay (Fixed at bottom or top) */}
+                        {isQR && autoPayCountdown > 0 && !stripeLoading && !paymentStarted && !paymentSuccess && (
+                            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-2xl z-50 animate-slide-up">
+                                <div className="max-w-md mx-auto">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-bold text-gray-800">กำลังพาไปหน้าชำระเงิน...</span>
+                                        <span className="text-xl font-black text-indigo-600">{autoPayCountdown}s</span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
+                                        <div
+                                            className="bg-indigo-600 h-2 rounded-full transition-all duration-1000 ease-linear"
+                                            style={{ width: `${(INITIAL_COUNTDOWN - autoPayCountdown) / INITIAL_COUNTDOWN * 100}%` }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setAutoPayCountdown(0);
+                                            handleStripePayment();
+                                        }}
+                                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm active:scale-95 transition-all"
+                                    >
+                                        ชำระเงินทันที
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+
+                    </div>
+                ) : (
+                    <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-6">
+                        <p className="text-green-800 font-bold">ชำระเงินหน้าสนาม</p>
+                        <p className="text-green-600 text-xs">กรุณาแสดงหน้าจอนี้กับเจ้าหน้าที่</p>
+                    </div>
+                )}
+
+                <button
+                    onClick={() => liff.closeWindow()}
+                    className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-95 transition-all shadow-lg"
+                >
+                    <X className="w-5 h-5" />
+                    ปิดหน้าต่าง
+                </button>
+                <p className="text-xs text-gray-400 mt-4">กรุณากลับไปที่หน้าแชทเพื่อรอรับการยืนยัน</p>
+            </div>
+        </div >
+    );
+};
+
+export default BookingSuccessPage;

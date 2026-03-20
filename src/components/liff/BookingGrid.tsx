@@ -15,7 +15,7 @@ interface BookingGridProps {
 }
 
 const TIME_SLOTS = [
-    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
+    "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
     "19:00", "19:30", "20:00", "20:30", "21:00", "21:30",
     "22:00", "22:30", "23:00", "23:30", "00:00"
 ];
@@ -90,7 +90,7 @@ const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect, existingBoo
                 {/* Header Row */}
                 <div className="flex">
                     <div className="w-24 shrink-0 p-2 font-bold text-gray-500 bg-white sticky left-0 z-10 border-b shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        Field
+                        สนาม
                     </div>
                     {TIME_SLOTS.slice(0, -1).map((time) => (
                         <div key={time} className="flex-1 min-w-[60px] text-center text-xs text-gray-400 p-2 border-b border-l border-gray-100">
@@ -139,10 +139,10 @@ const BookingGrid: React.FC<BookingGridProps> = ({ fields, onSelect, existingBoo
                                         </div>
                                     )}
                                     {isSelected && selection.startIdx === i && (
-                                        <div className="absolute top-1 left-1 text-[8px] opacity-75">Start</div>
+                                        <div className="absolute top-1 left-1 text-[8px] opacity-75">เริ่ม</div>
                                     )}
                                     {isSelected && selection.endIdx === i && (
-                                        <div className="absolute bottom-1 right-1 text-[8px] opacity-75">End</div>
+                                        <div className="absolute bottom-1 right-1 text-[8px] opacity-75">จบ</div>
                                     )}
                                 </div>
                             );

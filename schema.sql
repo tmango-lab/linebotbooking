@@ -75,3 +75,56 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read/write for all users" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
 
+
+-- 5. Table: affiliates
+CREATE TABLE IF NOT EXISTS public.affiliates (
+    user_id TEXT PRIMARY KEY,
+    referral_code TEXT UNIQUE,
+    status TEXT DEFAULT 'PENDING', -- PENDING, APPROVED, REJECTED
+    total_referrals INTEGER DEFAULT 0,
+    total_earnings NUMERIC DEFAULT 0,
+    bank_name TEXT,
+    bank_account_no TEXT,
+    student_card_url TEXT,
+    school_name TEXT,
+    birth_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.affiliates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read for everyone" ON public.affiliates FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated users" ON public.affiliates FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for owners" ON public.affiliates FOR UPDATE USING (auth.uid()::text = user_id);
+
+-- 6. Table: referrals
+CREATE TABLE IF NOT EXISTS public.referrals (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    referrer_id TEXT,
+    referee_id TEXT,
+    booking_id TEXT,
+    status TEXT DEFAULT 'PENDING_PAYMENT', -- PENDING_PAYMENT, COMPLETED
+    reward_amount NUMERIC DEFAULT 100,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read for everyone" ON public.referrals FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated" ON public.referrals FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for service role" ON public.referrals FOR UPDATE USING (true);
+
+-- 7. Table: referral_programs
+CREATE TABLE IF NOT EXISTS public.referral_programs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT,
+    is_active BOOLEAN DEFAULT true,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
+    discount_percent INTEGER,
+    reward_amount INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.referral_programs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read for everyone" ON public.referral_programs FOR SELECT USING (true);

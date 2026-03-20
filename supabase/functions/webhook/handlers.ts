@@ -9,7 +9,6 @@ import { calculatePrice } from '../_shared/pricingService.ts';
 import { getOrCreatePromoCode } from '../_shared/promoService.ts';
 import { getProfile, upsertProfile, parseProfileInput } from '../_shared/profileService.ts';
 import { supabase } from '../_shared/supabaseClient.ts';
-import { verifySlip } from './slipVerification.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import {
@@ -20,7 +19,8 @@ import {
     buildConfirmationFlex,
     buildRegularBookingSummaryFlex,
     buildSearchAllSlotsCarousel, // [NEW] Fixed missing import
-    buildCouponFlex // [NEW] Fixed missing import
+    buildCouponFlex, // [NEW] Fixed missing import
+    buildBookingsCarousel // [NEW]
 } from './flexMessages.ts';
 import { searchRegularBookingSlots } from '../_shared/searchService.ts'; // [NEW]
 import { validateManualPromoCode, applyManualDiscount } from '../_shared/promoService.ts'; // [NEW]
@@ -98,7 +98,10 @@ export async function handleMessage(event: LineEvent) {
         }
 
         // 2. If not VIP -> Inform user
-        if (profile.role !== 'vip') {
+        // [MODIFIED] Check tags instead of role
+        // [MODIFIED] Check tags only (Role column deprecated)
+        const isVip = profile.tags && profile.tags.includes('vip');
+        if (!isVip) {
             await replyMessage(event.replyToken!, {
                 type: 'text',
                 text: '⚠️ ฟีเจอร์ "จองประจำล่วงหน้า" เปิดให้ใช้งานเฉพาะสมาชิก VIP เท่านั้นครับ\n\nหากสนใจสมัคร VIP กรุณาติดต่อแอดมิน 083-914-4000 หรือทักแชทแจ้งแอดมินได้เลยครับ 😊'
@@ -346,6 +349,11 @@ export async function handleMessage(event: LineEvent) {
         return;
     }
 
+    // [NEW] View Bookings
+    if (text === 'ดูตารางจอง') {
+        await handleViewBookings(event, userId, { offset: 0 });
+        return;
+    }
 }
 
 // === Image Handler (Payment Slip) ===
@@ -353,83 +361,12 @@ export async function handleImage(event: LineEvent) {
     const userId = event.source.userId;
     const messageId = event.message!.id;
 
-    console.log(`[Handle Image] User: ${userId}, MessageId: ${messageId}`);
+    console.log(`[Handle Image] User: ${userId}, MessageId: ${messageId} (Ignored under new Stripe flow)`);
 
-    try {
-        // 1. Check for the most recent pending_payment booking for this user
-        const { data: booking, error: bookingError } = await supabase
-            .from('bookings')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('status', 'pending_payment')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (bookingError) throw bookingError;
-
-        if (!booking) {
-            console.log(`[Handle Image] No pending booking found for user ${userId}. Skipping slip verification.`);
-            // Optional: Notify user or just ignore if it's just a random photo
-            return;
-        }
-
-        // 2. Inform user we are processing
-        await replyMessage(event.replyToken!, { type: 'text', text: 'กำลังตรวจสอบสลิปมัดจำสักครู่นะคะ... ⏳' });
-
-        // 3. Fetch Image from LINE
-        const imageBytes = await getMessageContent(messageId);
-        if (!imageBytes) throw new Error("Failed to fetch image from LINE");
-
-        // 4. Verify Slip (Mock)
-        const verification = await verifySlip(imageBytes, 200);
-        if (!verification.success) {
-            await pushMessage(userId, { type: 'text', text: `❌ ตรวจสอบสลิปไม่สำเร็จ: ${verification.message}\nรบกวนตรวจสอบอีกครั้งหรือติดต่อแอดมินนะคะ` });
-            return;
-        }
-
-        // 5. Upload to Supabase Storage
-        const fileName = `${booking.booking_id}_${Date.now()}.jpg`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('payment-slips')
-            .upload(fileName, imageBytes, {
-                contentType: 'image/jpeg',
-                upsert: true
-            });
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('payment-slips')
-            .getPublicUrl(fileName);
-
-        // 6. Update Booking
-        const { error: updateError } = await supabase
-            .from('bookings')
-            .update({
-                status: 'confirmed',
-                payment_status: 'paid',
-                payment_slip_url: publicUrl,
-                admin_note: (booking.admin_note ? booking.admin_note + ' | ' : '') + `[Slip Verified: ${verification.message}]`,
-                updated_at: new Date().toISOString()
-            })
-            .eq('booking_id', booking.booking_id);
-
-        if (updateError) throw updateError;
-
-        // 7. Success Notification
-        await pushMessage(userId, {
-            type: 'text',
-            text: `✅ ตรวจสอบสลิปมัดจำ 200 บาท เรียบร้อยแล้วค่ะ!\n\nยืนยันการจองสนามเรียบร้อย พบกันที่สนามตามเวลานัดหมายนะคะ 🙏⚽`
-        });
-
-        console.log(`[Handle Image] Booking ${booking.booking_id} confirmed via slip.`);
-
-    } catch (err: any) {
-        console.error('[Handle Image Error]:', err.message);
-        await pushMessage(userId, { type: 'text', text: `⚠️ เกิดข้อผิดพลาดในการตรวจสอบสลิป: ${err.message}` });
-    }
-}
+    // As per the new Stripe QR flow, we no longer process manual slips.
+    // The system assumes payments are handled automatically via Stripe webhook.
+    return;
+} // [FIX] Closes handleImage
 
 // === Postback Handler ===
 export async function handlePostback(event: LineEvent) {
@@ -523,6 +460,27 @@ export async function handlePostback(event: LineEvent) {
         case 'confirmRegularBooking':
             await handleConfirmRegularBooking(event, userId, params);
             break;
+
+        case 'viewBookings':
+            await handleViewBookings(event, userId, params);
+            break;
+
+        case 'confirmBookingStatus':
+            await handleConfirmBookingStatus(event, userId, params);
+            break;
+
+        case 'requestCancelBooking':
+            await handleRequestCancelBooking(event, userId, params);
+            break;
+
+        // [NEW] Attendance Nudge Actions
+        case 'confirm_attendance':
+            await handleConfirmAttendance(event, userId, params);
+            break;
+        case 'cancel_attendance':
+            await handleCancelAttendance(event, userId, params);
+            break;
+
         default:
             console.warn("Unknown Action:", action);
     }
@@ -571,7 +529,8 @@ async function handleCollectCoupon(event: LineEvent, userId: string, params: any
             .from('user_coupons')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId)
-            .eq('campaign_id', campaignId);
+            .eq('campaign_id', campaignId)
+            .eq('status', 'ACTIVE'); // Refillable: only count coupons not yet used
 
         if (countError) throw countError;
 
@@ -1165,7 +1124,7 @@ async function handleSetRegularDay(event: LineEvent, userId: string, params: any
 
     // Reuse Time Picker but with different action
     const timeSlots = [
-        { label: "16:00 - 18:00", times: ["16:00", "16:30", "17:00", "17:30"] },
+        { label: "15:00 - 18:00", times: ["15:00", "15:30", "16:00", "16:30", "17:00", "17:30"] },
         { label: "18:00 - 20:00", times: ["18:00", "18:30", "19:00", "19:30"] },
         { label: "20:00 - 22:00", times: ["20:00", "20:30", "21:00", "21:30"] },
         { label: "22:00 - 24:00", times: ["22:00", "22:30", "23:00", "23:30"] },
@@ -1586,4 +1545,178 @@ async function handleConfirmRegularBooking(event: LineEvent, userId: string, par
     });
 
     await clearUserState(userId);
+}
+
+// =====================================================
+// Attendance Nudge Handlers
+// =====================================================
+
+async function handleConfirmAttendance(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    console.log(`[Attendance] User ${userId} confirming booking ${bookingId}`);
+
+    if (!bookingId) return;
+
+    const { error } = await supabase
+        .from('bookings')
+        .update({ attendance_status: 'confirmed' })
+        .eq('booking_id', bookingId);
+
+    if (error) {
+        console.error(`[Attendance] Failed to confirm ${bookingId}:`, error);
+        await replyMessage(event.replyToken!, { type: 'text', text: 'เกิดข้อผิดพลาดในการยืนยัน โปรดลองใหม่อีกครั้งครับ' });
+        return;
+    }
+
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: 'ขอบคุณครับ! เจอกันเย็นนี้ครับ 🙏⚽'
+    });
+}
+
+async function handleCancelAttendance(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    console.log(`[Attendance] User ${userId} requesting cancel for booking ${bookingId}`);
+
+    if (!bookingId) return;
+
+    const { error } = await supabase
+        .from('bookings')
+        .update({ attendance_status: 'cancel_requested' })
+        .eq('booking_id', bookingId);
+
+    if (error) {
+        console.error(`[Attendance] Failed to request cancel ${bookingId}:`, error);
+        await replyMessage(event.replyToken!, { type: 'text', text: 'เกิดข้อผิดพลาด โปรดลองใหม่อีกครั้งครับ' });
+        return;
+    }
+
+    await replyMessage(event.replyToken!, {
+        type: 'text',
+        text: 'รับเรื่องแล้วครับ เดี๋ยวแอดมินจะโทรหาเพื่อสอบถามรายละเอียดนะครับ 📞'
+    });
+}
+
+// =====================================================
+// View Bookings Handlers
+// =====================================================
+
+async function handleViewBookings(event: LineEvent, userId: string, params: any) {
+    const offset = parseInt(params.offset || '0');
+    const limit = 9;
+
+    console.log(`[View Bookings] User: ${userId}, Offset: ${offset}`);
+
+    try {
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Get total count for pagination
+        const { count, error: countError } = await supabase
+            .from('bookings')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gte('date', today)
+            .neq('status', 'cancelled');
+
+        if (countError) throw countError;
+
+        if (!count || count === 0) {
+            await replyMessage(event.replyToken!, {
+                type: 'text',
+                text: 'ยังไม่มีรายการจองล่วงหน้าในระบบค่ะ 😊'
+            });
+            return;
+        }
+
+        // 2. Get active fields for labels
+        const fields = (await getActiveFields()) || [];
+        const fieldMap: Record<number, string> = {};
+        fields.forEach((f: any) => {
+            fieldMap[f.id] = f.label;
+        });
+
+        // 3. Get subset of bookings
+        const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('user_id', userId)
+            .gte('date', today)
+            .neq('status', 'cancelled')
+            .order('date', { ascending: true })
+            .order('time_from', { ascending: true })
+            .range(offset, offset + limit - 1);
+
+        if (error) throw error;
+
+        const flexMsg = buildBookingsCarousel(bookings, offset, count, fieldMap);
+        await replyMessage(event.replyToken!, flexMsg);
+
+    } catch (err: any) {
+        console.error('[View Bookings Error]:', err.message);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: `⚠️ เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message}`
+        });
+    }
+}
+
+async function handleConfirmBookingStatus(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    if (!bookingId) return;
+
+    try {
+        const { error } = await supabase
+            .from('bookings')
+            .update({
+                attendance_status: 'confirmed',
+                attendance_updated_at: new Date().toISOString()
+            })
+            .eq('booking_id', bookingId);
+
+        if (error) throw error;
+
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'ขอบคุณที่ยืนยันการจอง เจอกันที่สนามนะคะ ⚽'
+        });
+    } catch (err: any) {
+        console.error('[Confirm Booking Error]:', err.message);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'เกิดข้อผิดพลาดในการยืนยันรายการจองค่ะ'
+        });
+    }
+}
+
+async function handleRequestCancelBooking(event: LineEvent, userId: string, params: any) {
+    const bookingId = params.booking_id;
+    if (!bookingId) return;
+
+    try {
+        const { error } = await supabase
+            .from('bookings')
+            .update({
+                attendance_status: 'cancel_requested',
+                attendance_updated_at: new Date().toISOString(),
+                admin_note: 'ลูกค้ายกเลิกผ่าน Bot'
+            })
+            .eq('booking_id', bookingId);
+
+        if (error) throw error;
+
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'เราได้รับคำขอยกเลิกของท่านแล้ว เดี๋ยวแอดมินจะติดต่อกลับไปนะคะ'
+        });
+
+        // Notification to Admin (if implemented elsewhere, we can trigger it here)
+        // For now, updating attendance_status + admin_note is the recommended way per requirements.
+
+    } catch (err: any) {
+        console.error('[Cancel Request Error]:', err.message);
+        await replyMessage(event.replyToken!, {
+            type: 'text',
+            text: 'เกิดข้อผิดพลาดในการส่งคำขอยกเลิกค่ะ'
+        });
+    }
 }

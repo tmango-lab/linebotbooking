@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Tag, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { formatDate, formatTime } from '../../utils/date';
 import { supabase } from '../../lib/api';
 
 interface PromoCodeDetails {
@@ -85,8 +86,11 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'ไม่สามารถตรวจสอบโค้ดได้');
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('เซสชั่นหมดอายุ กรุณารีเฟรชหน้าเว็บหรือล็อกอินใหม่');
+                }
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || errorData.message || 'ไม่สามารถตรวจสอบโค้ดได้');
             }
 
             const data = await response.json();
@@ -160,7 +164,10 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
             console.log('[PromoCodeModal] API Response:', responseData);
 
             if (!response.ok) {
-                throw new Error(responseData.error || 'ไม่สามารถสร้างการจองได้');
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('เซสชั่นหมดอายุ กรุณารีเฟรชหน้าเว็บหรือล็อกอินใหม่');
+                }
+                throw new Error(responseData.error || responseData.message || 'ไม่สามารถสร้างการจองได้');
             }
 
             // Success!
@@ -186,21 +193,7 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
         }
     };
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    };
 
-    const formatExpiryTime = (isoString: string) => {
-        const date = new Date(isoString);
-        const hours = date.getHours().toString().padStart(2, '0');
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        return `${hours}:${minutes} น.`;
-    };
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -330,9 +323,7 @@ export default function PromoCodeModal({ isOpen, onClose, onSuccess }: PromoCode
                                                 {promoDetails.final_price.toLocaleString()} บาท
                                             </span>
                                         </div>
-                                        <div className="text-xs text-gray-500 pt-1">
-                                            ⏰ หมดอายุ: {formatExpiryTime(promoDetails.expires_at)}
-                                        </div>
+                                        ⏰ หมดอายุ: {formatTime(promoDetails.expires_at)} น.
                                     </div>
                                 </div>
 

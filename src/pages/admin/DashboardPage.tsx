@@ -5,6 +5,7 @@ import BookingModal from '../../components/ui/BookingModal';
 import BookingDetailModal from '../../components/ui/BookingDetailModal';
 import PromoCodeModal from '../../components/ui/PromoCodeModal';
 import BookingCard from '../../components/admin/BookingCard';
+import { formatDate, formatTime } from '../../utils/date';
 
 interface MatchdayMatch {
     id: string | number;
@@ -21,6 +22,7 @@ interface MatchdayMatch {
     is_promo?: boolean;
     discount?: number;
     is_refunded?: boolean;
+    created_at?: string | null;
     [key: string]: any;
 }
 
@@ -313,6 +315,10 @@ export default function DashboardPage() {
 
     // --- Modify Handlers ---
     const handleBookingMoveStart = (e: React.MouseEvent, booking: MatchdayMatch) => {
+        if (booking.is_promo) {
+            // Silently prevent drag initiation so we don't block `onClick` with synchronous alerts.
+            return;
+        }
         const startY = minToY(new Date(booking.time_start.replace(' ', 'T')).getHours() * 60 + new Date(booking.time_start.replace(' ', 'T')).getMinutes());
 
         // Calculate offset (mouse position relative to card top)
@@ -491,6 +497,15 @@ export default function DashboardPage() {
             if (ghostState.valid && (isDraggingConfirmed || interactionMode.startsWith('RESIZE'))) {
                 const original = bookings.find(b => b.id === activeBookingId);
                 if (original) {
+                    if (original.is_promo && interactionMode.startsWith('RESIZE')) {
+                        const originalHeight = calculateHeight(original.time_start, original.time_end);
+                        if (ghostState.height > originalHeight + 2) { // Allow slight float tolerance
+                            alert('ไม่สามารถเพิ่มเวลาของรายการที่ใช้โปรโมชั่นได้ กรุณาสร้างการจองใหม่ต่อท้ายแทนครับ');
+                            resetState();
+                            return;
+                        }
+                    }
+
                     // Check if changed
                     const isChanged = (
                         original.court_id !== ghostState.courtId ||
@@ -605,20 +620,16 @@ export default function DashboardPage() {
 
 
     // --- Render Helpers ---
-    const formatDateHeader = (d: string) => new Date(d).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    // formatDateHeader was originaly used for header. The new formatDate gives e.g. "จ. 23 ก.พ. 2026"
+    // Let's use formatDate for the header.
+    const formatDateHeader = (d: string) => formatDate(d);
     function calculatePosition(timeStr: string) { return minToY(new Date(timeStr.replace(' ', 'T')).getHours() * 60 + new Date(timeStr.replace(' ', 'T')).getMinutes()); }
     function calculateHeight(s: string, e: string) { return (new Date(e.replace(' ', 'T')).getTime() - new Date(s.replace(' ', 'T')).getTime()) / 60000 * PIXELS_PER_MINUTE; }
 
-    // Formatting logic same as before
-    const formatTime = (t: string) => {
-        const d = new Date(t.replace(' ', 'T'));
-        let m = d.getMinutes();
-        if (m === 1) m = 0; if (m === 31) m = 30;
-        return `${d.getHours().toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-    };
+
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
+        <div className="absolute inset-0 flex flex-col bg-white">
             {/* Header */}
             <header className="flex flex-none items-center justify-between border-b border-gray-200 px-6 py-4">
                 <div>
@@ -761,7 +772,7 @@ export default function DashboardPage() {
 
             <BookingDetailModal
                 isOpen={!!viewingBooking}
-                booking={viewingBooking}
+                booking={viewingBooking ? { ...viewingBooking, court_name: COURTS.find(c => c.id === viewingBooking.court_id)?.name || 'ไม่ระบุ' } : null}
                 onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => { setViewingBooking(null); fetchBookings(selectedDate); }}
                 onBookingUpdated={() => fetchBookings(selectedDate, true)}

@@ -55,7 +55,31 @@ npx supabase functions deploy cancel-booking --no-verify-jwt
 npx supabase functions deploy update-booking --no-verify-jwt
 ```
 
-7. Verify deployment
+// turbo
+8. Deploy register-affiliate function
+```bash
+npx supabase functions deploy register-affiliate --no-verify-jwt
+```
+
+// turbo
+9. Deploy validate-referral function
+```bash
+npx supabase functions deploy validate-referral --no-verify-jwt
+```
+
+// turbo
+10. Deploy process-referral-reward function
+```bash
+npx supabase functions deploy process-referral-reward --no-verify-jwt
+```
+
+// turbo
+11. Deploy use-merchant-coupon function
+```bash
+npx supabase functions deploy use-merchant-coupon --no-verify-jwt
+```
+
+12. Verify deployment
 ```bash
 npx supabase functions list
 ```

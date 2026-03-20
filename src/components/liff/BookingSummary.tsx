@@ -5,9 +5,13 @@ interface BookingSummaryProps {
     discount: number;
     finalPrice: number;
     couponName?: string;
+    isCouponInvalid?: boolean; // NEW: Explicitly pass validity
     onConfirm: () => void;
     onOpenCoupons: () => void;
     isVisible: boolean;
+    // New Props for Booking Context (Time)
+    selectedTimeStart?: string;
+    selectedTimeEnd?: string;
 }
 
 const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -15,42 +19,73 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     discount,
     finalPrice,
     couponName,
+    isCouponInvalid: explicitInvalid,
     onConfirm,
     onOpenCoupons,
-    isVisible
+    isVisible,
+    selectedTimeStart,
+    selectedTimeEnd
 }) => {
     if (!isVisible) return null;
 
+    const isCouponInvalid = explicitInvalid ?? Boolean(couponName && discount === 0);
+
     return (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 animate-slide-up">
-            <div className="flex justify-between items-center mb-3">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-40 animate-slide-up">
+            <div className="flex justify-between items-center mb-4">
                 <button
                     onClick={onOpenCoupons}
-                    className="flex items-center space-x-2 text-sm text-gray-600 hover:text-green-600"
+                    className="flex flex-col items-start group transition-all"
                 >
-                    <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-xs font-bold">
-                        {discount > 0 ? "COUPON APPLIED" : "ADD COUPON"}
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider transition-colors ${discount > 0
+                            ? "bg-green-100 text-green-700"
+                            : isCouponInvalid ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"
+                            }`}>
+                            {discount > 0 ? "ใช้คูปองแล้ว" : isCouponInvalid ? "คูปองไม่ถูกต้อง" : "เลือกคูปอง"}
+                        </span>
+                        <svg className="w-3 h-3 text-gray-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                    </div>
+                    <span className={`text-sm font-bold truncate max-w-[180px] ${isCouponInvalid ? 'text-red-500' : 'text-gray-800'}`}>
+                        {couponName || "แตะเพื่อเพิ่มส่วนลด"}
                     </span>
-                    <span className="truncate max-w-[150px] font-medium">
-                        {couponName || "Select Coupon"}
-                    </span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    {isCouponInvalid && (
+                        <span className="text-[10px] text-red-400 font-medium italic">ไม่ตรงเงื่อนไข (ยอดขั้นต่ำ)</span>
+                    )}
                 </button>
+
                 <div className="text-right">
                     {discount > 0 && (
-                        <div className="text-xs text-gray-400 line-through">฿{originalPrice}</div>
+                        <div className="flex items-center justify-end gap-2 mb-0.5">
+                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">ลดไป ฿{discount}</span>
+                            <span className="text-sm text-gray-400 line-through font-medium">฿{originalPrice}</span>
+                        </div>
                     )}
-                    <div className="text-xl font-bold text-gray-800">
-                        ฿{finalPrice}
+                    <div className="text-2xl font-black text-gray-900 leading-none">
+                        <span className="text-base font-bold mr-1 italic">฿</span>
+                        {finalPrice.toLocaleString()}
                     </div>
                 </div>
             </div>
 
             <button
                 onClick={onConfirm}
-                className="w-full bg-[#06C755] text-white py-3 rounded-xl font-bold text-lg shadow-md active:scale-95 transition-transform"
+                className={`w-full py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34c] text-white shadow-green-200`}
             >
-                Confirm Booking
+                {selectedTimeStart && selectedTimeEnd ? (
+                    <div className="flex flex-col items-center leading-tight">
+                        <div className="text-[10px] font-medium text-green-100 uppercase tracking-wider mb-0.5">ยืนยันการจอง</div>
+                        <div className="text-lg font-black flex items-center gap-2">
+                            <span>{selectedTimeStart} - {selectedTimeEnd} น.</span>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <span className="font-black text-lg">ยืนยันการจอง</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                    </>
+                )}
             </button>
         </div>
     );

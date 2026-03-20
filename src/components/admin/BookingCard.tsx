@@ -1,5 +1,4 @@
-import React from 'react';
-import { CheckCircle2, Clock, Tag, QrCode, Banknote } from 'lucide-react';
+import { CheckCircle2, Clock, Tag, QrCode, Banknote, UserCheck, UserX } from 'lucide-react';
 
 interface BookingCardProps {
     booking: {
@@ -15,6 +14,7 @@ interface BookingCardProps {
         status?: string;
         payment_method?: string;
         payment_status?: string;
+        attendance_status?: 'confirmed' | 'cancel_requested' | null;
     };
     top: number;
     height: number;
@@ -63,7 +63,8 @@ export default function BookingCard({
     };
 
     const isPendingPayment = booking.status === 'pending_payment';
-    const isQR = booking.payment_method === 'qr';
+    const pm = booking.payment_method?.toLowerCase() || '';
+    const isQR = pm === 'qr' || pm.includes('qr') || pm.includes('transfer');
     const isPaid = !!booking.paid_at;
 
     // Determine Card Status for Coloring
@@ -73,16 +74,8 @@ export default function BookingCard({
         cardStatus = 'fully_paid';
     } else if (isPendingPayment) {
         cardStatus = 'pending'; // Rose/Pink (Critical 10m)
-    } else if (isQR && booking.payment_status === 'paid' && !isPaid) {
-        // NOTE: Actually if payment_status is paid, usually paid_at should be set? 
-        // But for our flow: QR confirmed via Slip = status: confirmed, payment_status: paid. 
-        // We need to differentiate "Deposit Paid" vs "Full Paid".
-        // Let's assume:
-        // - "fully_paid" -> manual toggle in modal sets isPaid=true (paid_at != null)
-        // - "deposit_paid" -> QR flow complete (payment_status='paid') but admin hasn't clicked "Fully Paid" yet.
-        // HOWEVER, our current webhook sets payment_status='paid'.
-        // Let's rely on `paid_at`. If `paid_at` exists -> Green.
-        // If not, check other flags.
+    } else if (isQR && (booking.payment_status === 'paid' || booking.payment_status === 'deposit_paid') && !isPaid) {
+        // [MODIFIED] Check for 'deposit_paid' as well as 'paid'
         cardStatus = 'deposit_paid'; // Amber (Balance remaining)
     } else {
         cardStatus = 'pay_at_field'; // Blue (Cash/Field)
@@ -132,9 +125,31 @@ export default function BookingCard({
             break;
     }
 
+    // Attendance Status Overlay or Icon
+    // Confirmed -> Green Check User
+    // Cancel Request -> Red User X
+    const attendanceIcon = (() => {
+        if (!booking.attendance_status) return null;
+        if (booking.attendance_status === 'confirmed') {
+            return (
+                <div className="absolute top-0.5 right-0.5 bg-white/80 rounded-full p-0.5 shadow-sm" title="ยืนยันการมาแล้ว">
+                    <UserCheck className="w-3.5 h-3.5 text-green-600 fill-green-100" />
+                </div>
+            );
+        }
+        if (booking.attendance_status === 'cancel_requested') {
+            return (
+                <div className="absolute top-0.5 right-0.5 bg-red-100/90 rounded-full p-0.5 shadow-sm animate-pulse border border-red-200" title="ลูกค้าขอยกเลิก">
+                    <UserX className="w-3.5 h-3.5 text-red-600" />
+                </div>
+            );
+        }
+        return null;
+    })();
+
     return (
         <div
-            className={`absolute inset-x-1 rounded shadow-sm border-l-[3px] px-2 py-1 text-xs transition-all z-10 group overflow-hidden select-none ${theme} ${isDragging ? 'opacity-50 cursor-grabbing' : 'cursor-grab'}`}
+            className={`absolute inset-x-1 rounded shadow-sm border-l-[3px] px-2 py-1 text-xs transition-all z-10 group overflow-hidden select-none ${theme} ${isDragging ? 'opacity-50 cursor-grabbing' : (booking.is_promo ? 'cursor-pointer' : 'cursor-grab')}`}
             style={{
                 top: `${top}px`,
                 height: `${height}px`,
@@ -146,6 +161,9 @@ export default function BookingCard({
                 if (!isDragging) onClick(e);
             }}
         >
+            {/* Attendance Status Indicator */}
+            {attendanceIcon}
+
             {/* Top Resize Handle */}
             <div
                 className={`absolute top-0 left-0 right-0 h-2 cursor-n-resize z-20 hover:bg-opacity-50 transition-colors ${hoverColor}`}

@@ -10,9 +10,12 @@ export interface LiffUser {
     displayName?: string;
     pictureUrl?: string;
     error?: string;
+    isLoggingIn?: boolean; // [NEW] Flag to indicate if we are in the middle of a login redirect
 }
 
-export const getLiffUser = async (): Promise<LiffUser> => {
+let liffInitPromise: Promise<void> | null = null;
+
+export const getLiffUser = async (options: { requireLogin?: boolean } = {}): Promise<LiffUser> => {
     console.log("Initializing LIFF with ID:", LIFF_ID);
 
     try {
@@ -24,12 +27,39 @@ export const getLiffUser = async (): Promise<LiffUser> => {
             return { userId: urlUserId, error: "Missing LIFF ID" };
         }
 
-        await liff.init({ liffId: LIFF_ID });
+        // [MOD] Prevent concurrent liff.init() calls
+        if (!liffInitPromise) {
+            liffInitPromise = liff.init({ liffId: LIFF_ID });
+        }
+        await liffInitPromise;
 
         if (!liff.isLoggedIn()) {
-            console.log("Not logged in, calling login()...");
-            liff.login();
-            return { userId: null }; // Redirecting...
+            console.log("Not logged in.");
+
+            // Check URL fallback first regardless of login requirement
+            const params = new URLSearchParams(window.location.search);
+            if (window.location.hash.includes('?')) {
+                const hashQuery = window.location.hash.split('?')[1];
+                const hashParams = new URLSearchParams(hashQuery);
+                hashParams.forEach((val, key) => params.append(key, val));
+            }
+            const urlUserId = params.get('userId');
+
+            // Only use urlUserId if we are not explicitly trying to login securely
+            if (urlUserId && !options.requireLogin) {
+                console.log("Found userId in URL, bypassing login for testing.");
+                return { userId: urlUserId };
+            }
+
+            // Only force login if explicitly requested
+            if (options.requireLogin) {
+                console.log("Login required. Calling login()...");
+                liff.login();
+                return { userId: null, isLoggingIn: true }; // [MOD] indicate redirecting
+            } else {
+                console.log("Login not required. Returning null user.");
+                return { userId: null };
+            }
         }
 
         const profile = await liff.getProfile();
@@ -42,11 +72,21 @@ export const getLiffUser = async (): Promise<LiffUser> => {
 
     } catch (e: any) {
         console.error("LIFF Init Failed:", e);
-        // Fallback to URL
-        const params = new URLSearchParams(window.location.search);
-        const urlUserId = params.get('userId');
+
+        // Final Fallback to URL if we didn't require strict secure login
+        if (!options.requireLogin) {
+            const params = new URLSearchParams(window.location.search);
+            const urlUserId = params.get('userId');
+            if (urlUserId) {
+                return {
+                    userId: urlUserId,
+                    error: e.message || "LIFF Init Failed but found URL userId"
+                };
+            }
+        }
+
         return {
-            userId: urlUserId,
+            userId: null,
             error: e.message || "LIFF Init Failed"
         };
     }

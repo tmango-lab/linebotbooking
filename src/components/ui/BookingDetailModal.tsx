@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Calendar, Clock, User, Phone, FileText, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon } from 'lucide-react';
+import { formatDate, formatDateTime, formatTime } from '../../utils/date';
+import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift } from 'lucide-react';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
@@ -19,17 +20,27 @@ interface BookingDetailModalProps {
         is_promo?: boolean;
         is_refunded?: boolean;
         discount?: number;
+        agreed_to_referral_terms?: boolean;
         status?: string;
         payment_method?: string;
         payment_status?: string;
         payment_slip_url?: string | null;
         timeout_at?: string | null;
+        deposit_amount?: number | null;
+        coupons?: {
+            code: string;
+            name: string;
+            amount: number;
+            type: 'main' | 'ontop';
+        }[];
+        created_at?: string | null;
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void;
+    onReschedule?: (date: string) => void;
 }
 
-export default function BookingDetailModal({ isOpen, onClose, booking, onBookingCancelled, onBookingUpdated }: BookingDetailModalProps) {
+export default function BookingDetailModal({ isOpen, onClose, booking, onBookingCancelled, onBookingUpdated, onReschedule }: BookingDetailModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -52,7 +63,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setEditTel(booking.tel || '');
             setEditPrice(booking.price?.toString() || '0');
             setEditNote(booking.admin_note || '');
-            setIsPaid(!!booking.paid_at);
+            // Use paid_at as single source of truth (same as BookingCard)
+            // For Cash bookings: paid_at is null until admin confirms → shows "Unpaid"
+            // For QR bookings: deposit_paid means deposit received, not fully paid
+            const ps = booking.payment_status;
+            setIsPaid(ps === 'paid' || !!booking.paid_at);
 
             setError(null);
             setIsConfirming(false);
@@ -62,20 +77,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
 
     if (!isOpen || !booking) return null;
 
-    const formatTime = (dateStr: string) => {
-        const date = new Date(dateStr.replace(' ', 'T'));
-        return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-    };
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr.replace(' ', 'T'));
-        return date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    };
 
-    const formatFullDateTime = (dateStr: string) => {
-        const date = new Date(dateStr);
-        return date.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    };
+
+
+
 
     const handleSave = async () => {
         setLoading(true);
@@ -95,10 +101,21 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                 timeEnd: booking.time_end,
             };
 
-            // If manually marking as paid and it was pending_payment, update status to confirmed
-            if (isPaid && booking.status === 'pending_payment') {
-                updatePayload.status = 'confirmed';
-                updatePayload.paymentStatus = 'paid';
+            const isPaidInit = (booking.payment_status === 'paid' || !!booking.paid_at);
+
+            if (isPaid === isPaidInit) {
+                // If the user hasn't toggled the payment status, preserve the existing payment_status (like deposit_paid)
+                if (booking.payment_status) {
+                    updatePayload.paymentStatus = booking.payment_status;
+                }
+            } else {
+                // User has toggled the payment status explicitly
+                if (isPaid) {
+                    updatePayload.paymentStatus = 'paid';
+                    updatePayload.status = 'confirmed';
+                } else {
+                    updatePayload.paymentStatus = 'pending';
+                }
             }
 
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
@@ -168,9 +185,13 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     };
 
     const handleConfirmPayment = async () => {
-        setIsPaid(true);
-        // We will call handleSave which now handles the status update
-        // But for better UX, let's trigger the save immediately
+        const pm = booking.payment_method?.toLowerCase() || '';
+        const isQr = pm === 'qr' || pm.includes('qr') || pm.includes('transfer');
+
+        const newPaymentStatus = isQr ? 'deposit_paid' : 'paid';
+        const newIsPaid = !isQr; // ถ้าเป็น QR ให้ถือว่ายังจ่ายไม่ครบ (แค่จ่ายมัดจำ)
+
+        setIsPaid(newIsPaid);
         setLoading(true);
         setError(null);
 
@@ -180,10 +201,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             const updatePayload = {
                 matchId: booking.id,
                 price: booking.price,
-                adminNote: (booking.admin_note ? booking.admin_note + ' | ' : '') + '[Admin Confirm Payment]',
-                isPaid: true,
+                adminNote: (booking.admin_note ? booking.admin_note + ' | ' : '') + (isQr ? '[Admin Confirm Deposit]' : '[Admin Confirm Payment]'),
+                isPaid: newIsPaid,
                 status: 'confirmed',
-                paymentStatus: 'paid',
+                paymentStatus: newPaymentStatus,
                 customerName: booking.name,
                 tel: booking.tel,
                 timeStart: booking.time_start,
@@ -224,412 +245,514 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     };
 
     const getFinancials = () => {
-        const netPrice = booking.price;
-        let discount = 0;
+        // Use edited price if in edit mode, otherwise use booking price
+        const netPrice = isEditingDetails && editPrice !== '' ? parseFloat(editPrice) : booking.price;
 
-        const noteMatch = (booking.admin_note || '').match(/\(-(\d+)\)/);
-        if (noteMatch) {
-            discount = parseInt(noteMatch[1], 10);
-        } else if (booking.discount) {
-            discount = booking.discount;
+        let discount = 0;
+        let coupons: any[] = [...(booking.coupons || [])];
+
+        // [NEW] Check for Referral Discount in Note (Format: [Referral] (-100))
+        const referralMatch = (booking.admin_note || '').match(/\[Referral\] \(-(\d+)\)/);
+        if (referralMatch) {
+            const amount = parseInt(referralMatch[1], 10);
+            coupons.push({ name: 'ส่วนลดแนะนำเพื่อน (Referral)', amount: amount, type: 'main', code: 'REF' });
+        }
+
+        // If no coupons array (backward compatibility), try to reverse engineer
+        if (coupons.length === 0) {
+            const noteMatch = (booking.admin_note || '').match(/\(-(\d+)\)/);
+            if (noteMatch) {
+                discount = parseInt(noteMatch[1], 10);
+                coupons.push({ name: 'ส่วนลด (Legacy)', amount: discount, type: 'main' });
+            } else if (booking.discount) {
+                discount = booking.discount;
+                coupons.push({ name: 'ส่วนลด (Discount)', amount: discount, type: 'main' });
+            }
+        } else {
+            discount = coupons.reduce((sum, c) => sum + (c.amount || 0), 0);
         }
 
         const basePrice = netPrice + discount;
 
-        // [NEW] Deposit and Balance logic
-        // If payment_method is qr and it's paid (either confirmed status or has paid_at), 
-        // we consider the 200 THB deposit as completed.
-        const isDepositPaid = (booking.payment_method === 'qr' && (!!booking.paid_at || booking.payment_status === 'paid'));
-        const depositAmount = isDepositPaid ? 200 : 0;
-        const balance = netPrice - depositAmount;
+        // Deposit Logic (Case-insensitive check)
+        const pm = booking.payment_method?.toLowerCase();
+        const isQr = pm === 'qr' || pm?.includes('qr') || pm?.includes('transfer');
 
-        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid };
+        // [LOCK] Read deposit from booking.deposit_amount first (locked at booking time)
+        // Fallback to parsing admin_note for older bookings
+        let parsedDeposit = 200; // fallback
+        if (booking?.deposit_amount != null && booking.deposit_amount > 0) {
+            parsedDeposit = booking.deposit_amount;
+        } else if (booking?.admin_note) {
+            const match = booking.admin_note.match(/\[Deposit\s+(\d+(?:\.\d+)?)\s+THB\s+Required\]/i);
+            if (match && match[1]) {
+                parsedDeposit = parseFloat(match[1]);
+            }
+        }
+
+        const isDepositPaid = (isQr && (!!booking.paid_at || booking.payment_status === 'paid' || booking.payment_status === 'deposit_paid'));
+        const depositAmount = isDepositPaid ? parsedDeposit : 0;
+
+        // Balance Logic
+        let balance = 0;
+
+        if (isPaid) {
+            balance = 0;
+        } else if (isDepositPaid) {
+            balance = Math.max(0, netPrice - depositAmount);
+        } else {
+            balance = netPrice;
+        }
+
+        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit };
     };
 
-    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid } = getFinancials();
+    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit } = getFinancials();
 
     const isPendingPayment = booking.status === 'pending_payment';
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={handleClose}></div>
 
                 <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-                    <div className="absolute top-0 right-0 pt-4 pr-4 flex gap-2">
-                        {!isEditingDetails && !isConfirming && (
-                            <button
-                                type="button"
-                                className="bg-white rounded-md text-gray-400 hover:text-indigo-600 focus:outline-none"
-                                onClick={() => setIsEditingDetails(true)}
-                                title="แก้ไขข้อมูล"
-                            >
-                                <span className="sr-only">Edit</span>
-                                <Edit className="h-5 w-5" aria-hidden="true" />
+                <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                    {/* Header */}
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                📅 รายละเอียดการจอง
+                            </h3>
+                            {/* Status Badges */}
+                            <div className="flex gap-2">
+                                {(booking.source === 'line' || booking.source === 'line_bot_regular') && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" /> LINE</span>}
+                                {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-200 text-gray-800"><Monitor className="w-3 h-3 mr-1" /> Admin</span>}
+                                {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" /> Promo</span>}
+                                {isPendingPayment && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 animate-pulse"><Clock className="w-3 h-3 mr-1" /> รอโอนมัดจำ</span>}
+                                {booking.is_refunded && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">คืนเงินแล้ว</span>}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {!isEditingDetails && !isConfirming && (
+                                <button
+                                    type="button"
+                                    className="p-2 text-gray-400 hover:text-indigo-600 transition-colors rounded-full hover:bg-gray-100"
+                                    onClick={() => setIsEditingDetails(true)}
+                                    title="แก้ไขข้อมูล"
+                                >
+                                    <Edit className="h-5 w-5" />
+                                </button>
+                            )}
+                            <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100">
+                                <X className="h-6 w-6" />
                             </button>
-                        )}
-                        <button
-                            type="button"
-                            className="bg-white rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
-                            onClick={handleClose}
-                        >
-                            <span className="sr-only">Close</span>
-                            <X className="h-6 w-6" aria-hidden="true" />
-                        </button>
+                        </div>
                     </div>
 
-                    <div className="sm:flex sm:items-start w-full">
-                        <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4 flex items-center gap-2" id="modal-title">
-                                <span>รายละเอียดการจอง</span>
-                                {(booking.source === 'line' || booking.source === 'line_bot_regular') && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><Smartphone className="w-3 h-3 mr-1" />Line</span>}
-                                {booking.source === 'admin' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><Monitor className="w-3 h-3 mr-1" />Admin</span>}
-                                {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" />Promo</span>}
-                                {isPendingPayment && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 animate-pulse"><Clock className="w-3 h-3 mr-1" />รอจ่ายมัดจำ</span>}
-                            </h3>
+                    <div className="px-6 py-6">
+                        {/* 2-Column Layout */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-                            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                                {/* Time & Court Info */}
-                                <div className="flex items-center text-sm text-gray-600">
-                                    <Calendar className="w-4 h-4 mr-2 text-indigo-500" />
-                                    <span className="font-medium text-gray-900">{formatDate(booking.time_start)}</span>
-                                </div>
-                                <div className="flex items-center text-sm text-gray-600">
-                                    <Clock className="w-4 h-4 mr-2 text-indigo-500" />
-                                    <span className="font-medium text-gray-900">
-                                        {formatTime(booking.time_start)} - {formatTime(booking.time_end)}
-                                    </span>
-                                </div>
-                                {booking.court_name && (
-                                    <div className="flex items-center text-sm text-gray-600">
-                                        <Monitor className="w-4 h-4 mr-2 text-indigo-500" />
-                                        <span className="font-medium text-gray-900">สนาม: {booking.court_name}</span>
-                                    </div>
-                                )}
+                            {/* LEFT COLUMN: Customer & Payment Data */}
+                            <div className="space-y-6">
+                                {/* Customer Info Card */}
+                                <div className="space-y-4">
+                                    <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-2 border-b pb-1">ข้อมูลลูกค้า</h4>
 
-                                <div className="border-t border-gray-200 pt-3 mt-3 space-y-3">
-                                    {/* Customer Name */}
-                                    <div className="flex items-center text-sm text-gray-600">
-                                        <User className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" />
-                                        {isEditingDetails ? (
-                                            <input
-                                                type="text"
-                                                value={editName}
-                                                onChange={(e) => setEditName(e.target.value)}
-                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1 border"
-                                                placeholder="ชื่อลูกค้า"
-                                            />
-                                        ) : (
-                                            <span className="font-medium text-gray-900">{editName}</span>
-                                        )}
-                                    </div>
-
-                                    {/* Tel */}
-                                    <div className="flex items-center text-sm text-gray-600">
-                                        <Phone className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" />
-                                        {isEditingDetails ? (
-                                            <input
-                                                type="tel"
-                                                value={editTel}
-                                                onChange={(e) => setEditTel(e.target.value)}
-                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1 border"
-                                                placeholder="เบอร์โทรศัพท์"
-                                            />
-                                        ) : (
-                                            <span>{editTel || '-'}</span>
-                                        )}
-                                    </div>
-
-                                    {/* Payment Method & Status */}
-                                    <div className="grid grid-cols-2 gap-2 mt-2">
-                                        <div className="flex items-center text-xs text-gray-500 bg-white p-2 rounded-md border border-gray-200">
-                                            {booking.payment_method === 'qr' ? (
-                                                <QrCode className="w-4 h-4 mr-2 text-green-600" />
-                                            ) : (
-                                                <Banknote className="w-4 h-4 mr-2 text-blue-600" />
-                                            )}
-                                            <span className="font-medium">{booking.payment_method === 'qr' ? 'มัดจำ 200 (QR)' : 'จ่ายหน้าสนาม'}</span>
-                                        </div>
-                                        <div className={`flex items-center text-xs p-2 rounded-md border border-gray-200 ${booking.paid_at ? 'bg-green-50 text-green-700 border-green-200' : (isPendingPayment ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-50 text-gray-600')}`}>
-                                            <CheckCircle2 className={`w-4 h-4 mr-2 ${booking.paid_at ? 'text-green-500' : 'text-gray-300'}`} />
-                                            <span className="font-bold">{booking.paid_at ? 'ชำระแล้ว' : (isPendingPayment ? 'รอโอน' : 'ยังไม่ชำระ')}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Timeout Info for Pending Payment */}
-                                    {isPendingPayment && booking.timeout_at && (
-                                        <div className="flex items-center bg-amber-50 p-2 rounded-md border border-amber-100 text-[11px] text-amber-800">
-                                            <AlertTriangle className="w-3.5 h-3.5 mr-2 text-amber-500" />
-                                            <span>จะถูกยกเลิกอัตโนมัติหากไม่ชำระภายใน: </span>
-                                            <span className="font-bold ml-1">{formatFullDateTime(booking.timeout_at)}</span>
-                                        </div>
-                                    )}
-
-                                    {/* Price */}
-                                    <div className="flex items-center text-sm text-gray-600">
-                                        <span className="w-4 flex justify-center mr-2 font-bold text-indigo-500 flex-shrink-0">฿</span>
-                                        <span className="min-w-[40px]">ราคา:</span>
-                                        {isEditingDetails ? (
-                                            <input
-                                                type="number"
-                                                value={editPrice}
-                                                onChange={(e) => setEditPrice(e.target.value)}
-                                                className="ml-2 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1 border"
-                                            />
-                                        ) : (
-                                            <span className="font-medium text-gray-900 ml-2">{parseInt(editPrice || '0').toLocaleString()} บาท</span>
-                                        )}
-                                    </div>
-
-                                    {/* Payment Slip Preview */}
-                                    {booking.payment_slip_url && (
-                                        <div className="mt-3 bg-white p-3 rounded-md border border-gray-200 shadow-sm">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <div className="flex items-center text-xs font-semibold text-gray-700">
-                                                    <ImageIcon className="w-3 h-3 mr-1 text-indigo-500" />
-                                                    สลิปมัดจำจาก LINE
-                                                </div>
-                                                <a
-                                                    href={booking.payment_slip_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-[10px] text-indigo-600 hover:underline flex items-center"
-                                                >
-                                                    เปิดรูปเต็ม <ExternalLink className="w-2.5 h-2.5 ml-1" />
-                                                </a>
-                                            </div>
-                                            <div className="relative group cursor-pointer overflow-hidden rounded-md border border-gray-100 aspect-[3/4] max-h-48 bg-gray-50 flex items-center justify-center">
-                                                <img
-                                                    src={booking.payment_slip_url}
-                                                    alt="Payment Slip"
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                    onClick={() => window.open(booking.payment_slip_url!, '_blank')}
+                                    <div className="space-y-3">
+                                        {/* Name Row */}
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                                                <User className="w-4 h-4" /> ชื่อผู้จอง
+                                            </label>
+                                            {isEditingDetails ? (
+                                                <input
+                                                    type="text"
+                                                    value={editName}
+                                                    onChange={(e) => setEditName(e.target.value)}
+                                                    className="block w-48 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-1.5 border text-right"
                                                 />
-                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
-                                                    <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            ) : (
+                                                <div className="text-gray-900 font-bold text-base">{editName}</div>
+                                            )}
+                                        </div>
+
+                                        {/* Phone Row */}
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                                                <Phone className="w-4 h-4" /> เบอร์โทรศัพท์
+                                            </label>
+                                            {isEditingDetails ? (
+                                                <input
+                                                    type="tel"
+                                                    value={editTel}
+                                                    onChange={(e) => setEditTel(e.target.value)}
+                                                    className="block w-48 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-1.5 border text-right"
+                                                />
+                                            ) : (
+                                                <div className="text-gray-900 font-bold text-base">{editTel || '-'}</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* [NEW] Applied Promotions Section */}
+                                    {coupons.length > 0 && (
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <h4 className="text-sm uppercase tracking-wide text-pink-600 font-semibold mb-3 border-b border-pink-100 pb-1 flex items-center">
+                                                <Gift className="w-4 h-4 mr-1" /> โปรโมชั่นที่ใช้ (Applied Promotions)
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {coupons.sort((a, b) => {
+                                                    if (a.type === 'main' && b.type !== 'main') return -1;
+                                                    if (a.type !== 'main' && b.type === 'main') return 1;
+                                                    return 0;
+                                                }).map((c, idx) => (
+                                                    <div key={idx} className="bg-pink-50 p-3 rounded-lg border border-pink-100 flex justify-between items-center">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="bg-white p-1.5 rounded-full border border-pink-100 text-pink-500 mt-0.5">
+                                                                {c.amount > 0 ? <Tag className="w-4 h-4" /> : <Gift className="w-4 h-4" />}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-gray-900 text-sm">{c.name}</div>
+                                                                <div className="text-xs text-pink-600 font-medium flex gap-2">
+                                                                    {c.code !== 'COUPON' && <span>Code: {c.code}</span>}
+                                                                    {c.type === 'ontop' && <span className="bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded text-[10px]">On-top</span>}
+                                                                    {c.type === 'main' && <span className="bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded text-[10px]">Main</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {c.amount > 0 ? (
+                                                                <span className="font-bold text-red-600">- {c.amount.toLocaleString()} ฿</span>
+                                                            ) : (
+                                                                <span className="font-bold text-green-600 bg-green-100 px-2 py-1 rounded text-xs">FREE</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* [NEW] Referral Terms Consent Evidence */}
+                                    {booking.agreed_to_referral_terms && (
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <div className="flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                                <div className="bg-indigo-100 p-1.5 rounded-full text-indigo-600">
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold text-indigo-900">ลูกค้ายอมรับเงื่อนไขโปรโมชั่นแล้ว</div>
+                                                    <div className="text-xs text-indigo-700">ยอมรับเงื่อนไขการใช้ส่วนลดแนะนำเพื่อน (ไม่สามารถเปลี่ยนเวลา/คืนเงิน)</div>
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Quick Actions for Pending Payment */}
-                                    {isPendingPayment && (
-                                        <div className="mt-2">
-                                            <button
-                                                type="button"
-                                                onClick={handleConfirmPayment}
-                                                disabled={loading}
-                                                className="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-bold text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                                            >
-                                                {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                                                แอดมินยืนยันได้รับเงินแล้ว (QR)
-                                            </button>
-                                        </div>
-                                    )}
+                                    {/* Payment Method Info */}
+                                    <div className="pt-4 border-t border-gray-100">
+                                        <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">การชำระเงิน</h4>
 
-                                    {/* Payment Status (Always Editable Button Group) */}
-                                    <div className="flex items-center text-sm text-gray-600 mt-2">
-                                        <span className="w-4 flex justify-center mr-2 mt-0.5">
-                                            {isPaid ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-300" />}
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className={`p-3 rounded-lg ${['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                                {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? <QrCode className="w-6 h-6" /> : <Banknote className="w-6 h-6" />}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-gray-900">
+                                                    {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? 'โอนจ่าย (QR PromptPay)' : 'เงินสด / จ่ายหน้าสนาม'}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    <div className="text-xs text-gray-500">
+                                                        {['qr', 'transfer'].some(t => booking.payment_method?.toLowerCase().includes(t)) ? `มัดจำ ${parsedDeposit} บาท` : 'ชำระเต็มจำนวนหน้าสนาม'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Slip Preview if available */}
+                                        {/* Slip Preview if available */}
+                                        {booking.payment_slip_url && (
+                                            <div className="mt-3 flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                                                <div className="flex items-center text-sm font-semibold text-gray-700">
+                                                    <div className="bg-indigo-100 p-2 rounded-lg mr-3">
+                                                        <ImageIcon className="w-5 h-5 text-indigo-600" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs text-gray-500 font-normal">แนบเมื่อ: {booking.paid_at ? formatDateTime(booking.paid_at) : '-'}</div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => window.open(booking.payment_slip_url!, '_blank')}
+                                                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors flex items-center"
+                                                >
+                                                    <ExternalLink className="w-3 h-3 mr-1.5" /> ดูรูปสลิป
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Timeout Warning */}
+                                        {isPendingPayment && booking.timeout_at && (
+                                            <div className="mt-4 flex items-center bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs text-amber-800">
+                                                <AlertTriangle className="w-4 h-4 mr-2 text-amber-600 flex-shrink-0" />
+                                                <div>
+                                                    <span>จะถูกยกเลิกอัตโนมัติเมื่อ: </span>
+                                                    <span className="font-bold block sm:inline sm:ml-1">{formatDateTime(booking.timeout_at)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* RIGHT COLUMN: Booking Details & Finance */}
+                            <div className="space-y-6">
+                                {/* Court & Time Card */}
+                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <h4 className="font-bold text-indigo-900 text-lg">{booking.court_name || 'สนามไม่ระบุ'}</h4>
+                                        </div>
+                                        <span className="bg-white text-indigo-600 text-xs font-bold px-2 py-1 rounded border border-indigo-200">
+                                            ID: {booking.id}
                                         </span>
-                                        <span className="min-w-[40px] font-medium text-gray-900 mr-2">สถานะ:</span>
-                                        <span className="relative z-0 inline-flex shadow-sm rounded-md">
+                                    </div>
+                                    <div className="space-y-2 text-sm text-indigo-800">
+                                        <div className="flex items-center gap-2">
+                                            <Calendar className="w-4 h-4 opacity-70" />
+                                            <span className="font-medium">{formatDate(booking.time_start)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="w-4 h-4 opacity-70" />
+                                            <span className="font-medium">{formatTime(booking.time_start)} - {formatTime(booking.time_end)}</span>
+                                        </div>
+                                        {booking.created_at && (
+                                            <div className="flex items-center gap-2 text-xs text-indigo-600 bg-indigo-100/50 px-2 py-1 rounded">
+                                                <Calendar className="w-3 h-3 opacity-70" />
+                                                <span className="font-medium">ทำการจองเมื่อ: {formatDateTime(booking.created_at)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Financial Summary */}
+                                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                                    <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">สรุปยอดเงิน</h4>
+
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between text-sm text-gray-600">
+                                            <span>ราคาปกติ (Base Price)</span>
+                                            <span>{basePrice.toLocaleString()} ฿</span>
+                                        </div>
+
+                                        {coupons.length > 0 && discount > 0 && (
+                                            <div className="flex justify-between text-sm text-red-600 font-medium">
+                                                <span className="flex items-center"><Tag className="w-3 h-3 mr-1" /> ส่วนลดรวม (Total Discount)</span>
+                                                <span>- {discount.toLocaleString()} ฿</span>
+                                            </div>
+                                        )}
+
+                                        <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+                                            <span className="font-bold text-gray-900">ยอดสุทธิ (Total)</span>
+                                            {isEditingDetails ? (
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="number"
+                                                        value={editPrice}
+                                                        onChange={(e) => setEditPrice(e.target.value)}
+                                                        className="block w-32 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 text-right border font-bold"
+                                                    />
+                                                    <span className="ml-2 text-gray-900 font-bold">฿</span>
+                                                </div>
+                                            ) : (
+                                                <span className="font-bold text-gray-900 text-lg">{netPrice.toLocaleString()} ฿</span>
+                                            )}
+                                        </div>
+
+                                        {isDepositPaid && (
+                                            <div className="flex justify-between text-sm text-green-700 font-medium bg-green-50 p-2 rounded border border-green-100">
+                                                <span className="flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> จ่ายมัดจำแล้ว</span>
+                                                <span>- {depositAmount.toLocaleString()} ฿</span>
+                                            </div>
+                                        )}
+
+                                        <div className="pt-3 border-t-2 border-dashed border-gray-300 flex justify-between items-end mt-2">
+                                            <span className="text-base font-bold text-gray-700">ยอดค้างชำระ (Balance)</span>
+                                            <span className={`text-2xl font-black ${balance > 0 ? 'text-indigo-600' : 'text-green-600'}`}>
+                                                {balance.toLocaleString()}
+                                                <span className="text-sm font-normal text-gray-500 ml-1">฿</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Status Toggles */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">สถานะการชำระเงิน</label>
+
+                                    {isPendingPayment && !isPaid ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleConfirmPayment}
+                                            disabled={loading}
+                                            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                                        >
+                                            {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="h-5 w-5 mr-2" />}
+                                            ยืนยันได้รับยอดโอน (Confirm Payment)
+                                        </button>
+                                    ) : (
+                                        <div className="flex bg-gray-100 p-1 rounded-lg">
                                             <button
                                                 type="button"
                                                 onClick={() => setIsPaid(false)}
-                                                className={`relative inline-flex items-center px-3 py-1 text-xs font-medium rounded-l-md border ${!isPaid
-                                                    ? 'bg-red-50 text-red-700 border-red-300 z-10'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                    } focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
+                                                className={`flex-1 flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-all ${!isPaid ? 'bg-white text-red-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
                                             >
-                                                ยังไม่จ่าย
+                                                <Circle className="w-4 h-4 mr-2" /> ยังไม่จ่าย
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsPaid(true)}
-                                                className={`relative -ml-px inline-flex items-center px-3 py-1 text-xs font-medium rounded-r-md border ${isPaid
-                                                    ? 'bg-green-50 text-green-700 border-green-300 z-10'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                    } focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
+                                                className={`flex-1 flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-all ${isPaid ? 'bg-white text-green-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
                                             >
-                                                จ่ายแล้ว
+                                                <CheckCircle2 className="w-4 h-4 mr-2" /> จ่ายแล้ว
                                             </button>
-                                        </span>
-                                    </div>
-
-                                    {/* Internal Note (Always Editable) */}
-                                    <div className="flex flex-col items-start text-sm text-gray-600 mt-2">
-                                        <div className="flex items-center mb-1">
-                                            <MessageSquare className="w-4 h-4 mr-2 text-indigo-500 mt-0.5" />
-                                            <span className="font-medium text-indigo-900">Note (ภายใน):</span>
-                                        </div>
-                                        <textarea
-                                            value={editNote}
-                                            onChange={(e) => setEditNote(e.target.value)}
-                                            rows={2}
-                                            className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                            placeholder="บันทึกข้อความถึงทีมงาน..."
-                                        />
-                                    </div>
-
-                                    {/* Original Remark (Matchday Note) - Always Read Only */}
-                                    {booking.remark && (
-                                        <div className="flex items-start text-sm text-gray-400 mt-2">
-                                            <FileText className="w-4 h-4 mr-2 mt-0.5 opacity-70" />
-                                            <span className="italic text-xs">Note ลูกค้า: {booking.remark}</span>
                                         </div>
                                     )}
+                                </div>
+
+                                {/* Internal Note */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                                        <MessageSquare className="w-4 h-4 text-gray-400" /> Admin Note (ภายใน)
+                                    </label>
+                                    <textarea
+                                        value={editNote}
+                                        onChange={(e) => setEditNote(e.target.value)}
+                                        rows={3}
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2.5 border"
+                                        placeholder="บันทึกช่วยจำสำหรับแอดมิน..."
+                                    />
+                                </div>
+
+                                {/* Customer Remark */}
+                                {booking.remark && (
+                                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-800 italic">
+                                        <span className="font-bold not-italic">Note ลูกค้า:</span> "{booking.remark}"
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Error Message */}
+                        {error && (
+                            <div className="mt-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-md">
+                                <div className="flex">
+                                    <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                                    <p className="text-sm font-medium">{error}</p>
                                 </div>
                             </div>
+                        )}
 
-                            {error && (
-                                <div className="mt-4 bg-red-50 border-l-4 border-red-400 p-4">
-                                    <div className="flex">
-                                        <div className="flex-shrink-0">
-                                            <AlertTriangle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                                        </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm text-red-700">{error}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                        {/* Cancellation Area (Expandable) */}
+                        {isConfirming && (
+                            <div className="mt-8 bg-red-50 p-6 rounded-xl border border-red-100 animate-in fade-in slide-in-from-top-4 duration-300">
+                                <h4 className="text-red-800 font-bold mb-4 flex items-center">
+                                    <AlertTriangle className="w-5 h-5 mr-2" /> ยืนยันการยกเลิกการจอง
+                                </h4>
 
-                            {/* Actions Footer */}
-                            {isConfirming ? (
-                                <div className="mt-6 border-t border-gray-100 pt-4">
-                                    <label htmlFor="cancel_reason" className="block text-sm font-medium text-gray-700 mb-2">
-                                        สาเหตุการยกเลิก (ระบุหรือไม่ก็ได้)
-                                    </label>
+                                <label htmlFor="cancel_reason" className="block text-sm font-medium text-red-700 mb-2">
+                                    ระบุสาเหตุ (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    id="cancel_reason"
+                                    className="block w-full rounded-md border-red-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm p-2 bg-white border"
+                                    placeholder="เช่น ลูกค้าแจ้งยกเลิก, จองผิด"
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                />
+
+                                <div className="mt-4 flex items-center">
                                     <input
-                                        type="text"
-                                        id="cancel_reason"
-                                        className="shadow-sm focus:ring-red-500 focus:border-red-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                        placeholder="เช่น ลูกค้าแจ้งยกเลิก"
-                                        value={cancelReason}
-                                        onChange={(e) => setCancelReason(e.target.value)}
+                                        id="refunded"
+                                        type="checkbox"
+                                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
+                                        checked={isRefunded}
+                                        onChange={(e) => setIsRefunded(e.target.checked)}
                                     />
-
-                                    {/* Refund Checkbox */}
-                                    <div className="mt-4 flex items-center">
-                                        <input
-                                            id="refunded"
-                                            type="checkbox"
-                                            className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
-                                            checked={isRefunded}
-                                            onChange={(e) => setIsRefunded(e.target.checked)}
-                                        />
-                                        <label htmlFor="refunded" className="ml-2 block text-sm text-gray-900 cursor-pointer">
-                                            คืนเงินลูกค้าแล้ว (Mark as Refunded)
-                                        </label>
-                                    </div>
-
-                                    <div className="mt-4 flex flex-col sm:flex-row-reverse gap-2">
-                                        <button
-                                            type="button"
-                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:w-auto sm:text-sm disabled:opacity-50"
-                                            onClick={handleCancel}
-                                            disabled={loading}
-                                        >
-                                            {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : null}
-                                            ยืนยันการยกเลิก
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm"
-                                            onClick={() => setIsConfirming(false)}
-                                            disabled={loading}
-                                        >
-                                            กลับ
-                                        </button>
-                                    </div>
+                                    <label htmlFor="refunded" className="ml-2 block text-sm text-red-700 cursor-pointer font-medium">
+                                        คืนเงินลูกค้าแล้ว (Mark confirmed refund)
+                                    </label>
                                 </div>
-                            ) : (
-                                <div className="mt-6 flex flex-col gap-4">
-                                    {/* Financial Breakdown (View Only) */}
-                                    {!isEditingDetails && (discount > 0 || isDepositPaid) && (
-                                        <div className="bg-green-50 rounded-md p-3 border border-green-100 mb-2">
-                                            <h4 className="text-xs font-semibold text-green-800 uppercase tracking-wide mb-2">สรุปยอดชำระ (Financial Summary)</h4>
 
-                                            {discount > 0 && (
-                                                <>
-                                                    <div className="flex justify-between text-sm text-gray-600">
-                                                        <span>ราคาเต็ม (Base Price):</span>
-                                                        <span>{basePrice.toLocaleString()} บ.</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-sm text-red-600 font-medium">
-                                                        <span>ส่วนลด (Discount):</span>
-                                                        <span>-{discount.toLocaleString()} บ.</span>
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            <div className={`flex justify-between text-sm font-bold ${isDepositPaid ? 'text-gray-600' : 'text-gray-900'} ${discount > 0 ? 'border-t border-green-200 mt-1 pt-1' : ''}`}>
-                                                <span>ยอดสุทธิ (Total):</span>
-                                                <span>{netPrice.toLocaleString()} บ.</span>
-                                            </div>
-
-                                            {isDepositPaid && (
-                                                <>
-                                                    <div className="flex justify-between text-sm text-green-700 font-medium mt-1">
-                                                        <span>จ่ายมัดจำแล้ว (Paid Deposit):</span>
-                                                        <span>-{depositAmount.toLocaleString()} บ.</span>
-                                                    </div>
-                                                    <div className="border-t border-green-300 mt-1 pt-1 flex justify-between text-base font-extrabold text-indigo-700">
-                                                        <span>คงค้างหน้าสนาม (Balance):</span>
-                                                        <span>{balance.toLocaleString()} บ.</span>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Refund Status */}
-                                    {booking.is_refunded && (
-                                        <div className="bg-red-50 text-red-700 px-3 py-2 rounded-md text-sm font-bold border border-red-200 text-center">
-                                            💰 ได้รับการคืนเงินแล้ว (Refunded)
-                                        </div>
-                                    )}
-
-                                    <div className="flex justify-between items-center w-full">
-                                        {/* Left: Cancel Booking using existing code */}
-                                        <button
-                                            type="button"
-                                            className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                            onClick={() => setIsConfirming(true)}
-                                        >
-                                            ยกเลิกการจอง
-                                        </button>
-
-
-                                        {/* Right: Save & Close */}
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="button"
-                                                className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm"
-                                                onClick={handleClose}
-                                            >
-                                                ปิด
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm disabled:opacity-50"
-                                                onClick={handleSave}
-                                                disabled={loading}
-                                            >
-                                                {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                                                บันทึก
-                                            </button>
-                                        </div>
-                                    </div>
+                                <div className="mt-6 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleCancel}
+                                        disabled={loading}
+                                        className="inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : null}
+                                        ยืนยันยกเลิกทันที
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsConfirming(false)}
+                                        className="inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm"
+                                    >
+                                        เปลี่ยนใจ (ไม่ยกเลิก)
+                                    </button>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* Footer Actions */}
+                        {!isConfirming && (
+                            <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col-reverse sm:flex-row justify-between gap-4">
+                                <button
+                                    type="button"
+                                    className="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                                    onClick={() => setIsConfirming(true)}
+                                >
+                                    ยกเลิกการจอง
+                                </button>
+
+                                {onReschedule && (
+                                    <button
+                                        type="button"
+                                        className="inline-flex justify-center items-center px-4 py-2 border border-indigo-200 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                                        onClick={() => onReschedule(booking.time_start)}
+                                    >
+                                        <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                        ย้ายจอง
+                                    </button>
+                                )}
+
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        className="w-full sm:w-auto px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                                        onClick={handleClose}
+                                    >
+                                        ปิด
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSave}
+                                        disabled={loading}
+                                        className="w-full sm:w-auto px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : <Save className="h-4 w-4 mr-2" />}
+                                        บันทึกการแก้ไข
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

@@ -1,23 +1,42 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/api';
-import { LogOut, LayoutDashboard, Ticket, User, BarChart3 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Ticket, User, BarChart3, Receipt, Search, Share2, Settings, Store, Radio } from 'lucide-react';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const [loading, setLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false); // [NEW] Strict state
+
+    const [pendingAffiliatesCount, setPendingAffiliatesCount] = useState(0);
 
     useEffect(() => {
         checkSession();
+        fetchPendingAffiliates();
     }, []);
+
+    async function fetchPendingAffiliates() {
+        const { count } = await supabase
+            .from('affiliates')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'PENDING');
+
+        if (count) setPendingAffiliatesCount(count);
+    }
 
     async function checkSession() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
             navigate('/admin/login');
+            // Do not setIsLoading(false) here creates a stuck loading if nav fails, 
+            // but effectively we want to stop rendering this component's main content.
+            // We can set loading false, but use isAuthenticated to block.
+            setLoading(false);
+        } else {
+            setIsAuthenticated(true);
+            setLoading(false);
         }
-        setLoading(false);
     }
 
     async function handleLogout() {
@@ -31,12 +50,21 @@ export default function AdminLayout() {
         </div>
     );
 
+    // [Fix] If finished loading but not authenticated, render nothing (or redirect happened)
+    if (!isAuthenticated) return null;
+
     const navigation = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+        { name: 'Booking Search', href: '/admin/booking-search', icon: Search },
         { name: 'Campaigns', href: '/admin/campaigns', icon: Ticket }, // New V2
         { name: 'Customers', href: '/admin/customers', icon: User },
         { name: 'Reports', href: '/admin/reports', icon: BarChart3 },
         { name: 'Promo Codes (V1)', href: '/admin/promo-codes', icon: Ticket }, // Renamed for clarity
+        { name: 'Refunds', href: '/admin/refunds', icon: Receipt },
+        { name: 'จัดการพาร์ทเนอร์', href: '/admin/partners', icon: Store },
+        { name: 'Referral Settings', href: '/admin/referral-settings', icon: Share2 },
+        { name: 'System Settings', href: '/admin/system-settings', icon: Settings },
+        { name: 'Broadcast LINE', href: '/admin/broadcast', icon: Radio },
     ];
 
     return (
@@ -81,7 +109,12 @@ export default function AdminLayout() {
                                     <Icon size={20} className={`${isActive ? 'text-indigo-400' : 'text-gray-500 group-hover:text-white'} transition-colors`} />
                                     {item.name}
                                 </div>
-                                {isActive && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
+                                {item.name === 'Referral Settings' && pendingAffiliatesCount > 0 && (
+                                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                                        {pendingAffiliatesCount}
+                                    </span>
+                                )}
+                                {isActive && item.name !== 'Referral Settings' && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
                             </a>
                         );
                     })}

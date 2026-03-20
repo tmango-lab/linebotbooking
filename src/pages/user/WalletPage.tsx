@@ -1,20 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
-import { Loader2, Ticket, Gift, Lock, Send } from 'lucide-react';
-import CouponSelectionModal from '../../components/ui/CouponSelectionModal';
+import { useLiff } from '../../providers/LiffProvider';
+import { getLiffUser } from '../../lib/liff';
+import { Loader2, Ticket, Clock, AlertCircle, Share2, Award, Store } from 'lucide-react';
+import CouponDetailModal from '../../components/ui/CouponDetailModal';
+import MerchantCouponPopup from '../../components/ui/MerchantCouponPopup';
+import { formatDate } from '../../utils/date';
 
 interface Coupon {
-    coupon_id: string; // user_coupon_id (from API)
+    coupon_id: string; // user_coupon_id
     campaign_id: string;
     name: string;
     description?: string | null;
-    expiry: string; // API returns 'expiry' not 'expires_at'
+    expiry: string;
+    status: string; // ACTIVE, USED, EXPIRED
     image?: string | null;
     benefit: {
         type: 'DISCOUNT' | 'REWARD';
         value: any;
     };
     conditions: any;
+    merchant_id?: string | null;
+    merchant_name?: string | null;
+    reward_item?: string | null;
 }
 
 interface Wallet {
@@ -23,50 +31,153 @@ interface Wallet {
 }
 
 export default function WalletPage() {
+    // State
     const [userId, setUserId] = useState('');
-    const [wallet, setWallet] = useState<Wallet>({ main: [], on_top: [] });
+    const [wallet, setWallet] = useState<Wallet>({ main: [], on_top: [] }); // Active Coupons
     const [loading, setLoading] = useState(false);
-    const [collectDetails, setCollectDetails] = useState({ campaignId: '', secretCode: '' });
+    const [points, setPoints] = useState<number>(0);
+
+    // UI State
+    const [activeTab, setActiveTab] = useState<'my_coupons' | 'market' | 'redeem'>('my_coupons');
+    const [selectedCoupon, setSelectedCoupon] = useState<Coupon | any | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [merchantPopup, setMerchantPopup] = useState<{ open: boolean; coupon: Coupon | null }>({ open: false, coupon: null });
+
+    // Collect Logic
     const [collecting, setCollecting] = useState(false);
-    const [sendingFlex, setSendingFlex] = useState(false);
+    const collectingRef = useRef(false);
 
-    // Check URL for userId and Auto-Collect Action
-    // Check URL for userId and Auto-Collect Action
+    // Market
+    const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
+
+    const { isReady, liffUser } = useLiff();
+
+    // Init
     useEffect(() => {
-        // [FIX] Support HashRouter params (e.g. /#/wallet?userId=...)
-        let params = new URLSearchParams(window.location.search);
+        if (!isReady) return;
 
-        // If empty, check hash params
-        if (window.location.hash.includes('?')) {
-            const hashQuery = window.location.hash.split('?')[1];
-            const hashParams = new URLSearchParams(hashQuery);
-            // Merge params
-            hashParams.forEach((val, key) => params.append(key, val));
-        }
-
-        const uid = params.get('userId');
-        const action = params.get('action');
-        const code = params.get('code');    // Secret Code
-        const cid = params.get('id') || params.get('campaignId'); // Campaign ID
-
-        if (uid) {
-            setUserId(uid);
-            fetchWallet(uid);
-
-            // Auto-Collect Flow (The Pa-Kao Flow)
-            if (action === 'collect' && code && cid) {
-                // Delay slightly to ensure UI is ready or just call it
-                console.log('Auto-collecting secret coupon...', { code, cid });
-
-                // We need to set state first because handleCollect uses state
-                // But handleCollect is async and state might not update instantly if we call it immediately
-                // Better to refactor handleCollect or pass args. 
-                // Let's refactor handleCollect to accept args optional.
-                doAutoCollect(uid, cid, code);
+        const initUser = async () => {
+            let params = new URLSearchParams(window.location.search);
+            if (window.location.hash.includes('?')) {
+                const hashQuery = window.location.hash.split('?')[1];
+                const hashParams = new URLSearchParams(hashQuery);
+                hashParams.forEach((val, key) => params.append(key, val));
             }
-        }
-    }, []);
 
+            let uid = params.get('userId');
+            const action = params.get('action');
+            const code = params.get('code') || '';
+            const cid = params.get('id') || params.get('campaignId');
+
+            if (!uid && liffUser?.userId) uid = liffUser.userId;
+
+            if (!uid) {
+                console.log("Wallet: No User ID found, enforcing LIFF login...");
+                const user = await getLiffUser({ requireLogin: true });
+                if (user.userId) uid = user.userId;
+            }
+
+            if (uid) {
+                setUserId(uid);
+                fetchWallet(uid);
+
+                if (action === 'collect' && cid && !collectingRef.current) {
+                    collectingRef.current = true;
+                    doAutoCollect(uid, cid, code);
+                }
+            }
+        };
+
+        initUser();
+    }, [isReady, liffUser]);
+
+    // Data Fetching
+    const fetchWallet = async (uid: string) => {
+        if (!uid) return;
+        setLoading(true);
+        try {
+            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            // 0. Fetch Points & History
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('points')
+                .eq('user_id', uid)
+                .maybeSingle();
+            if (profile) setPoints(profile.points || 0);
+
+
+            // 1. Fetch Active
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userId: uid, filter: 'active' })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+
+                // Fetch merchant info for partner coupons
+                const { data: partnerCampaigns } = await supabase
+                    .from('campaigns')
+                    .select('id, merchant_id, reward_item, merchants(name)')
+                    .not('merchant_id', 'is', null);
+
+                const merchantMap = new Map<string, { merchant_id: string; merchant_name: string; reward_item: string | null }>();
+                if (partnerCampaigns) {
+                    partnerCampaigns.forEach((pc: any) => {
+                        merchantMap.set(pc.id, {
+                            merchant_id: pc.merchant_id,
+                            merchant_name: pc.merchants?.name || '',
+                            reward_item: pc.reward_item,
+                        });
+                    });
+                }
+
+                // Enrich wallet coupons with merchant info
+                const enrichCoupon = (c: Coupon): Coupon => {
+                    const info = merchantMap.get(c.campaign_id);
+                    if (info) {
+                        return { ...c, merchant_id: info.merchant_id, merchant_name: info.merchant_name, reward_item: info.reward_item };
+                    }
+                    return c;
+                };
+                data.main = data.main.map(enrichCoupon);
+                data.on_top = data.on_top.map(enrichCoupon);
+
+                setWallet(data);
+
+                // Fetch Market (Available)
+                const { data: campaigns } = await supabase
+                    .from('campaigns')
+                    .select('*, merchants(name)')
+                    .eq('is_public', true)
+                    .eq('status', 'active')
+                    .gt('end_date', new Date().toISOString())
+                    .lte('start_date', new Date().toISOString());
+
+                if (campaigns) {
+                    const myCoupons = [...data.main, ...data.on_top];
+
+                    const availableToCollect = campaigns.filter(c => {
+                        const collectedCount = myCoupons.filter(userCoupon => userCoupon.campaign_id === c.id).length;
+                        return collectedCount < (c.limit_per_user || 1);
+                    });
+
+                    setAvailableCampaigns(availableToCollect);
+                }
+            }
+
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    // Actions
     const doAutoCollect = async (uid: string, cid: string, code: string) => {
         setCollecting(true);
         try {
@@ -75,40 +186,26 @@ export default function WalletPage() {
 
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    userId: uid,
-                    campaignId: cid,
-                    secretCode: code
-                })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ userId: uid, campaignId: cid, secretCode: code })
             });
 
             const data = await res.json();
-
             if (!res.ok) {
-                // [FIX] Silent ignore if already collected to avoid annoying alerts when viewing wallet
-                if (data.error?.includes('already collected') || data.error?.includes('Limit reached')) {
-                    console.log('Coupon already collected, skipping alert.');
-                } else {
+                if (!data.error?.includes('already collected') && !data.error?.includes('Limit reached')) {
                     throw new Error(data.error || 'Failed to collect');
                 }
             } else {
-                // Success UI
-                alert(`🎉 ยินดีด้วย! คุณเจอโค้ดลับ "${code}"\nเก็บคูปองเรียบร้อยแล้วครับ!`);
+                alert(`🎉 ยินดีด้วย! เก็บคูปองเรียบร้อยแล้วครับ!`);
             }
 
-            // [FIX] Better URL cleanup (Handles HashRouter e.g. /#/wallet?...)
+            // Cleanup URL
             const hashValue = window.location.hash || '#/wallet';
             const cleanHash = hashValue.split('?')[0];
             const newUrl = `${window.location.pathname}${cleanHash}?userId=${uid}`;
             window.history.replaceState({}, '', newUrl);
 
-            // Refresh Wallet
             fetchWallet(uid);
-
         } catch (error: any) {
             alert(`เสียใจด้วยครับ 😅\n${error.message}`);
         } finally {
@@ -116,359 +213,434 @@ export default function WalletPage() {
         }
     };
 
-    const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
-
-
-
-    const fetchWallet = async (uid: string) => {
-        if (!uid) return;
-        setLoading(true);
-
-        try {
-            // Simplified: Use Anon Key directly. Edge function handles privilege.
-            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ userId: uid })
-            });
-
-            if (!res.ok) {
-                const errText = await res.text();
-                console.error('API Error:', errText);
-                throw new Error('Failed to fetch wallet');
-            }
-
-            const data = await res.json();
-            setWallet(data);
-
-            // 2. Fetch Available Public Campaigns (Client-side for now)
-            // Note: This relies on 'campaigns' table being readable. If RLS blocks, we need a function.
-            // We assume public read is allowed or we use the anon key.
-            const { data: campaigns, error: campError } = await supabase
-                .from('campaigns')
-                .select('*')
-                .eq('is_public', true)
-                .eq('status', 'active')
-                .gt('end_date', new Date().toISOString())
-                .lte('start_date', new Date().toISOString());
-
-            if (!campError && campaigns) {
-                // Filter out ones I already have (optimistic check)
-                // Real check happens at 'collect-coupon'
-                const myCouponCampaignIds = [...data.main, ...data.on_top].map(c => c.campaign_id);
-                const notCollected = campaigns.filter(c => !myCouponCampaignIds.includes(c.id));
-                setAvailableCampaigns(notCollected);
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleCollect = async () => {
-        if (!userId || !collectDetails.secretCode) {
-            alert('กรุณากรอก User ID และ โค้ดลับ');
-            return;
-        }
+    const doRedeemPoints = async (uid: string, cid: string, cost: number) => {
+        if (!confirm(`ยืนยันการใช้ ${cost} แต้ม เพื่อแลกคูปองนี้?`)) return;
 
         setCollecting(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    userId,
-                    campaignId: '', // Allow empty for secret code lookup
-                    secretCode: collectDetails.secretCode
-                })
+            // Call the new RPC function we just created
+            const { data, error } = await supabase.rpc('redeem_points_for_campaign', {
+                p_user_id: uid,
+                p_campaign_id: cid
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to collect');
+            if (error) throw error;
 
-            // Optionally send Flex here if real app, but we have a dedicated button for testing flex.
-            alert('Coupon Collected Successfully! 🎉');
-            setCollectDetails({ campaignId: '', secretCode: '' });
-            fetchWallet(userId);
-
+            if (data && data.success) {
+                alert(`🎉 ${data.message}`);
+                // Update local points state to reflect the change immediately
+                setPoints(data.points_remaining);
+                // Refresh wallet
+                fetchWallet(uid);
+            } else {
+                throw new Error(data?.error || 'เกิดข้อผิดพลาดในการแลกแต้ม');
+            }
         } catch (error: any) {
-            alert(error.message);
+            alert(`ไม่สามารถแลกแต้มได้: ${error.message}`);
         } finally {
             setCollecting(false);
         }
     };
 
-    const handleTestFlex = async () => {
-        if (!userId) return alert('Please enter User ID');
-        setSendingFlex(true);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const handleUseCoupon = (e: React.MouseEvent, coupon: Coupon) => {
+        e.stopPropagation(); // Don't open detail modal
+        const target = `/booking-v3?userId=${userId}&couponId=${coupon.coupon_id}`;
+        window.location.hash = `#${target}`;
+    };
 
-            // Call test-flex function
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-flex`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ userId })
-            });
+    const openDetail = (item: any) => {
+        setSelectedCoupon(item);
+        setIsDetailOpen(true);
+    };
 
-            if (!res.ok) {
-                const d = await res.json();
-                throw new Error(d.error || 'Failed to send Flex');
-            }
-            alert('Flex Message Sent! Check your LINE.');
-        } catch (e: any) {
-            console.error(e);
-            alert('Error: ' + e.message);
-        } finally {
-            setSendingFlex(false);
-        }
-    }
-
-    const CouponCard = ({ coupon, type }: { coupon: Coupon, type: 'Main' | 'On-top' }) => {
+    // Components
+    const CouponCard = ({ coupon, type, isHistory = false }: { coupon: Coupon, type: 'Main' | 'On-top', isHistory?: boolean }) => {
         const isMain = type === 'Main';
-        // Premium Styles
-        const bgClass = isMain
-            ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
-            : 'bg-white border border-gray-100 text-gray-900';
+        const isExpiring = !isHistory && coupon.expiry &&
+            (new Date(coupon.expiry).getTime() - new Date().getTime() < 3 * 24 * 60 * 60 * 1000); // 3 days
 
-        const borderClass = isMain ? 'border border-gray-700' : 'border border-gray-200';
-        const iconColor = isMain ? 'text-yellow-400' : 'text-indigo-500';
-        const badgeClass = isMain ? 'bg-yellow-500 text-black' : 'bg-indigo-100 text-indigo-700';
+        const bgClass = isHistory
+            ? 'bg-gray-100 border-gray-200 text-gray-500 grayscale opacity-80'
+            : isMain
+                ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
+                : 'bg-white border border-gray-100 text-gray-900';
+
+        const borderClass = isMain && !isHistory ? 'border border-gray-700' : 'border border-gray-200';
+        const iconColor = isHistory ? 'text-gray-400' : (isMain ? 'text-yellow-400' : 'text-indigo-500');
+        const badgeClass = isHistory ? 'bg-gray-200 text-gray-500' : (isMain ? 'bg-yellow-500 text-black' : 'bg-indigo-100 text-indigo-700');
 
         return (
-            <div className={`relative p-5 rounded-2xl shadow-lg ${bgClass} ${borderClass} overflow-hidden transition-all hover:scale-[1.02]`}>
-                {/* Decorative Circles */}
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
-                <div className="absolute top-10 -left-10 w-24 h-24 bg-current opacity-5 rounded-full blur-xl"></div>
+            <div
+                onClick={() => openDetail(coupon)}
+                className={`relative p-5 rounded-2xl shadow-sm ${bgClass} ${borderClass} overflow-hidden transition-all active:scale-[0.98] cursor-pointer`}
+            >
+                {/* Background Decor */}
+                {!isHistory && (
+                    <>
+                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
+                        <div className="absolute top-10 -left-10 w-24 h-24 bg-current opacity-5 rounded-full blur-xl"></div>
+                    </>
+                )}
 
                 <div className="relative z-10 flex justify-between items-start">
                     <div className="flex-1 pr-4">
                         <div className="flex items-center gap-2 mb-2">
                             <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${badgeClass}`}>
-                                {type}
+                                {isHistory ? (coupon.status === 'USED' ? 'ใช้แล้ว' : coupon.status === 'EXPIRED' ? 'หมดอายุ' : coupon.status) : type}
                             </span>
-                            {coupon.benefit.type === 'DISCOUNT' && (
-                                <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-                                    Discount
+                            {isExpiring && (
+                                <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                                    <Clock className="w-3 h-3" /> ใกล้หมดอายุ
                                 </span>
                             )}
                         </div>
                         <h3 className="font-bold text-lg leading-tight mb-1">{coupon.name}</h3>
-                        <p className={`text-sm ${isMain ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <p className={`text-sm ${isMain && !isHistory ? 'text-gray-400' : 'text-gray-500'}`}>
                             {coupon.benefit?.type === 'DISCOUNT'
-                                ? (coupon.benefit?.value?.amount ? `Save ฿${coupon.benefit.value.amount}` : `Save ${coupon.benefit?.value?.percent ?? 0}%`)
-                                : `Free ${coupon.benefit?.value?.item ?? 'Reward'}`
+                                ? (coupon.benefit?.value?.amount ? `ลด ฿${coupon.benefit.value.amount}` : `ลด ${coupon.benefit?.value?.percent ?? 0}%`)
+                                : `ฟรี ${coupon.benefit?.value?.item ?? 'รางวัล'}`
                             }
                         </p>
                     </div>
-                    <div className={`p-3 rounded-full ${isMain ? 'bg-white/10' : 'bg-indigo-50'}`}>
+                    <div className={`p-3 rounded-full ${isMain && !isHistory ? 'bg-white/10' : 'bg-gray-100'}`}>
                         <Ticket className={`w-6 h-6 ${iconColor}`} />
                     </div>
                 </div>
 
-                <div className={`my-4 border-t border-dashed ${isMain ? 'border-gray-700' : 'border-gray-200'}`}></div>
-
-                {/* DEBUG INFO FOR MOBILE */}
-                {import.meta.env.DEV && (
-                    <div className="text-[10px] text-gray-400 break-all bg-black/5 p-2 rounded mt-2">
-                        UID: {coupon.coupon_id}<br />
-                        Camp: {coupon.campaign_id}
-                    </div>
-                )}
+                <div className={`my-4 border-t border-dashed ${isMain && !isHistory ? 'border-gray-700' : 'border-gray-300'}`}></div>
 
                 <div className="flex justify-between items-end">
                     <div className="text-xs opacity-60">
-                        <p>Code: <span className="font-mono tracking-widest font-bold">{coupon.coupon_id.slice(0, 8)}...</span></p>
-                        <p>Exp: {coupon.expiry ? new Date(coupon.expiry).toLocaleDateString() : 'No Expiry'}</p>
+                        <p>หมดอายุ: {coupon.expiry ? formatDate(coupon.expiry) : 'ไม่มีวันหมดอายุ'}</p>
                     </div>
-                    <button className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
-                        Use Now
-                    </button>
+                    {!isHistory && (
+                        coupon.merchant_id ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setMerchantPopup({ open: true, coupon }); }}
+                                className="text-xs font-bold px-4 py-2 rounded-lg transition-colors bg-orange-500 hover:bg-orange-400 text-white flex items-center gap-1"
+                            >
+                                <Store className="w-3.5 h-3.5" />
+                                ใช้ที่ร้าน
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => handleUseCoupon(e, coupon)}
+                                className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors ${isMain ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}
+                            >
+                                ใช้เลย
+                            </button>
+                        )
+                    )}
                 </div>
             </div>
         );
     };
 
-    const [showSelectionModal, setShowSelectionModal] = useState(false);
-
     return (
-        <div className="min-h-screen bg-gray-50 pb-20 font-sans">
+        <div className="min-h-screen bg-gray-50 font-sans pb-20">
             {/* Header */}
-            <div className="bg-white pb-6 pt-8 px-6 shadow-sm rounded-b-[2rem] mb-6">
+            <div className="bg-white pt-8 px-6 pb-4 shadow-sm rounded-b-[2rem] mb-4 sticky top-0 z-40">
                 <div className="flex justify-between items-center mb-4">
                     <div>
-                        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Wallet</h1>
-                        <p className="text-gray-500 text-sm">Your premium rewards</p>
+                        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">กระเป๋าคูปอง</h1>
+                        <p className="text-gray-500 text-xs">คูปองและของรางวัลของคุณ</p>
                     </div>
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <Gift className="w-5 h-5 text-gray-600" />
+                    {/* Compact Points in Header */}
+                    <div className="flex flex-col items-end">
+                        <span className="font-black text-xl text-orange-600 leading-none">
+                            {points.toLocaleString()} <span className="text-xs font-bold text-orange-500">Points</span>
+                        </span>
                     </div>
                 </div>
 
-                {/* User Input (Dev) */}
-                <div className="flex gap-2 mt-4">
-                    <input
-                        value={userId}
-                        onChange={e => setUserId(e.target.value)}
-                        placeholder="Enter LINE User ID"
-                        className="flex-1 bg-gray-100 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-gray-900 outline-none"
-                    />
+                {/* Tabs */}
+                <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
                     <button
-                        onClick={() => fetchWallet(userId)}
-                        className="bg-gray-900 text-white px-5 rounded-xl font-medium text-sm hover:bg-gray-800 transition-colors"
+                        onClick={() => setActiveTab('my_coupons')}
+                        className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'my_coupons' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        Load
+                        คูปองของฉัน
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('market')}
+                        className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'market' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        เก็บคูปอง
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('redeem')}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'redeem' ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Award className="w-4 h-4" />
+                        แลกแต้ม
                     </button>
                 </div>
             </div>
 
-            <div className="px-5 space-y-8">
-                {/* Collect Section */}
-                <section>
-                    <div className="flex justify-between items-center mb-3 px-1">
-                        <h2 className="font-bold text-gray-900">Add Coupon</h2>
-                    </div>
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-                        <div className="bg-yellow-50 p-3 rounded-lg text-yellow-800 text-sm mb-2 text-center">
-                            💡 กรอกโค้ดลับ (เช่น "ป้าขาว") เพื่อรับคูปอง
+            <div className="px-5 space-y-6 mt-4">
+                {/* Invite Friend CTA */}
+                {userId && (
+                    <div
+                        onClick={() => { window.location.hash = `#/affiliate-dashboard?userId=${userId}`; }}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-4 text-white shadow-lg cursor-pointer active:scale-[0.98] transition-transform"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="font-bold text-sm">🎓 แนะนำเพื่อน รับ ฿100</div>
+                                <div className="text-xs opacity-80 mt-0.5">เพื่อนได้ลด 50% คุณได้คูปอง!</div>
+                            </div>
+                            <div className="bg-white/20 rounded-full p-2">
+                                <Share2 className="w-5 h-5" />
+                            </div>
                         </div>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                            <input
-                                className="w-full bg-gray-50 border-0 rounded-xl p-3 pl-10 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="พิมพ์โค้ดลับที่นี่..."
-                                value={collectDetails.secretCode}
-                                onChange={(e) => setCollectDetails({ ...collectDetails, secretCode: e.target.value })}
-                            />
-                        </div>
-                        <button
-                            onClick={handleCollect}
-                            disabled={collecting || !collectDetails.secretCode}
-                            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50"
-                        >
-                            {collecting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'เก็บคูปอง'}
-                        </button>
                     </div>
-                </section>
-
-                {/* Available Coupons (Public Marketplace) */}
-                <section>
-                    <div className="flex justify-between items-center mb-3 px-1">
-                        <h2 className="font-bold text-gray-900">🎁 คูปองแนะนำ (เก็บเลย!)</h2>
-                    </div>
-
-                    {loading ? (
-                        <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-300" /></div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4">
-                            {availableCampaigns.length === 0 ? (
-                                <div className="text-center py-6 bg-white rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
-                                    ไม่มีคูปองให้เก็บในขณะนี้
-                                </div>
-                            ) : (
-                                availableCampaigns.map(camp => (
-                                    <div key={camp.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {camp.is_stackable ? 'On-Top' : 'Main'}
-                                                </span>
-                                                <span className="text-xs text-gray-500 font-medium">เหลือ {camp.remaining_quantity ?? 'ไม่อั้น'} สิทธิ์</span>
+                )}
+                {/* 1. My Coupons Tab */}
+                {activeTab === 'my_coupons' && (
+                    <>
+                        {loading && wallet.main.length === 0 ? (
+                            <div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-gray-300 mx-auto" /></div>
+                        ) : (
+                            <div className="space-y-4">
+                                <>
+                                    {(() => {
+                                        // Group main coupons by campaign_id
+                                        const mainGroups = new Map<string, { coupon: Coupon; count: number }>();
+                                        wallet.main.forEach(c => {
+                                            const key = c.campaign_id;
+                                            if (mainGroups.has(key)) {
+                                                mainGroups.get(key)!.count++;
+                                            } else {
+                                                mainGroups.set(key, { coupon: c, count: 1 });
+                                            }
+                                        });
+                                        // Group on_top coupons by campaign_id
+                                        const ontopGroups = new Map<string, { coupon: Coupon; count: number }>();
+                                        wallet.on_top.forEach(c => {
+                                            const key = c.campaign_id;
+                                            if (ontopGroups.has(key)) {
+                                                ontopGroups.get(key)!.count++;
+                                            } else {
+                                                ontopGroups.set(key, { coupon: c, count: 1 });
+                                            }
+                                        });
+                                        return (
+                                            <>
+                                                {Array.from(mainGroups.values()).map(({ coupon, count }) => (
+                                                    <div key={coupon.coupon_id} className="relative">
+                                                        {count > 1 && (
+                                                            <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                x{count}
+                                                            </div>
+                                                        )}
+                                                        <CouponCard coupon={coupon} type="Main" />
+                                                    </div>
+                                                ))}
+                                                {Array.from(ontopGroups.values()).map(({ coupon, count }) => (
+                                                    <div key={coupon.coupon_id} className="relative">
+                                                        {count > 1 && (
+                                                            <div className="absolute -top-2 -right-2 z-20 bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                x{count}
+                                                            </div>
+                                                        )}
+                                                        <CouponCard coupon={coupon} type="On-top" />
+                                                    </div>
+                                                ))}
+                                            </>
+                                        );
+                                    })()}
+                                    {wallet.main.length === 0 && wallet.on_top.length === 0 && (
+                                        <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                <Ticket className="w-8 h-8 text-gray-300" />
                                             </div>
-                                            <h3 className="font-bold text-gray-900">{camp.name}</h3>
-                                            <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
+                                            <h3 className="text-gray-900 font-medium">ไม่มีคูปองที่ใช้งานได้</h3>
+                                            <p className="text-gray-400 text-sm mt-1">สามารถดูเพิ่มได้ที่หน้า "เก็บคูปอง"</p>
+                                            <button
+                                                onClick={() => setActiveTab('market')}
+                                                className="mt-4 text-indigo-600 text-sm font-bold hover:underline"
+                                            >
+                                                ไปหน้าเก็บคูปอง
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => doAutoCollect(userId, camp.id, '')}
-                                            disabled={collecting}
-                                            className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
+                                    )}
+                                </>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* 2. Market Tab (คูปองฟรี) */}
+                {activeTab === 'market' && (
+                    <div className="space-y-6">
+                        <div>
+                            <div className="flex justify-between items-center mb-3 px-1 mt-4">
+                                <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                    <Ticket className="w-5 h-5 text-indigo-500" />
+                                    คูปองเก็บฟรี
+                                </h2>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4">
+                                {availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).length > 0 ? (
+                                    availableCampaigns.filter(c => !c.point_cost || c.point_cost === 0).map(camp => (
+                                        <div
+                                            key={camp.id}
+                                            onClick={() => openDetail({ campaign: camp })}
+                                            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
                                         >
-                                            เก็บ
-                                        </button>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {camp.is_stackable ? 'On-Top' : 'Main'}
+                                                    </span>
+                                                    {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
+                                                        <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
+                                                            <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity} สิทธิ์
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="font-bold text-gray-900">{camp.name}</h3>
+                                                <p className="text-sm text-gray-500 line-clamp-1">{camp.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    doAutoCollect(userId, camp.id, '');
+                                                }}
+                                                disabled={collecting}
+                                                className="ml-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 whitespace-nowrap"
+                                            >
+                                                เก็บ
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                                        <p className="text-gray-400 text-sm">ไม่มีคูปองแจกฟรีในขณะนี้</p>
                                     </div>
-                                ))
-                            )}
+                                )}
+                            </div>
                         </div>
-                    )}
-                </section>
-
-                {/* Coupons List */}
-                <section>
-                    <div className="flex justify-between items-center mb-3 px-1">
-                        <h2 className="font-bold text-gray-900">กระเป๋าของฉัน</h2>
-                        {wallet.main.length + wallet.on_top.length > 0 && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{wallet.main.length + wallet.on_top.length}</span>}
                     </div>
+                )}
 
-                    {loading ? (
-                        <div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-gray-300 mx-auto" /></div>
-                    ) : (
-                        <div className="space-y-4">
-                            {wallet.main.map(c => <CouponCard key={c.coupon_id} coupon={c} type="Main" />)}
-                            {wallet.on_top.map(c => <CouponCard key={c.coupon_id} coupon={c} type="On-top" />)}
-
-                            {wallet.main.length === 0 && wallet.on_top.length === 0 && (
-                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                        <Ticket className="w-8 h-8 text-gray-300" />
+                {/* 3. Redeem Tab (แลกแต้ม) */}
+                {activeTab === 'redeem' && (
+                    <div className="space-y-6">
+                        {availableCampaigns.filter(c => c.point_cost > 0).length > 0 ? (
+                            <div>
+                                {/* Partner Rewards Section */}
+                                {availableCampaigns.filter(c => c.point_cost > 0 && c.merchant_id).length > 0 && (
+                                    <div className="mb-6">
+                                        <div className="flex justify-between items-center mb-3 px-1">
+                                            <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                                <Store className="w-5 h-5 text-orange-500" />
+                                                ของรางวัลร้านค้าพาร์ทเนอร์
+                                            </h2>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {availableCampaigns.filter(c => c.point_cost > 0 && c.merchant_id).map(camp => (
+                                                <div
+                                                    key={camp.id}
+                                                    onClick={() => openDetail({ campaign: camp })}
+                                                    className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform relative overflow-hidden"
+                                                >
+                                                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-orange-50 to-orange-100 rounded-bl-full -z-0"></div>
+                                                    <div className="flex-1 relative z-10 pr-2">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                                                🏪 {(camp as any).merchants?.name || 'ร้านค้า'}
+                                                            </span>
+                                                        </div>
+                                                        <h3 className="font-bold text-gray-900 leading-tight mb-1">{camp.name}</h3>
+                                                        <p className="text-xs text-gray-500 line-clamp-1">{camp.reward_item || camp.description}</p>
+                                                    </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); doRedeemPoints(userId, camp.id, camp.point_cost); }}
+                                                        disabled={collecting || points < camp.point_cost}
+                                                        className={`relative z-10 ml-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex flex-col items-center leading-none ${points >= camp.point_cost
+                                                            ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
+                                                            : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'}`}>
+                                                        <span>แลก</span>
+                                                        <span className="text-[10px] font-medium opacity-90">{camp.point_cost} แต้ม</span>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <h3 className="text-gray-900 font-medium">ยังไม่มีคูปอง</h3>
-                                    <p className="text-gray-400 text-sm mt-1">เก็บคูปองด้านบน หรือกรอกโค้ดลับเพื่อรับสิทธิ์</p>
+                                )}
+
+                                {/* Regular Booking Coupons Section */}
+                                <div className="flex justify-between items-center mb-3 px-1">
+                                    <h2 className="font-bold text-gray-900 flex items-center gap-1.5">
+                                        <Award className="w-5 h-5 text-orange-500" />
+                                        คูปองส่วนลดสนาม
+                                    </h2>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </section>
-
-                {/* Dev Tools */}
-                <section className="pt-4 border-t border-gray-100">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase mb-3 text-center">Developer Tools</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => setShowSelectionModal(true)}
-                            className="bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
-                        >
-                            Simulate Booking
-                        </button>
-                        <button
-                            onClick={handleTestFlex}
-                            disabled={sendingFlex}
-                            className="bg-green-50 text-green-700 py-3 rounded-xl font-semibold text-sm hover:bg-green-100 transition-colors flex items-center justify-center gap-2"
-                        >
-                            {sendingFlex ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                            Test Flex Msg
-                        </button>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {availableCampaigns.filter(c => c.point_cost > 0 && !c.merchant_id).map(camp => (
+                                        <div
+                                            key={camp.id}
+                                            onClick={() => openDetail({ campaign: camp })}
+                                            className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform relative overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-orange-50 to-orange-100 rounded-bl-full -z-0"></div>
+                                            <div className="flex-1 relative z-10 pr-2">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${camp.is_stackable ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {camp.is_stackable ? 'On-Top' : 'Main'}
+                                                    </span>
+                                                    {camp.remaining_quantity !== null && camp.remaining_quantity < 50 && (
+                                                        <span className="text-[10px] text-orange-500 font-bold flex items-center gap-1">
+                                                            <AlertCircle className="w-3 h-3" /> เหลือ {camp.remaining_quantity}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="font-bold text-gray-900 leading-tight mb-1">{camp.name}</h3>
+                                                <p className="text-xs text-gray-500 line-clamp-1">{camp.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); doRedeemPoints(userId, camp.id, camp.point_cost); }}
+                                                disabled={collecting || points < camp.point_cost}
+                                                className={`relative z-10 ml-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex flex-col items-center leading-none ${points >= camp.point_cost
+                                                    ? 'bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700'
+                                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'}`}>
+                                                <span>แลก</span>
+                                                <span className="text-[10px] font-medium opacity-90">{camp.point_cost} แต้ม</span>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                                <Award className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-400 text-sm font-medium">ยังไม่มีคูปองให้แลกด้วยแต้ม</p>
+                                <p className="text-gray-400 text-xs mt-1">โปรดติดตามกิจกรรมใหม่ๆ เร็วๆ นี้</p>
+                            </div>
+                        )}
                     </div>
-                </section>
+                )}
             </div>
 
-            {/* Helper Modal */}
-            <CouponSelectionModal
-                isOpen={showSelectionModal}
-                onClose={() => setShowSelectionModal(false)}
-                userId={userId}
-                totalPrice={1500}
-                onConfirm={(ids, discount, final) => {
-                    alert(`Booking Confirmed!\nUsed Coupon IDs: ${ids.join(', ')}\nDiscount: ${discount}\nFinal Price: ${final}`);
-                    setShowSelectionModal(false);
-                }}
+            {/* Detail Modal */}
+            <CouponDetailModal
+                isOpen={isDetailOpen}
+                onClose={() => setIsDetailOpen(false)}
+                coupon={selectedCoupon}
             />
+
+            {/* Merchant Coupon QR Popup */}
+            {merchantPopup.coupon && (
+                <MerchantCouponPopup
+                    isOpen={merchantPopup.open}
+                    onClose={() => setMerchantPopup({ open: false, coupon: null })}
+                    couponId={merchantPopup.coupon.coupon_id}
+                    couponName={merchantPopup.coupon.name}
+                    rewardItem={merchantPopup.coupon.reward_item || merchantPopup.coupon.name}
+                    merchantName={merchantPopup.coupon.merchant_name || ''}
+                    userId={userId}
+                />
+            )}
         </div>
     );
 }

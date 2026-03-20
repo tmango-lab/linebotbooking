@@ -13,12 +13,17 @@ interface BookingConfirmationModalProps {
         discount: number;
         finalPrice: number;
         couponName?: string;
-        appliedCoupon?: any; // Added appliedCoupon to access payment_methods
     };
+    allowedPaymentMethods: string[] | null;
+    forcedPayment?: 'QR' | 'CASH' | null; // [FLASH DEAL] Force a specific payment method
     initialProfile: {
         team_name: string;
         phone_number: string;
     } | null;
+    requireTermConsent?: boolean;
+    termConsentMessage?: string | null;
+    hasConsentedTerms?: boolean;
+    onConsentChange?: (consented: boolean) => void;
 }
 
 const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
@@ -26,53 +31,133 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
     onClose,
     onConfirm,
     bookingDetails,
-    initialProfile
+    initialProfile,
+    allowedPaymentMethods,
+    forcedPayment,
+    requireTermConsent,
+    termConsentMessage,
+    hasConsentedTerms,
+    onConsentChange
 }) => {
-    const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'qr' | 'field' | null>(
+        forcedPayment === 'QR' ? 'qr' : forcedPayment === 'CASH' ? 'field' : null
+    );
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Form State
+    const [teamName, setTeamName] = useState(initialProfile?.team_name || '');
+    const [phoneNumber, setPhoneNumber] = useState(initialProfile?.phone_number || '');
+
+    // Update state when initialProfile changes (e.g. first open)
+    React.useEffect(() => {
+        if (initialProfile) {
+            setTeamName(initialProfile.team_name || '');
+            setPhoneNumber(initialProfile.phone_number || '');
+        }
+    }, [initialProfile]);
 
     if (!isOpen) return null;
 
-    // Filter payment methods based on coupon
-    const allowedMethods = bookingDetails.appliedCoupon?.campaigns?.payment_methods || [];
-    const showQR = allowedMethods.length === 0 || allowedMethods.includes('qr');
-    const showField = allowedMethods.length === 0 || allowedMethods.includes('field');
+    // Filter payment methods based on coupon OR forced payment
+    const effectiveAllowed = forcedPayment
+        ? (forcedPayment === 'QR' ? ['qr'] : ['field'])
+        : (allowedPaymentMethods || []).map((m: string) => m.toLowerCase());
+
+    const showQR = !forcedPayment
+        ? (!allowedPaymentMethods || effectiveAllowed.length === 0 ||
+            effectiveAllowed.some((m: string) => m.includes('qr') || m.includes('promt') || m.includes('prompt')))
+        : forcedPayment === 'QR';
+
+    const showField = !forcedPayment
+        ? (!allowedPaymentMethods || effectiveAllowed.length === 0 ||
+            effectiveAllowed.some((m: string) => m.includes('field') || m.includes('เงินสด') || m.includes('cash')))
+        : forcedPayment === 'CASH';
 
     const handleConfirm = () => {
+        if (!teamName.trim()) {
+            alert("กรุณาระบุชื่อทีม/ผู้จอง");
+            return;
+        }
+        if (!phoneNumber.trim()) {
+            alert("กรุณาระบุเบอร์โทรศัพท์");
+            return;
+        }
         if (!paymentMethod) {
             alert("กรุณาเลือกวิธีชำระเงิน");
             return;
         }
 
-        const team = initialProfile?.team_name || 'Guest';
-        const phone = initialProfile?.phone_number || '';
+        if (requireTermConsent && !hasConsentedTerms) {
+            // Usually the button is disabled, but just in case
+            return;
+        }
 
         setIsSubmitting(true);
-        onConfirm(team, phone, paymentMethod);
+        onConfirm(teamName, phoneNumber, paymentMethod);
     };
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
-                <div className="bg-green-600 p-6 text-white text-center">
+                <div className="bg-[#06C755] p-6 text-white text-center">
                     <h2 className="text-xl font-bold">ยืนยันการจอง</h2>
-                    <p className="text-green-100 text-sm opacity-90">ตรวจสอบความถูกต้องก่อนยืนยัน</p>
+                    <p className="text-green-50 text-sm opacity-90">ตรวจสอบความถูกต้องก่อนยืนยัน</p>
                 </div>
 
                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                    {/* Input Fields */}
+                    <div className="space-y-4">
+                        {initialProfile ? (
+                            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-1">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm">ชื่อทีม / ผู้จอง</span>
+                                    <span className="font-bold text-gray-800">{teamName}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm">เบอร์โทรศัพท์</span>
+                                    <span className="font-bold text-gray-800">{phoneNumber}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ชื่อทีม / ผู้จอง</label>
+                                    <input
+                                        type="text"
+                                        value={teamName}
+                                        onChange={(e) => setTeamName(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                                        placeholder="เช่น หมูเด้ง เอฟซี"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">เบอร์โทรศัพท์</label>
+                                    <input
+                                        type="tel"
+                                        value={phoneNumber}
+                                        onChange={(e) => setPhoneNumber(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-bold focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                                        placeholder="08x-xxx-xxxx"
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                     <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                             <span className="text-gray-500 text-sm">สนาม</span>
-                            <span className="font-bold text-gray-800">{bookingDetails.fieldName.replace('สนาม ', '')}</span>
+                            <span className="font-bold text-gray-800 text-right">{bookingDetails.fieldName.replace('สนาม ', '')}</span>
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                             <span className="text-gray-500 text-sm">วันที่</span>
-                            <span className="font-bold text-gray-800">{bookingDetails.date}</span>
+                            <span className="font-bold text-gray-800 text-right">{bookingDetails.date}</span>
                         </div>
-                        <div className="flex justify-between">
+
+                        <div className="flex justify-between items-center">
                             <span className="text-gray-500 text-sm">เวลา</span>
-                            <span className="font-bold text-gray-800">{bookingDetails.startTime} - {bookingDetails.endTime}</span>
+                            <span className="font-bold text-gray-800 text-right">{bookingDetails.startTime} - {bookingDetails.endTime}</span>
                         </div>
                     </div>
 
@@ -97,7 +182,17 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
 
                     <div className="space-y-3">
                         <h3 className="font-bold text-gray-800 text-xs uppercase tracking-wider text-center">เลือกวิธีชำระเงิน</h3>
-                        <div className="grid grid-cols-2 gap-3">
+
+                        {/* [FLASH DEAL] Forced payment banner */}
+                        {forcedPayment && (
+                            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 text-center">
+                                <p className="text-xs font-bold text-orange-700">
+                                    {forcedPayment === 'QR' ? '📲 โปรนี้ต้องชำระผ่าน QR PromptPay เท่านั้น' : '💵 โปรนี้ต้องชำระเงินสดที่สนามเท่านั้น'}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className={`grid gap-3 ${(showQR && showField) ? 'grid-cols-2' : 'grid-cols-1 max-w-[200px] mx-auto'}`}>
                             {showQR && (
                                 <button
                                     onClick={() => setPaymentMethod('qr')}
@@ -113,7 +208,7 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                                         <rect x="15" y="3" width="6" height="6" rx="1" strokeWidth={2} />
                                         <rect x="3" y="15" width="6" height="6" rx="1" strokeWidth={2} />
                                     </svg>
-                                    <span className="text-[10px] sm:text-xs">มัดจำ 200 บาท (QR)</span>
+                                    <span className="text-[10px] sm:text-xs">QR PromtPay</span>
                                 </button>
                             )}
                             {showField && (
@@ -128,27 +223,53 @@ const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> = ({
                                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
-                                    <span className="text-[10px] sm:text-xs">จ่ายที่สนาม</span>
+                                    <span className="text-[10px] sm:text-xs">เงินสด (หน้าสนาม)</span>
                                 </button>
                             )}
                         </div>
                     </div>
+
+                    {/* Compact Referral Consent Checkbox */}
+                    {requireTermConsent && (
+                        <>
+                            <hr className="border-gray-100" />
+                            <div className="pt-2 px-2">
+                                <label className="flex items-start gap-2 cursor-pointer group bg-red-50/80 p-2.5 rounded-lg border border-red-100 transition-all hover:bg-red-50">
+                                    <div className="relative flex items-center h-4 mt-0.5 shrink-0">
+                                        <input
+                                            type="checkbox"
+                                            checked={hasConsentedTerms}
+                                            onChange={(e) => onConsentChange?.(e.target.checked)}
+                                            className="peer appearance-none w-4 h-4 border border-red-300 rounded cursor-pointer checked:bg-red-500 checked:border-red-500 focus:outline-none transition-all"
+                                        />
+                                        <svg className="absolute w-4 h-4 text-white pointer-events-none opacity-0 peer-checked:opacity-100 flex items-center justify-center p-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                    <div className="text-[11px] font-medium text-red-800 leading-snug">
+                                        {termConsentMessage || "ข้าพเจ้ายอมรับว่าโปรโมชั่นนี้ไม่สามารถเปลี่ยงแปลงเวลาและคืนเงินได้"}
+                                        <span className="text-red-500 ml-1 font-bold">*</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="p-6 bg-gray-50 flex space-x-3">
                     <button onClick={onClose} className="flex-1 py-4 font-bold text-gray-400 hover:text-gray-600 transition-colors">ยกเลิก</button>
                     <button
                         onClick={handleConfirm}
-                        disabled={isSubmitting}
-                        className={`flex-[2] bg-[#06C755] text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all
-                            ${isSubmitting ? 'opacity-50 grayscale' : 'hover:bg-green-600'}
+                        disabled={isSubmitting || (requireTermConsent ? !hasConsentedTerms : false)}
+                        className={`flex-[2] py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all
+                            ${isSubmitting || (requireTermConsent && !hasConsentedTerms) ? 'bg-gray-300 text-gray-500 opacity-50 shadow-none cursor-not-allowed' : 'bg-[#06C755] text-white hover:bg-green-600'}
                         `}
                     >
                         {isSubmitting ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

@@ -23,9 +23,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         discount_type: 'amount', // amount | percent | item
         discount_amount: 0,
         discount_percent: 0,
+        max_discount: 0, // Cap for percent discount
         reward_item: '', // New: For 'item' type
         is_stackable: false, // false = Main, true = On-Top
         is_public: true, // New: true = Public, false = Secret
+        point_cost: 0, // Points required to redeem
 
         // Conditions
         start_date: '',
@@ -40,8 +42,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         // Inventory
         limit_per_user: 1,
         total_quantity: 100,
-        secret_codes: [] as string[], // ['CODE1', 'CODE2']
-        status: 'active'
+        redemption_limit: 0,
+        duration_days: 0, // Changed from validity_days
+        secret_codes: [] as string[],
+        status: 'active',
+        allow_ontop_stacking: true // New: allow stacking main with on-top
     });
 
     // Temp state for tag inputs
@@ -59,9 +64,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     discount_type: campaign.reward_item ? 'item' : (campaign.discount_percent > 0 ? 'percent' : 'amount'),
                     discount_amount: campaign.discount_amount || 0,
                     discount_percent: campaign.discount_percent || 0,
+                    max_discount: campaign.max_discount || 0,
                     reward_item: campaign.reward_item || '',
                     is_stackable: campaign.is_stackable || false,
                     is_public: campaign.is_public ?? true,
+                    point_cost: campaign.point_cost || 0,
 
                     start_date: campaign.start_date ? campaign.start_date.split('T')[0] : '',
                     end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
@@ -74,8 +81,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
 
                     limit_per_user: campaign.limit_per_user || 1,
                     total_quantity: campaign.total_quantity || 100,
+                    redemption_limit: campaign.redemption_limit || 0,
+                    duration_days: campaign.duration_days || 0,
                     secret_codes: campaign.secret_codes || [],
-                    status: campaign.status || 'active'
+                    status: campaign.status || 'active',
+                    allow_ontop_stacking: campaign.allow_ontop_stacking ?? true
                 });
             } else {
                 // Reset for Create Mode
@@ -86,9 +96,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     discount_type: 'amount',
                     discount_amount: 0,
                     discount_percent: 0,
+                    max_discount: 0,
                     reward_item: '',
                     is_stackable: false,
                     is_public: true,
+                    point_cost: 0,
                     start_date: new Date().toISOString().split('T')[0],
                     end_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
                     valid_time_start: '',
@@ -99,8 +111,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     eligible_days: [],
                     limit_per_user: 1,
                     total_quantity: 100,
+                    redemption_limit: 0,
+                    duration_days: 0,
                     secret_codes: [],
-                    status: 'active'
+                    status: 'active',
+                    allow_ontop_stacking: true
                 });
             }
             setError(null);
@@ -158,10 +173,12 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                 // Benefit Logic
                 discount_amount: formData.discount_type === 'amount' ? Number(formData.discount_amount) : 0,
                 discount_percent: formData.discount_type === 'percent' ? Number(formData.discount_percent) : 0,
+                max_discount: formData.discount_type === 'percent' && formData.max_discount > 0 ? Number(formData.max_discount) : null,
                 reward_item: formData.discount_type === 'item' ? formData.reward_item : null,
                 is_stackable: formData.is_stackable,
                 coupon_type: formData.is_stackable ? 'ontop' : 'main',
                 is_public: formData.is_public,
+                allow_ontop_stacking: !formData.is_stackable ? formData.allow_ontop_stacking : true,
 
                 // Conditions
                 min_spend: Number(formData.min_spend),
@@ -176,8 +193,11 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                 // Inventory
                 limit_per_user: Number(formData.limit_per_user),
                 total_quantity: Number(formData.total_quantity),
+                redemption_limit: formData.redemption_limit > 0 ? Number(formData.redemption_limit) : null,
+                duration_days: formData.duration_days > 0 ? Number(formData.duration_days) : null,
                 secret_codes: formData.secret_codes.length > 0 ? formData.secret_codes : null,
                 status: formData.status,
+                point_cost: Number(formData.point_cost) || 0,
             };
 
             if (campaign) {
@@ -300,6 +320,26 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                         </div>
                                     </div>
 
+                                    {/* Stackable Toggle (Only for Main Coupon) */}
+                                    {!formData.is_stackable && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">สิทธิ์การใช้ร่วมกับคูปองเสริม (On-Top)</label>
+                                            <div className="flex gap-2">
+                                                <button type="button"
+                                                    onClick={() => setFormData({ ...formData, allow_ontop_stacking: true })}
+                                                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center ${formData.allow_ontop_stacking ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+                                                    ✔️ อนุญาตให้ใช้คู่กันได้
+                                                </button>
+                                                <button type="button"
+                                                    onClick={() => setFormData({ ...formData, allow_ontop_stacking: false })}
+                                                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border text-center ${!formData.allow_ontop_stacking ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+                                                    ❌ ไม่อนุญาต
+                                                </button>
+                                            </div>
+                                            <p className="mt-1 text-xs text-gray-500">หากเลือก "ไม่อนุญาต" ลูกค้าที่เลือกคูปองหลักนี้ จะไม่สามารถเลือกคูปองเสริมในหน้าจองได้</p>
+                                        </div>
+                                    )}
+
                                     {/* Acquisition Method */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">วิธีการรับแคมเปญ</label>
@@ -347,15 +387,30 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                 </div>
                                             )}
                                             {formData.discount_type === 'percent' && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">เปอร์เซ็นต์ที่ลด (%)</label>
-                                                    <div className="relative rounded-md shadow-sm">
-                                                        <input type="number" min="0" max="100" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-12 sm:text-sm border-gray-300 rounded-md border p-2"
-                                                            value={formData.discount_percent}
-                                                            onChange={e => setFormData({ ...formData, discount_percent: parseFloat(e.target.value), discount_amount: 0 })} />
-                                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                            <span className="text-gray-500 sm:text-sm">%</span>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">เปอร์เซ็นต์ที่ลด (%)</label>
+                                                        <div className="relative rounded-md shadow-sm">
+                                                            <input type="number" min="0" max="100" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-12 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                                value={formData.discount_percent}
+                                                                onChange={e => setFormData({ ...formData, discount_percent: parseFloat(e.target.value), discount_amount: 0 })} />
+                                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                                <span className="text-gray-500 sm:text-sm">%</span>
+                                                            </div>
                                                         </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">เพดานส่วนลดสูงสุด (บาท)</label>
+                                                        <div className="relative rounded-md shadow-sm">
+                                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                <span className="text-gray-500 sm:text-sm">฿</span>
+                                                            </div>
+                                                            <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                                placeholder="0 = ไม่จำกัด"
+                                                                value={formData.max_discount}
+                                                                onChange={e => setFormData({ ...formData, max_discount: parseInt(e.target.value) || 0 })} />
+                                                        </div>
+                                                        <p className="mt-1 text-xs text-gray-500">เช่น ลด 50% สูงสุด 200 บาท (0 = ไม่มีเพดาน)</p>
                                                     </div>
                                                 </div>
                                             )}
@@ -380,19 +435,34 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                     เงื่อนไขการใช้งาน
                                 </h4>
                                 <div className="space-y-4">
-                                    {/* Min Spend */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ยอดใช้จ่ายขั้นต่ำ (ไม่ระบุได้)</label>
-                                        <div className="relative rounded-md shadow-sm max-w-xs">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <span className="text-gray-500 sm:text-sm">฿</span>
+                                    {/* Point Cost & Min Spend */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">แต้มที่ต้องใช้แลก (Point Cost)</label>
+                                            <div className="relative rounded-md shadow-sm max-w-xs">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 sm:text-sm">⭐</span>
+                                                </div>
+                                                <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-9 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                    value={formData.point_cost}
+                                                    onChange={e => setFormData({ ...formData, point_cost: parseInt(e.target.value) || 0 })}
+                                                    placeholder="0" />
                                             </div>
-                                            <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md border p-2"
-                                                value={formData.min_spend}
-                                                onChange={e => setFormData({ ...formData, min_spend: parseFloat(e.target.value) })}
-                                                placeholder="0" />
+                                            <p className="mt-1 text-xs text-gray-500">ใส่ 0 หากเป็นคูปองแจกฟรีไม่ต้องใช้แต้ม</p>
                                         </div>
-                                        <p className="mt-1 text-xs text-gray-500">ยอดจองต้องไม่ต่ำกว่าราคาที่กำหนดจึงจะใช้คูปองได้</p>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">ยอดใช้จ่ายขั้นต่ำ (ไม่ระบุได้)</label>
+                                            <div className="relative rounded-md shadow-sm max-w-xs">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 sm:text-sm">฿</span>
+                                                </div>
+                                                <input type="number" min="0" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md border p-2"
+                                                    value={formData.min_spend}
+                                                    onChange={e => setFormData({ ...formData, min_spend: parseFloat(e.target.value) })}
+                                                    placeholder="0" />
+                                            </div>
+                                            <p className="mt-1 text-xs text-gray-500">ยอดจองต้องไม่ต่ำกว่าราคาที่กำหนดจึงจะใช้คูปองได้</p>
+                                        </div>
                                     </div>
 
                                     {/* Eligible Days */}
@@ -435,7 +505,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">ช่องทางชำระเงิน</label>
                                             <div className="flex flex-wrap gap-2">
-                                                {['CASH', 'QR', 'TRANSFER'].map(method => (
+                                                {['CASH', 'QR'].map(method => (
                                                     <button key={method} type="button"
                                                         onClick={() => toggleArrayItem(method, 'payment_methods')}
                                                         className={`px-3 py-1 rounded-md text-xs font-medium border ${formData.payment_methods.includes(method)
@@ -443,7 +513,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                             : 'bg-white text-gray-600 border-gray-300'
                                                             }`}
                                                     >
-                                                        {method === 'CASH' ? 'เงินสด' : method === 'QR' ? 'QR Code' : 'โอนเงิน'}
+                                                        {method === 'CASH' ? 'เงินสด (หน้าสนาม)' : 'QR PromtPay'}
                                                     </button>
                                                 ))}
                                             </div>
@@ -486,6 +556,26 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                         <input type="number" min="1" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
                                             value={formData.limit_per_user}
                                             onChange={e => setFormData({ ...formData, limit_per_user: parseInt(e.target.value) })} />
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700">จำกัดจำนวนการใช้ (Redemption Limit)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input type="number" min="0" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
+                                                placeholder="0 = ไม่จำกัด"
+                                                value={formData.redemption_limit}
+                                                onChange={e => setFormData({ ...formData, redemption_limit: parseInt(e.target.value) || 0 })} />
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">จำนวนครั้งที่ใช้ได้จริง (เช่น แจก 100 ใบ แต่ให้ใช้ได้แค่ 5 คน)</p>
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700">อายุคูปองหลังเก็บ (วัน)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input type="number" min="0" className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2.5"
+                                                placeholder="0 = หมดอายุตามแคมเปญ"
+                                                value={formData.duration_days}
+                                                onChange={e => setFormData({ ...formData, duration_days: parseInt(e.target.value) || 0 })} />
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">จำนวนวันที่คูปองจะยังใช้ได้หลังจากกดรวบรวม (เช่น 7 วัน)</p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">วันที่เริ่มแคมเปญ</label>
