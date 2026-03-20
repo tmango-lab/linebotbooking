@@ -149,7 +149,7 @@ export default function BookingCard({
 
     return (
         <div
-            className={`absolute inset-x-1 rounded shadow-sm border-l-[3px] px-2 py-1 text-xs transition-all z-10 group overflow-hidden select-none ${theme} ${isDragging ? 'opacity-50 cursor-grabbing' : 'cursor-grab'}`}
+            className={`absolute inset-x-1 rounded shadow-sm border-l-[3px] px-2 py-1 text-xs transition-all z-10 group overflow-hidden select-none ${theme} ${isDragging ? 'opacity-50 cursor-grabbing' : (booking.is_promo ? 'cursor-pointer' : 'cursor-grab')}`}
             style={{
                 top: `${top}px`,
                 height: `${height}px`,

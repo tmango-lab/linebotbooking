@@ -316,7 +316,7 @@ export default function DashboardPage() {
     // --- Modify Handlers ---
     const handleBookingMoveStart = (e: React.MouseEvent, booking: MatchdayMatch) => {
         if (booking.is_promo) {
-            alert('ไม่สามารถย้ายสนามหรือเลื่อนเวลาของรายการที่ใช้โปรโมชั่นได้ (หากต้องการลดเวลา กรุณาลากที่ขอบกล่องด้านล่าง/บน)');
+            // Silently prevent drag initiation so we don't block `onClick` with synchronous alerts.
             return;
         }
         const startY = minToY(new Date(booking.time_start.replace(' ', 'T')).getHours() * 60 + new Date(booking.time_start.replace(' ', 'T')).getMinutes());
