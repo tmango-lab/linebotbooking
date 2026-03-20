@@ -151,7 +151,7 @@ serve(async (req) => {
         // Check Existence and Fetch Details for Anti-Gaming Logic
         const { data: existing, error: fetchError } = await supabase
             .from('bookings')
-            .select('booking_id, price_total_thb, duration_h, field_no, time_from')
+            .select('booking_id, price_total_thb, duration_h, field_no, time_from, admin_note')
             .eq('booking_id', String(matchId))
             .single();
 
@@ -191,14 +191,10 @@ serve(async (req) => {
                 const { error: releaseError } = await supabase
                     .from('user_coupons')
                     .update({
-                        status: 'burned', // Changed from 'ACTIVE' to 'burned'
-                        // booking_id: null, // Keep booking_id to track which booking burned it? 
-                        // Let's keep it linked so we know history. 
-                        // But if we want to "remove" it from the booking visually, maybe the frontend filters by status=used?
-                        // If status is burned, it shouldn't count as a discount anymore.
+                        status: 'EXPIRED', // Must be EXPIRED per DB constraints
                     })
                     .eq('booking_id', String(matchId))
-                    .eq('status', 'used');
+                    .in('status', ['used', 'USED', 'ACTIVE']);
 
                 if (releaseError) {
                     console.error('[Anti-Gaming] Failed to release coupons:', releaseError);
@@ -267,6 +263,12 @@ serve(async (req) => {
                     console.log(`[Anti-Gaming] Charging full price: ${calculatedPrice} THB (Reason: ${reason})`);
                     updatePayload.price_total_thb = calculatedPrice;
                     updatePayload.is_promo = false;
+                    
+                    // Invalidate legacy discount notes so frontend doesn't re-apply them
+                    const currentNote = updatePayload.admin_note !== undefined ? updatePayload.admin_note : existing.admin_note;
+                    if (currentNote) {
+                        updatePayload.admin_note = currentNote.replace(/\(-\d+\)/g, '(Burned)');
+                    }
                 } else {
                     // No price provided - use calculated price
                     console.log(`[Price Update] Using calculated price: ${calculatedPrice} THB`);

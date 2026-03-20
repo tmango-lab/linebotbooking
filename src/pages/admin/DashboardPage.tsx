@@ -315,6 +315,10 @@ export default function DashboardPage() {
 
     // --- Modify Handlers ---
     const handleBookingMoveStart = (e: React.MouseEvent, booking: MatchdayMatch) => {
+        if (booking.is_promo) {
+            alert('ไม่สามารถย้ายสนามหรือเลื่อนเวลาของรายการที่ใช้โปรโมชั่นได้ (หากต้องการลดเวลา กรุณาลากที่ขอบกล่องด้านล่าง/บน)');
+            return;
+        }
         const startY = minToY(new Date(booking.time_start.replace(' ', 'T')).getHours() * 60 + new Date(booking.time_start.replace(' ', 'T')).getMinutes());
 
         // Calculate offset (mouse position relative to card top)
@@ -493,6 +497,15 @@ export default function DashboardPage() {
             if (ghostState.valid && (isDraggingConfirmed || interactionMode.startsWith('RESIZE'))) {
                 const original = bookings.find(b => b.id === activeBookingId);
                 if (original) {
+                    if (original.is_promo && interactionMode.startsWith('RESIZE')) {
+                        const originalHeight = calculateHeight(original.time_start, original.time_end);
+                        if (ghostState.height > originalHeight + 2) { // Allow slight float tolerance
+                            alert('ไม่สามารถเพิ่มเวลาของรายการที่ใช้โปรโมชั่นได้ กรุณาสร้างการจองใหม่ต่อท้ายแทนครับ');
+                            resetState();
+                            return;
+                        }
+                    }
+
                     // Check if changed
                     const isChanged = (
                         original.court_id !== ghostState.courtId ||
