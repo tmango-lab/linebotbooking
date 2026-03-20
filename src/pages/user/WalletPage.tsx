@@ -81,9 +81,9 @@ export default function WalletPage() {
                 setUserId(uid);
                 fetchWallet(uid);
 
-                if (action === 'collect' && cid && !collectingRef.current) {
+                if (action === 'collect' && (cid || code) && !collectingRef.current) {
                     collectingRef.current = true;
-                    doAutoCollect(uid, cid, code);
+                    doAutoCollect(uid, cid || '', code);
                 }
             }
         };
