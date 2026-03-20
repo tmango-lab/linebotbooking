@@ -100,10 +100,31 @@ serve(async (req) => {
         let discountAmount = 0;
         let adminNote = note || '';
 
+        // 2.5 Auto-link User by Phone Number for Admin Bookings
+        let finalUserId = userId;
+        if (!finalUserId && phoneNumber) {
+            // Clean phone number (e.g., remove spaces or dashes) - though usually admin enters digits
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            if (cleanPhone.length >= 9) {
+                const { data: userMatch } = await supabase
+                    .from('profiles')
+                    .select('user_id')
+                    .eq('phone_number', cleanPhone)
+                    .not('user_id', 'like', 'manual_%') // Avoid linking to dummy manual profiles if possible
+                    .limit(1)
+                    .maybeSingle();
+
+                if (userMatch) {
+                    finalUserId = userMatch.user_id;
+                    console.log(`[Create Booking] Auto-linked existing user: ${finalUserId} from phone: ${cleanPhone}`);
+                }
+            }
+        }
+
         // [Referral] Pre-validation
         let referralData: { referrerId: string; programId: string; discountPercent: number; rewardAmount: number } | null = null;
         if (referralCode) {
-            if (!userId) {
+            if (!finalUserId) {
                 throw new Error("ต้องเข้าสู่ระบบเพื่อใช้รหัสแนะนำเพื่อน");
             }
 
@@ -112,12 +133,12 @@ serve(async (req) => {
             const { data: existingRef } = await supabase
                 .from('referrals')
                 .select('id')
-                .eq('referee_id', userId)
+                .eq('referee_id', finalUserId)
                 .maybeSingle();
 
             if (existingRef) {
                 // If checking logic failed in frontend, block here
-                console.warn(`[Referral Block] User ${userId} already referred. Blocking usage.`);
+                console.warn(`[Referral Block] User ${finalUserId} already referred. Blocking usage.`);
                 // We don't throw error to block booking, but we remove the discount
                 referralCode = null;
                 adminNote += ` [Referral Skipped: Reuse Attempt]`;
@@ -130,7 +151,7 @@ serve(async (req) => {
                     .eq('status', 'APPROVED')
                     .maybeSingle();
 
-                if (affiliate && affiliate.user_id !== userId) {
+                if (affiliate && affiliate.user_id !== finalUserId) {
                     const { data: program } = await supabase
                         .from('referral_programs')
                         .select('id, discount_percent, reward_amount, end_date')
@@ -170,7 +191,7 @@ serve(async (req) => {
 
             for (const coupon of coupons) {
                 if (coupon.status !== 'ACTIVE') throw new Error(`Coupon ${coupon.id} is not active`);
-                if (userId && coupon.user_id !== userId) throw new Error('Coupon ownership mismatch');
+                if (finalUserId && coupon.user_id !== finalUserId) throw new Error('Coupon ownership mismatch');
 
                 // Expiry Check
                 const expiryDate = new Date(coupon.expires_at);
@@ -261,7 +282,7 @@ serve(async (req) => {
         const { data: booking, error: insertError } = await supabase
             .from('bookings')
             .insert({
-                user_id: userId,
+                user_id: finalUserId,
                 booking_id: Date.now().toString(),
                 field_no: fieldNo,
                 status: isQR ? 'pending_payment' : 'confirmed',
@@ -290,18 +311,18 @@ serve(async (req) => {
 
         // Auto-register profile if it doesn't exist
         try {
-            if (userId) {
+            if (finalUserId) {
                 const { data: existingProfile } = await supabase
                     .from('profiles')
                     .select('user_id')
-                    .eq('user_id', userId)
+                    .eq('user_id', finalUserId)
                     .maybeSingle();
 
                 if (!existingProfile) {
                     const { error: profileError } = await supabase
                         .from('profiles')
                         .insert({
-                            user_id: userId,
+                            user_id: finalUserId,
                             team_name: customerName,
                             phone_number: phoneNumber,
                             created_at: new Date().toISOString(),
@@ -311,7 +332,7 @@ serve(async (req) => {
                     if (profileError) {
                         console.error('[Profile Auto-Registration Error]', profileError);
                     } else {
-                        console.log(`[Profile] Auto-registered new profile for user ${userId}`);
+                        console.log(`[Profile] Auto-registered new profile for user ${finalUserId}`);
                     }
                 }
             }
@@ -352,7 +373,7 @@ serve(async (req) => {
                     .from('referrals')
                     .insert({
                         referrer_id: referralData.referrerId,
-                        referee_id: userId,
+                        referee_id: finalUserId,
                         booking_id: booking.booking_id,
                         program_id: referralData.programId,
                         status: 'PENDING_PAYMENT',
@@ -364,7 +385,7 @@ serve(async (req) => {
                     // otherwise the user gets a discount without "using up" their referral eligibility.
                     throw new Error(`Failed to record referral: ${refError.message}`);
                 }
-                console.log(`[Referral] Tracking record created for ${userId}`);
+                console.log(`[Referral] Tracking record created for ${finalUserId}`);
             }
 
         } catch (postBookingError: any) {
@@ -390,8 +411,11 @@ serve(async (req) => {
                 depositAmount: isQR ? depositAmountForLog : 0,
                 bookingId: booking.booking_id
             });
-            if (userId) {
-                await pushMessage(userId, successFlex);
+            if (finalUserId) {
+                await pushMessage(finalUserId, successFlex);
+                console.log(`[Notification Sent] User: ${finalUserId}`);
+            } else {
+                console.log(`[Notification Skipped] No User ID provided (Admin Booking)`);
             }
         } catch (notifierErr) {
             console.error('[Notification Error]:', notifierErr);

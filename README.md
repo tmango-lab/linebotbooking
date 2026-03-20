@@ -20,6 +20,7 @@
 - จัดการข้อมูลสนาม
 - **Tag Management & Broadcast**: ระบบแบ่งกลุ่มลูกค้า (Tags) และส่งข้อความตามกลุ่มเป้าหมาย (Broadcasting)
 - **Member Management**: เพิ่มข้อมูลลูกค้าแมนนวล และรองรับการดึงข้อมูลมาเชื่อมกับ LINE อัตโนมัติ
+- **Auto-link Users (NEW)**: เมื่อแอดมินสร้างการจองผ่าน Dashboard ระบบจะดึงข้อมูล LINE User จากเบอร์โทรศัพท์เพื่อผูกการจองและส่งการแจ้งเตือนอัตโนมัติ
 
 ### 3. Promo Code & Campaign System
 - สร้างโค้ด 6 หลักอัตโนมัติ
@@ -125,10 +126,9 @@ npm run dev
 
 ## 📖 เอกสารเพิ่มเติม
 
-- **[System Architecture](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/system_architecture.md)** - สถาปัตยกรรมระบบแบบละเอียด
+- **[System Architecture](ARCHITECTURE.md)** - สถาปัตยกรรมระบบแบบละเอียด
 - **[Wallet & LIFF Guide](docs/WALLET_SYSTEM_AND_LIFF.md)** - คู่มือการติดตั้งและใช้งานระบบ Wallet/LIFF ฉบับสมบูรณ์
-- **[Implementation Plan](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/implementation_plan.md)** - แผนการพัฒนาฟีเจอร์โค้ดโปรโมชั่น
-- **[Walkthrough](file:///c:/Users/Tmango/.gemini/antigravity/brain/4e03de1d-1d22-4cf2-a777-df27f587cbb4/walkthrough.md)** - สรุปการแก้ไขและทดสอบ
+- **[Latest Walkthrough](file:///C:/Users/Tmango/.gemini/antigravity/brain/c8ffa421-a9bf-4e16-a497-aa71e3e060f6/walkthrough.md)** - สรุปการแก้ไขล่าสุด (Auto-link Feature)
 
 ## 🔧 การแก้ปัญหาทั่วไป
 
