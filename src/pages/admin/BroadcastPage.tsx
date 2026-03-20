@@ -176,6 +176,120 @@ function buildSimpleMessage(header: string, body: string, buttonLabel: string, b
 
 // ─── Preview Component ────────────────────────────────────────────────────────
 
+// ─── Preview Component ────────────────────────────────────────────────────────
+
+function FlexNode({ node }: { node: any }) {
+    if (!node) return null;
+
+    if (node.type === 'box') {
+        const layout = node.layout || 'vertical';
+        const isHorizontal = layout === 'horizontal' || layout === 'baseline';
+        
+        return (
+            <div
+                className={`flex flex-wrap ${isHorizontal ? 'flex-row' : 'flex-col'} w-full relative`}
+                style={{
+                    padding: node.paddingAll ? node.paddingAll.replace('px', '') + 'px' : '0',
+                    gap: node.spacing === 'sm' ? '4px' : node.spacing === 'md' ? '8px' : node.spacing === 'lg' ? '12px' : node.spacing === 'xl' ? '16px' : '0',
+                    backgroundColor: node.backgroundColor || 'transparent',
+                    justifyContent: node.justifyContent || 'flex-start',
+                    alignItems: node.alignItems || (layout === 'baseline' ? 'baseline' : 'stretch'),
+                    flex: node.flex ?? (isHorizontal ? 1 : undefined),
+                    margin: node.margin === 'sm' ? '4px 0' : node.margin === 'md' ? '8px 0' : node.margin === 'lg' ? '12px 0' : '0',
+                }}
+            >
+                {node.contents?.map((child: any, i: number) => (
+                    <FlexNode key={i} node={child} />
+                ))}
+            </div>
+        );
+    }
+
+    if (node.type === 'text') {
+        const sizeMap: any = {
+            xxs: '10px', xs: '11px', sm: '12px', md: '14px', lg: '16px', xl: '19px', xxl: '22px', '3xl': '29px', '4xl': '33px', '5xl': '40px'
+        };
+        const weightMap: any = { bold: 'bold', regular: 'normal' };
+        
+        return (
+            <div
+                style={{
+                    color: node.color || '#111111',
+                    fontSize: sizeMap[node.size] || '14px',
+                    fontWeight: weightMap[node.weight] || 'normal',
+                    flex: node.flex ?? (node.wrap ? 1 : 0),
+                    whiteSpace: node.wrap ? 'normal' : 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    margin: node.margin === 'sm' ? '4px 0' : node.margin === 'md' ? '8px 0' : node.margin === 'lg' ? '12px 0' : '0',
+                    textAlign: node.align || 'left',
+                }}
+            >
+                {node.text}
+            </div>
+        );
+    }
+
+    if (node.type === 'image') {
+        return (
+            <div style={{ flex: node.flex ?? 0, width: node.size === 'full' ? '100%' : 'auto', display: 'flex', justifyContent: node.align === 'center' ? 'center' : node.align === 'end' ? 'flex-end' : 'flex-start' }}>
+                <img
+                    src={node.url}
+                    alt="flex-image"
+                    style={{
+                        width: node.size === 'full' ? '100%' : 'auto',
+                        aspectRatio: node.aspectRatio ? node.aspectRatio.replace(':', '/') : '1/1',
+                        objectFit: node.aspectMode === 'cover' ? 'cover' : 'contain',
+                        backgroundColor: node.backgroundColor || 'transparent',
+                    }}
+                />
+            </div>
+        );
+    }
+
+    if (node.type === 'icon') {
+        return (
+            <div style={{ display: 'inline-flex', alignItems: 'center', margin: node.margin === 'sm' ? '0 4px' : '0', flex: node.flex ?? 0 }}>
+                <img
+                    src={node.url}
+                    alt="icon"
+                    style={{
+                        width: node.size === 'xxl' ? '32px' : node.size === 'xl' ? '28px' : node.size === 'lg' ? '24px' : node.size === 'md' ? '20px' : node.size === 'sm' ? '16px' : '14px',
+                        height: 'auto',
+                    }}
+                />
+            </div>
+        );
+    }
+
+    if (node.type === 'button') {
+        return (
+            <div
+                style={{
+                    width: '100%',
+                    padding: node.height === 'sm' ? '8px' : '12px',
+                    backgroundColor: node.style === 'primary' ? (node.color || '#16a34a') : node.style === 'secondary' ? '#e5e7eb' : 'transparent',
+                    color: node.style === 'primary' ? '#ffffff' : (node.style === 'link' ? '#3b82f6' : (node.color || '#16a34a')),
+                    textAlign: 'center',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    marginTop: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : '0',
+                }}
+            >
+                {node.action?.label || 'Button'}
+            </div>
+        );
+    }
+
+    if (node.type === 'separator') {
+        return <div style={{ width: '100%', height: '1px', backgroundColor: node.color || '#e5e7eb', margin: node.margin === 'md' ? '8px 0' : '4px 0' }} />;
+    }
+
+    return null;
+}
+
 function FlexPreviewCard({ message }: { message: any }) {
     try {
         const bubble = message?.contents?.type === 'carousel'
@@ -184,52 +298,30 @@ function FlexPreviewCard({ message }: { message: any }) {
 
         if (!bubble) return <div className="text-gray-400 text-sm italic text-center py-8">กรอกข้อมูลเพื่อดูตัวอย่าง</div>;
 
-        const headerBg = bubble.header?.backgroundColor || '#1e293b';
-        const headerText = bubble.header?.contents?.[0]?.text || '';
-        const heroUrl = bubble.hero?.url;
-        const bodyContents = bubble.body?.contents || [];
-        const footerBtn = bubble.footer?.contents?.[0];
-
         return (
-            <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-200 max-w-xs mx-auto text-sm font-sans">
-                {/* Header */}
-                <div className="px-4 py-3" style={{ backgroundColor: headerBg }}>
-                    <p className="text-white font-bold text-xs">{headerText}</p>
-                </div>
-                {/* Hero */}
-                {heroUrl && (
-                    <img src={heroUrl} alt="hero" className="w-full object-cover" style={{ aspectRatio: '20/13' }} />
+            <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-200 max-w-xs mx-auto text-sm font-sans bg-white flex flex-col">
+                {bubble.header && (
+                    <div style={{ backgroundColor: bubble.header.backgroundColor || '#ffffff' }}>
+                        <FlexNode node={bubble.header} />
+                    </div>
                 )}
-                {/* Body */}
-                <div className="px-4 py-4 space-y-1 bg-white">
-                    {bodyContents.map((c: any, i: number) => {
-                        if (c.type === 'text') return (
-                            <p key={i} className={`${c.weight === 'bold' ? 'font-bold' : ''}`}
-                                style={{ color: c.color || '#111', fontSize: c.size === 'xl' ? 18 : c.size === 'lg' ? 15 : 12 }}>
-                                {c.text}
-                            </p>
-                        );
-                        if (c.type === 'box') return (
-                            <div key={i} className="mt-1">
-                                {c.contents?.map((cc: any, j: number) => (
-                                    <p key={j} style={{ color: cc.color || '#555', fontSize: 11 }}>{cc.text}</p>
-                                ))}
-                            </div>
-                        );
-                        return null;
-                    })}
-                </div>
-                {/* Footer */}
-                {footerBtn && (
-                    <div className="px-4 pb-4 bg-white">
-                        <div className="w-full py-2.5 rounded-lg text-center text-white text-xs font-bold cursor-pointer"
-                            style={{ backgroundColor: footerBtn.color || '#16a34a' }}>
-                            {footerBtn.action?.label || 'คลิก'}
-                        </div>
+                {bubble.hero && (
+                    <div style={{ backgroundColor: bubble.hero.backgroundColor || '#ffffff' }}>
+                        <FlexNode node={bubble.hero} />
+                    </div>
+                )}
+                {bubble.body && (
+                    <div style={{ padding: '20px', backgroundColor: bubble.body.backgroundColor || '#ffffff' }}>
+                        <FlexNode node={bubble.body} />
+                    </div>
+                )}
+                {bubble.footer && (
+                    <div style={{ padding: '12px', backgroundColor: bubble.footer.backgroundColor || '#ffffff' }}>
+                        <FlexNode node={bubble.footer} />
                     </div>
                 )}
                 {message?.contents?.type === 'carousel' && message.contents.contents.length > 1 && (
-                    <div className="bg-gray-50 text-center py-2 text-xs text-gray-400">
+                    <div className="bg-gray-50 text-center py-2 text-xs text-gray-400 border-t border-gray-100">
                         + อีก {message.contents.contents.length - 1} สล็อต (เลื่อนดูได้)
                     </div>
                 )}
