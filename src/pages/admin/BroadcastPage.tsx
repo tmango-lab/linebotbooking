@@ -181,21 +181,23 @@ function buildSimpleMessage(header: string, body: string, buttonLabel: string, b
 function FlexNode({ node }: { node: any }) {
     if (!node) return null;
 
+    // Apply baseline alignment correctly without flex-wrap which breaks linear layouts
     if (node.type === 'box') {
         const layout = node.layout || 'vertical';
         const isHorizontal = layout === 'horizontal' || layout === 'baseline';
         
         return (
             <div
-                className={`flex flex-wrap ${isHorizontal ? 'flex-row' : 'flex-col'} w-full relative`}
+                className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} relative`}
                 style={{
+                    width: '100%',
                     padding: node.paddingAll ? node.paddingAll.replace('px', '') + 'px' : '0',
                     gap: node.spacing === 'sm' ? '4px' : node.spacing === 'md' ? '8px' : node.spacing === 'lg' ? '12px' : node.spacing === 'xl' ? '16px' : '0',
                     backgroundColor: node.backgroundColor || 'transparent',
                     justifyContent: node.justifyContent || 'flex-start',
-                    alignItems: node.alignItems || (layout === 'baseline' ? 'baseline' : 'stretch'),
-                    flex: node.flex ?? (isHorizontal ? 1 : undefined),
-                    margin: node.margin === 'sm' ? '4px 0' : node.margin === 'md' ? '8px 0' : node.margin === 'lg' ? '12px 0' : '0',
+                    alignItems: layout === 'baseline' ? 'baseline' : (node.alignItems || 'stretch'),
+                    flex: node.flex,
+                    marginTop: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : node.margin === 'lg' ? '12px' : node.margin === 'xl' ? '16px' : '0',
                 }}
             >
                 {node.contents?.map((child: any, i: number) => (
@@ -221,7 +223,7 @@ function FlexNode({ node }: { node: any }) {
                     whiteSpace: node.wrap ? 'normal' : 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    margin: node.margin === 'sm' ? '4px 0' : node.margin === 'md' ? '8px 0' : node.margin === 'lg' ? '12px 0' : '0',
+                    marginLeft: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : node.margin === 'lg' ? '12px' : '0',
                     textAlign: node.align || 'left',
                 }}
             >
@@ -247,33 +249,33 @@ function FlexNode({ node }: { node: any }) {
         );
     }
 
+    // Ensure icon doesn't shrink to 0 width and height is consistent with size
     if (node.type === 'icon') {
+        const sz = node.size === 'xxl' ? '32px' : node.size === 'xl' ? '28px' : node.size === 'lg' ? '24px' : node.size === 'md' ? '20px' : node.size === 'sm' ? '14px' : '14px';
         return (
-            <div style={{ display: 'inline-flex', alignItems: 'center', margin: node.margin === 'sm' ? '0 4px' : '0', flex: node.flex ?? 0 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', margin: node.margin === 'sm' ? '0 4px' : '0', flex: node.flex ?? 0, flexShrink: 0 }}>
                 <img
                     src={node.url}
                     alt="icon"
-                    style={{
-                        width: node.size === 'xxl' ? '32px' : node.size === 'xl' ? '28px' : node.size === 'lg' ? '24px' : node.size === 'md' ? '20px' : node.size === 'sm' ? '16px' : '14px',
-                        height: 'auto',
-                    }}
+                    style={{ width: sz, height: sz, objectFit: 'contain' }}
                 />
             </div>
         );
     }
 
     if (node.type === 'button') {
+        const isLink = node.style === 'link';
         return (
             <div
                 style={{
                     width: '100%',
-                    padding: node.height === 'sm' ? '8px' : '12px',
+                    padding: node.height === 'sm' ? '6px' : '10px',
                     backgroundColor: node.style === 'primary' ? (node.color || '#16a34a') : node.style === 'secondary' ? '#e5e7eb' : 'transparent',
-                    color: node.style === 'primary' ? '#ffffff' : (node.style === 'link' ? '#3b82f6' : (node.color || '#16a34a')),
+                    color: node.style === 'primary' ? '#ffffff' : (isLink ? '#216cd0' : (node.color || '#16a34a')),
                     textAlign: 'center',
                     borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
+                    fontWeight: isLink ? '500' : 'bold',
+                    fontSize: isLink ? '13px' : '14px',
                     cursor: 'pointer',
                     marginTop: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : '0',
                 }}
