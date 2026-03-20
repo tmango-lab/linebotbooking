@@ -339,6 +339,17 @@ The Admin Dashboard provides an interactive interface for managing bookings thro
     - Automatically recalculates price based on new time and duration (Pre/Post 18:00 rules).
     - Updates UI immediately (Ghost Element).
 
+### Promo Booking Lockdown (Anti-Gaming UI)
+
+For bookings where `is_promo = true`:
+1.  **Movement Blocked**: Admins cannot drag-and-drop these bookings to other courts or times.
+2.  **Extensions Blocked**: Admins cannot "Resize Up" (extend duration).
+3.  **Visual Cues**:
+    - **Cursor**: Changes to `cursor-pointer` (click only) instead of `cursor-grab`.
+    - **Silent Lock**: Actions are disabled silently (without aggressive alerts) after the initial click/hover confirms the item is a promo.
+4.  **Allowed Action**: Only "Resize Down" (reducing time) is allowed, which triggers the backend **Coupon Burn** logic to protect revenue.
+
+
 ### Move Court Strategy (Backend)
 
 **Edge Function**: `update-booking`
@@ -405,10 +416,11 @@ To prevent exploiting discounts (e.g., booking 2 hours with a coupon, then reduc
 **Location**: `supabase/functions/update-booking/index.ts`
 
 When a booking with a **USED** coupon is modified:
-1.  **Strict Rule (V2)**: If `New Duration < Old Duration` (Shrink), the coupon is **RELEASED** back to the wallet (`ACTIVE` status) and the booking is recalculated at full price. (Note: Originally planned as 'Burned/Destroyed', currently implemented as 'Return to Wallet' to allow re-booking correctly).
+1.  **Strict Rule (V2)**: If `New Duration < Original Duration` (Shrink), the coupon is **BURNED** (status becomes `EXPIRED`). The system compares the new time input with the duration stored in the booking record before the update operation. The booking is recalculated at full price for the remaining duration. This prevents exploiting coupons for shorter slots.
 2.  **Fair Policy (Flexibility)**:
     - **Price Decrease Allowed**: If a user moves to a cheaper court (e.g., 1800 -> 1100) but keeps the **Same Duration**, the discount is **PRESERVED**. (Reason: Genuine court change, not gaming).
-    - **Duration Check**: Compares `New Duration` vs `Old Duration`.
+    - **Note**: The UI strictly blocks moving fields or extending duration for promo bookings to ensure accounting stability.
+    - **Duration Check**: Compares `New Duration` vs `Duration at Booking/Last Valid State`.
 +
 +---
 +
@@ -666,9 +678,10 @@ The system enforces a **Flexible but Safe** anti-gaming policy:
     - The `get-bookings` function now joins `user_coupons` + `campaigns` to calculate the effective discount on the fly.
     - This creates a **Virtual Discount Field** in the API response, even though `promo_codes` table is empty.
 
-2.  **Flexible Modification Rule (Upsell Friendly)**:
-    - **Case A: Upsell (Increase Duration/Price)**: The system recalculates `(New Price + Added Time) - Original Discount`. **The discount is PRESERVED**, allowing customers to pay only the difference.
-    - **Case B: Downsell (Decrease Duration/Price)**: The frontend "Anti-Gaming Check" detects the shrink. It effectively **REMOVES** the discount from the calculation context to prevent exploiting coupons for cheaper slots.
+2.  **Strict Modification Rule (Stable Accounting)**:
+    - **Case A: Upsell (Increase Duration/Field Change)**: **BLOCKED in Admin UI**. To extend time or change fields for a promo booking, the admin must create a **NEW separate booking** for the extra slots. This preserves the original promo's integrity.
+    - **Case B: Downsell (Decrease Duration)**: The system detects the shrink, marks the coupon as `EXPIRED` (Burned), and calculates the remaining minutes at full price.
+
 
 3.  **Benefit**:
     - **Win-Win**: Honest customers can extend their playtime without losing their coupon benefit.

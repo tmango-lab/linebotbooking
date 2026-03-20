@@ -269,6 +269,7 @@ export default function BroadcastPage() {
 
     // Custom JSON
     const [customJson, setCustomJson] = useState('');
+    const [customAltText, setCustomAltText] = useState('ประกาศจากสนาม');
 
     // Audience
     const [audienceMode, setAudienceMode] = useState<AudienceMode>('broadcast');
@@ -312,10 +313,25 @@ export default function BroadcastPage() {
             return buildSimpleMessage(msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor);
         }
         if (template === 'custom_json') {
-            try { return JSON.parse(customJson); } catch { return null; }
+            try {
+                const parsed = JSON.parse(customJson);
+                // If user pasted only the inner Flex components (bubble or carousel), wrap it automatically
+                if (parsed?.type === 'bubble' || parsed?.type === 'carousel') {
+                    return {
+                        type: 'flex',
+                        altText: customAltText || 'ประกาศจากสนาม',
+                        contents: parsed
+                    };
+                }
+                // If user pasted full flex message but forgot altText, inject it
+                if (parsed?.type === 'flex' && !parsed?.altText) {
+                    parsed.altText = customAltText || 'ประกาศจากสนาม';
+                }
+                return parsed;
+            } catch { return null; }
         }
         return null;
-    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson]);
+    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
 
     // ── Handlers ──
     const addSlot = () => setSlots(s => [...s, { startTime: '19:00', endTime: '20:00' }]);
@@ -553,10 +569,17 @@ export default function BroadcastPage() {
                         {template === 'custom_json' && (
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                                 <h2 className="font-semibold text-gray-800 mb-3">🛠️ Custom JSON</h2>
+                                <div className="mb-3">
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Alt Text (ข้อความแจ้งเตือนเมื่อยังไม่ได้กดอ่าน)</label>
+                                    <input value={customAltText} onChange={e => setCustomAltText(e.target.value)}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                                        placeholder="เช่น ประกาศจากสนาม" />
+                                </div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">JSON Payload (วางโค้ดจาก LINE Flex Simulator ได้เลย)</label>
                                 <textarea value={customJson} onChange={e => setCustomJson(e.target.value)}
                                     rows={12}
                                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-300 resize-none bg-gray-50"
-                                    placeholder={'{\n  "type": "flex",\n  "altText": "...",\n  "contents": {...}\n}'} />
+                                    placeholder={'คัดลอก JSON จาก LINE Flex Simulator (รูปแบบ Bubble หรือ Carousel) มาวางได้เลย\nระบบจะสร้างรูปแบบ Flex Message API ให้ส่งได้อัตโนมัติ'} />
                                 {customJson && !builtMessage && (
                                     <p className="text-red-500 text-xs mt-2 flex items-center gap-1">
                                         <AlertCircle size={12} /> JSON ไม่ถูกต้อง
