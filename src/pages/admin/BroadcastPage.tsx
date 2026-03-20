@@ -176,88 +176,168 @@ function buildSimpleMessage(header: string, body: string, buttonLabel: string, b
 
 // ─── Preview Component ────────────────────────────────────────────────────────
 
-// ─── Preview Component ────────────────────────────────────────────────────────
+const FLEX_SPACING: Record<string, string> = {
+    none: '0', xs: '2px', sm: '4px', md: '8px', lg: '12px', xl: '16px', xxl: '20px'
+};
 
-function FlexNode({ node }: { node: any }) {
+const FLEX_MARGIN: Record<string, string> = {
+    none: '0', xs: '2px', sm: '4px', md: '10px', lg: '16px', xl: '20px', xxl: '24px'
+};
+
+const FLEX_TEXT_SIZE: Record<string, string> = {
+    xxs: '11px', xs: '12px', sm: '13px', md: '14px', lg: '16px', xl: '18px', xxl: '22px', '3xl': '26px', '4xl': '30px', '5xl': '36px'
+};
+
+const FLEX_ICON_SIZE: Record<string, string> = {
+    xxs: '12px', xs: '14px', sm: '16px', md: '18px', lg: '20px', xl: '24px', xxl: '28px', '3xl': '32px'
+};
+
+function FlexNode({ node, parentLayout }: { node: any; parentLayout?: string }) {
     if (!node) return null;
 
-    // Apply baseline alignment correctly without flex-wrap which breaks linear layouts
+    const isInHorizontal = parentLayout === 'horizontal' || parentLayout === 'baseline';
+
     if (node.type === 'box') {
         const layout = node.layout || 'vertical';
-        const isHorizontal = layout === 'horizontal' || layout === 'baseline';
-        
+        const isH = layout === 'horizontal' || layout === 'baseline';
+
+        const style: React.CSSProperties = {
+            display: 'flex',
+            flexDirection: isH ? 'row' : 'column',
+            gap: FLEX_SPACING[node.spacing] || '0',
+            backgroundColor: node.backgroundColor || 'transparent',
+            alignItems: layout === 'baseline' ? 'center' : (node.alignItems || (isH ? 'center' : 'stretch')),
+            justifyContent: node.justifyContent || 'flex-start',
+        };
+
+        // Handle padding (paddingAll, paddingTop, paddingBottom, paddingStart, paddingEnd)
+        if (node.paddingAll) style.padding = node.paddingAll;
+        if (node.paddingTop) style.paddingTop = node.paddingTop;
+        if (node.paddingBottom) style.paddingBottom = node.paddingBottom;
+        if (node.paddingStart) style.paddingLeft = node.paddingStart;
+        if (node.paddingEnd) style.paddingRight = node.paddingEnd;
+
+        // Handle flex inside horizontal parent
+        if (isInHorizontal) {
+            style.flex = node.flex ?? 1;
+            style.minWidth = 0;
+        }
+
+        // Margin
+        if (node.margin && node.margin !== 'none') {
+            style.marginTop = FLEX_MARGIN[node.margin] || '0';
+        }
+
+        // Width for vertical parent
+        if (!isInHorizontal) {
+            style.width = '100%';
+        }
+
         return (
-            <div
-                className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} relative`}
-                style={{
-                    width: '100%',
-                    padding: node.paddingAll ? node.paddingAll.replace('px', '') + 'px' : '0',
-                    gap: node.spacing === 'sm' ? '4px' : node.spacing === 'md' ? '8px' : node.spacing === 'lg' ? '12px' : node.spacing === 'xl' ? '16px' : '0',
-                    backgroundColor: node.backgroundColor || 'transparent',
-                    justifyContent: node.justifyContent || 'flex-start',
-                    alignItems: layout === 'baseline' ? 'baseline' : (node.alignItems || 'stretch'),
-                    flex: node.flex,
-                    marginTop: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : node.margin === 'lg' ? '12px' : node.margin === 'xl' ? '16px' : '0',
-                }}
-            >
+            <div style={style}>
                 {node.contents?.map((child: any, i: number) => (
-                    <FlexNode key={i} node={child} />
+                    <FlexNode key={i} node={child} parentLayout={layout} />
                 ))}
             </div>
         );
     }
 
     if (node.type === 'text') {
-        const sizeMap: any = {
-            xxs: '10px', xs: '11px', sm: '12px', md: '14px', lg: '16px', xl: '19px', xxl: '22px', '3xl': '29px', '4xl': '33px', '5xl': '40px'
+        const style: React.CSSProperties = {
+            color: node.color || '#111111',
+            fontSize: FLEX_TEXT_SIZE[node.size] || '14px',
+            fontWeight: node.weight === 'bold' ? 700 : 400,
+            lineHeight: 1.4,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: node.wrap ? 'normal' : 'nowrap',
+            textAlign: node.align || 'left',
         };
-        const weightMap: any = { bold: 'bold', regular: 'normal' };
-        
-        return (
-            <div
-                style={{
-                    color: node.color || '#111111',
-                    fontSize: sizeMap[node.size] || '14px',
-                    fontWeight: weightMap[node.weight] || 'normal',
-                    flex: node.flex ?? (node.wrap ? 1 : 0),
-                    whiteSpace: node.wrap ? 'normal' : 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    marginLeft: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : node.margin === 'lg' ? '12px' : '0',
-                    textAlign: node.align || 'left',
-                }}
-            >
-                {node.text}
-            </div>
-        );
+
+        // Flex inside horizontal parent
+        if (isInHorizontal) {
+            style.flex = node.flex ?? 1;
+            style.minWidth = 0;
+        }
+
+        // Margin
+        if (node.margin && node.margin !== 'none') {
+            style.marginTop = isInHorizontal ? '0' : (FLEX_MARGIN[node.margin] || '0');
+            if (isInHorizontal) style.marginLeft = FLEX_MARGIN[node.margin] || '0';
+        }
+
+        return <div style={style}>{node.text}</div>;
     }
 
     if (node.type === 'image') {
+        const style: React.CSSProperties = {
+            width: node.size === 'full' ? '100%' : (node.size || 'auto'),
+            objectFit: node.aspectMode === 'cover' ? 'cover' : 'contain',
+            display: 'block',
+        };
+        if (node.aspectRatio) {
+            style.aspectRatio = node.aspectRatio.replace(':', '/');
+        }
+
+        // Margin
+        const wrapStyle: React.CSSProperties = {};
+        if (isInHorizontal) {
+            wrapStyle.flex = node.flex ?? 0;
+            wrapStyle.minWidth = 0;
+        } else {
+            wrapStyle.width = node.size === 'full' ? '100%' : 'auto';
+        }
+        if (node.margin && node.margin !== 'none') {
+            wrapStyle.marginTop = FLEX_MARGIN[node.margin] || '0';
+        }
+
         return (
-            <div style={{ flex: node.flex ?? 0, width: node.size === 'full' ? '100%' : 'auto', display: 'flex', justifyContent: node.align === 'center' ? 'center' : node.align === 'end' ? 'flex-end' : 'flex-start' }}>
-                <img
-                    src={node.url}
-                    alt="flex-image"
-                    style={{
-                        width: node.size === 'full' ? '100%' : 'auto',
-                        aspectRatio: node.aspectRatio ? node.aspectRatio.replace(':', '/') : '1/1',
-                        objectFit: node.aspectMode === 'cover' ? 'cover' : 'contain',
-                        backgroundColor: node.backgroundColor || 'transparent',
-                    }}
-                />
+            <div style={wrapStyle}>
+                <img src={node.url} alt="" style={style} />
             </div>
         );
     }
 
-    // Ensure icon doesn't shrink to 0 width and height is consistent with size
     if (node.type === 'icon') {
-        const sz = node.size === 'xxl' ? '32px' : node.size === 'xl' ? '28px' : node.size === 'lg' ? '24px' : node.size === 'md' ? '20px' : node.size === 'sm' ? '14px' : '14px';
+        const sz = FLEX_ICON_SIZE[node.size] || '16px';
+        const szNum = parseInt(sz);
+        const style: React.CSSProperties = {
+            display: 'inline-flex',
+            alignItems: 'center',
+            flexShrink: 0,
+            width: sz,
+            height: sz,
+        };
+        if (node.margin && node.margin !== 'none') {
+            style.marginLeft = FLEX_MARGIN[node.margin] || '0';
+        }
+        if (isInHorizontal && node.flex !== undefined) {
+            style.flex = node.flex;
+        }
+
+        // Detect if URL contains star pattern for smart fallback color
+        const isGoldStar = node.url?.includes('gold_star');
+        const isGrayStar = node.url?.includes('gray_star');
+        const isStar = isGoldStar || isGrayStar;
+        const starColor = isGoldStar ? '#fbbf24' : '#d1d5db';
+
         return (
-            <div style={{ display: 'inline-flex', alignItems: 'center', margin: node.margin === 'sm' ? '0 4px' : '0', flex: node.flex ?? 0, flexShrink: 0 }}>
+            <div style={style}>
                 <img
                     src={node.url}
-                    alt="icon"
+                    alt=""
                     style={{ width: sz, height: sz, objectFit: 'contain' }}
+                    onError={(e) => {
+                        // Replace broken image with inline SVG fallback
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent && isStar) {
+                            parent.innerHTML = `<svg width="${szNum}" height="${szNum}" viewBox="0 0 24 24" fill="${starColor}"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+                        } else if (parent) {
+                            parent.innerHTML = `<div style="width:${sz};height:${sz};background:#e5e7eb;border-radius:2px;"></div>`;
+                        }
+                    }}
                 />
             </div>
         );
@@ -265,28 +345,38 @@ function FlexNode({ node }: { node: any }) {
 
     if (node.type === 'button') {
         const isLink = node.style === 'link';
-        return (
-            <div
-                style={{
-                    width: '100%',
-                    padding: node.height === 'sm' ? '6px' : '10px',
-                    backgroundColor: node.style === 'primary' ? (node.color || '#16a34a') : node.style === 'secondary' ? '#e5e7eb' : 'transparent',
-                    color: node.style === 'primary' ? '#ffffff' : (isLink ? '#216cd0' : (node.color || '#16a34a')),
-                    textAlign: 'center',
-                    borderRadius: '8px',
-                    fontWeight: isLink ? '500' : 'bold',
-                    fontSize: isLink ? '13px' : '14px',
-                    cursor: 'pointer',
-                    marginTop: node.margin === 'sm' ? '4px' : node.margin === 'md' ? '8px' : '0',
-                }}
-            >
-                {node.action?.label || 'Button'}
-            </div>
-        );
+        const isPrimary = node.style === 'primary';
+        const style: React.CSSProperties = {
+            width: '100%',
+            padding: node.height === 'sm' ? '6px 12px' : '10px 16px',
+            backgroundColor: isPrimary ? (node.color || '#06c755') : 'transparent',
+            color: isPrimary ? '#ffffff' : (isLink ? '#4f86c6' : (node.color || '#06c755')),
+            textAlign: 'center',
+            borderRadius: isPrimary ? '8px' : '0',
+            fontWeight: isLink ? 500 : 700,
+            fontSize: '14px',
+            cursor: 'pointer',
+            border: 'none',
+        };
+        if (node.margin && node.margin !== 'none') {
+            style.marginTop = FLEX_MARGIN[node.margin] || '0';
+        }
+        return <div style={style}>{node.action?.label || 'Button'}</div>;
     }
 
     if (node.type === 'separator') {
-        return <div style={{ width: '100%', height: '1px', backgroundColor: node.color || '#e5e7eb', margin: node.margin === 'md' ? '8px 0' : '4px 0' }} />;
+        const style: React.CSSProperties = {
+            width: '100%', height: '1px',
+            backgroundColor: node.color || '#dcdfe5',
+        };
+        if (node.margin && node.margin !== 'none') {
+            style.marginTop = FLEX_MARGIN[node.margin] || '0';
+        }
+        return <div style={style} />;
+    }
+
+    if (node.type === 'filler') {
+        return <div style={{ flex: 1 }} />;
     }
 
     return null;
@@ -301,29 +391,50 @@ function FlexPreviewCard({ message }: { message: any }) {
         if (!bubble) return <div className="text-gray-400 text-sm italic text-center py-8">กรอกข้อมูลเพื่อดูตัวอย่าง</div>;
 
         return (
-            <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-200 max-w-xs mx-auto text-sm font-sans bg-white flex flex-col">
+            <div style={{
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                border: '1px solid #e5e7eb',
+                maxWidth: '280px',
+                margin: '0 auto',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                fontSize: '14px',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                flexDirection: 'column',
+            }}>
                 {bubble.header && (
-                    <div style={{ backgroundColor: bubble.header.backgroundColor || '#ffffff' }}>
-                        <FlexNode node={bubble.header} />
-                    </div>
+                    <FlexNode node={bubble.header} />
                 )}
                 {bubble.hero && (
-                    <div style={{ backgroundColor: bubble.hero.backgroundColor || '#ffffff' }}>
-                        <FlexNode node={bubble.hero} />
-                    </div>
+                    <FlexNode node={bubble.hero} />
                 )}
                 {bubble.body && (
-                    <div style={{ padding: '20px', backgroundColor: bubble.body.backgroundColor || '#ffffff' }}>
-                        <FlexNode node={bubble.body} />
+                    <div style={{
+                        padding: bubble.body.paddingAll || '16px',
+                        paddingTop: bubble.body.paddingTop || undefined,
+                        paddingBottom: bubble.body.paddingBottom || undefined,
+                        backgroundColor: bubble.body.backgroundColor || '#ffffff',
+                    }}>
+                        {bubble.body.contents?.map((child: any, i: number) => (
+                            <FlexNode key={i} node={child} parentLayout={bubble.body.layout || 'vertical'} />
+                        ))}
                     </div>
                 )}
                 {bubble.footer && (
-                    <div style={{ padding: '12px', backgroundColor: bubble.footer.backgroundColor || '#ffffff' }}>
-                        <FlexNode node={bubble.footer} />
+                    <div style={{
+                        padding: bubble.footer.paddingAll || '12px',
+                        paddingTop: bubble.footer.paddingTop || '0',
+                        backgroundColor: bubble.footer.backgroundColor || '#ffffff',
+                    }}>
+                        {bubble.footer.contents?.map((child: any, i: number) => (
+                            <FlexNode key={i} node={child} parentLayout={bubble.footer.layout || 'vertical'} />
+                        ))}
                     </div>
                 )}
                 {message?.contents?.type === 'carousel' && message.contents.contents.length > 1 && (
-                    <div className="bg-gray-50 text-center py-2 text-xs text-gray-400 border-t border-gray-100">
+                    <div style={{ backgroundColor: '#f9fafb', textAlign: 'center', padding: '8px', fontSize: '11px', color: '#9ca3af', borderTop: '1px solid #f3f4f6' }}>
                         + อีก {message.contents.contents.length - 1} สล็อต (เลื่อนดูได้)
                     </div>
                 )}
