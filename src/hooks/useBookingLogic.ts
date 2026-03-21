@@ -192,9 +192,14 @@ export const useBookingLogic = () => {
                         // Check if occupied
                         const isOccupied = normalizedBookings.some((b: any) => {
                             if (b.status === 'CANCELLED') return false;
-                            if (b.court_id !== urlFieldId) return false;
-                            const bStart = b.start_time.substring(0, 5);
-                            const bEnd = b.end_time.substring(0, 5);
+                            
+                            const bCourtId = Number(b.court_id);
+                            if (bCourtId !== urlFieldId) return false;
+                            
+                            if (!b.start_time || !b.end_time) return false;
+                            
+                            const bStart = String(b.start_time).substring(0, 5);
+                            const bEnd = String(b.end_time).substring(0, 5);
                             return (urlStartTime < bEnd && urlEndTime > bStart);
                         });
 
