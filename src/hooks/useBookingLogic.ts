@@ -189,17 +189,26 @@ export const useBookingLogic = () => {
                 if (urlFieldId && urlStartTime && urlEndTime && fieldsData) {
                     const fieldExists = fieldsData.some(f => f.id === urlFieldId);
                     if (fieldExists) {
-                        // Check if occupied
+                        // Check if occupied — API returns time_start/time_end as "YYYY-MM-DD HH:MM:SS"
                         const isOccupied = normalizedBookings.some((b: any) => {
                             if (b.status === 'CANCELLED') return false;
-                            
+
                             const bCourtId = Number(b.court_id);
                             if (bCourtId !== urlFieldId) return false;
-                            
-                            if (!b.start_time || !b.end_time) return false;
-                            
-                            const bStart = String(b.start_time).substring(0, 5);
-                            const bEnd = String(b.end_time).substring(0, 5);
+
+                            // time_start = "2026-03-21 17:00:00" → take last 5 chars of "HH:MM:SS" part
+                            const rawStart = b.time_start || b.start_time || '';
+                            const rawEnd = b.time_end || b.end_time || '';
+                            if (!rawStart || !rawEnd) return false;
+
+                            // Extract HH:MM — works for both "HH:MM" and "YYYY-MM-DD HH:MM:SS"
+                            const bStart = rawStart.includes(' ')
+                                ? rawStart.split(' ')[1].substring(0, 5)
+                                : rawStart.substring(0, 5);
+                            const bEnd = rawEnd.includes(' ')
+                                ? rawEnd.split(' ')[1].substring(0, 5)
+                                : rawEnd.substring(0, 5);
+
                             return (urlStartTime < bEnd && urlEndTime > bStart);
                         });
 
