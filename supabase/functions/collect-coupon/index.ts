@@ -109,7 +109,42 @@ serve(async (req) => {
         console.log(`[Quota Check] userId: ${userId}, campaignId: ${targetCampaignId}, userCount: ${userCount}, limit: ${campaign.limit_per_user || 1}`);
 
         if (userCount !== null && userCount >= (campaign.limit_per_user || 1)) {
-            throw new Error('You have already collected this coupon (Limit reached)');
+            // [MOD] Instead of throwing an error, gracefully return the existing coupon
+            // so the frontend can still auto-apply it.
+            const { data: existingCoupon, error: fetchErr } = await supabase
+                .from('user_coupons')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('campaign_id', targetCampaignId)
+                .eq('status', 'ACTIVE')
+                .limit(1)
+                .single();
+
+            if (!fetchErr && existingCoupon) {
+                console.log(`[Already Collected] Returning existing coupon ${existingCoupon.id} for ${userId}`);
+                return new Response(JSON.stringify({
+                    success: true,
+                    already_collected: true,
+                    data: {
+                        ...existingCoupon,
+                        campaign: {
+                            name: campaign.name,
+                            description: campaign.description,
+                            eligible_fields: campaign.eligible_fields,
+                            payment_methods: campaign.payment_methods,
+                            valid_time_start: campaign.valid_time_start,
+                            valid_time_end: campaign.valid_time_end,
+                            image_url: campaign.image_url
+                        }
+                    },
+                    message: 'You already collected this coupon'
+                }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    status: 200,
+                });
+            } else {
+                throw new Error('You have already collected this coupon (Limit reached)');
+            }
         }
 
         // 8. Atomic Inventory Deduction (The "Check-Before-Act" Rule)
