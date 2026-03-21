@@ -425,16 +425,16 @@ export const useBookingLogic = () => {
     const appliedMain = manualMainCoupon;
     const appliedOntop = manualOntopCoupon;
 
-    // Helper: Centralized Validation Logic
-    const validateCoupon = (coupon: Coupon | null, priceToCheck: number) => {
-        if (!coupon) return false;
+    // Helper: Centralized Validation Logic — returns null if valid, or a reason string
+    const validateCoupon = (coupon: Coupon | null, priceToCheck: number): string | null => {
+        if (!coupon) return 'ไม่มีคูปอง';
 
         // 1. Min Spend
-        if (coupon.min_spend && priceToCheck < coupon.min_spend) return false;
+        if (coupon.min_spend && priceToCheck < coupon.min_spend) return `ยอดขั้นต่ำ ฿${coupon.min_spend}`;
 
         // 2. Eligible Fields
         if (coupon.eligible_fields && coupon.eligible_fields.length > 0) {
-            if (!selection || !coupon.eligible_fields.includes(selection.fieldId)) return false;
+            if (!selection || !coupon.eligible_fields.includes(selection.fieldId)) return 'สนามไม่ร่วมรายการ';
         }
 
         // 3. Eligible Days
@@ -442,32 +442,32 @@ export const useBookingLogic = () => {
             const d = new Date(selectedDate);
             const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const currentDay = dayNames[d.getDay()];
-            if (!coupon.eligible_days.includes(currentDay)) return false;
+            if (!coupon.eligible_days.includes(currentDay)) return 'ไม่ใช่วันที่ใช้งานได้';
         }
 
         // 4. Valid Time Range
         if (selection) {
             const getHM = (t: string) => t.substring(0, 5);
             const selStart = getHM(selection.startTime);
-            if (coupon.valid_time_start && selStart < getHM(coupon.valid_time_start)) return false;
-            if (coupon.valid_time_end && selStart > getHM(coupon.valid_time_end)) return false;
+            if (coupon.valid_time_start && selStart < getHM(coupon.valid_time_start)) return `ใช้ได้ตั้งแต่ ${getHM(coupon.valid_time_start)} น.`;
+            if (coupon.valid_time_end && selStart > getHM(coupon.valid_time_end)) return `ใช้ได้ถึง ${getHM(coupon.valid_time_end)} น.`;
         }
 
         // 5. Expiry Date (Booking Date vs Coupon Expiry)
         if (coupon.expiry) {
-            // Compare YYYY-MM-DD
             const bookingDate = new Date(selectedDate);
             const expiryDate = new Date(coupon.expiry);
             bookingDate.setHours(0, 0, 0, 0);
             expiryDate.setHours(0, 0, 0, 0);
-            if (bookingDate > expiryDate) return false;
+            if (bookingDate > expiryDate) return 'คูปองหมดอายุ';
         }
 
-        return true;
+        return null; // Valid!
     };
 
     // Validate Main
-    const isMainValid = validateCoupon(appliedMain, originalPrice);
+    const mainInvalidReason = validateCoupon(appliedMain, originalPrice);
+    const isMainValid = mainInvalidReason === null;
 
     // Calculate Price after Main
     let priceAfterMain = originalPrice;
@@ -479,7 +479,8 @@ export const useBookingLogic = () => {
     }
 
     // Validate On-top
-    const isOntopValid = validateCoupon(appliedOntop, priceAfterMain);
+    const ontopInvalidReason = validateCoupon(appliedOntop, priceAfterMain);
+    const isOntopValid = ontopInvalidReason === null;
 
     // Calculate On-top Discount (Applied on Price After Main?)
     // Usually On-top is applied on the *remaining* price or the *full* price depending on business logic. 
@@ -586,6 +587,7 @@ export const useBookingLogic = () => {
         appliedOntopCoupon: isOntopValid ? appliedOntop : null,
         discount: totalDiscount,
         finalPrice,
+        couponInvalidReason: mainInvalidReason || ontopInvalidReason || null,
         errorMsg,
         selectedDate,
         setSelectedDate,

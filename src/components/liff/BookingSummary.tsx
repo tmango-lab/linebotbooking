@@ -5,11 +5,11 @@ interface BookingSummaryProps {
     discount: number;
     finalPrice: number;
     couponName?: string;
-    isCouponInvalid?: boolean; // NEW: Explicitly pass validity
+    isCouponInvalid?: boolean;
+    couponInvalidReason?: string | null;
     onConfirm: () => void;
     onOpenCoupons: () => void;
     isVisible: boolean;
-    // New Props for Booking Context (Time)
     selectedTimeStart?: string;
     selectedTimeEnd?: string;
 }
@@ -20,6 +20,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     finalPrice,
     couponName,
     isCouponInvalid: explicitInvalid,
+    couponInvalidReason,
     onConfirm,
     onOpenCoupons,
     isVisible,
@@ -50,7 +51,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                         {couponName || "แตะเพื่อเพิ่มส่วนลด"}
                     </span>
                     {isCouponInvalid && (
-                        <span className="text-[10px] text-red-400 font-medium italic">ไม่ตรงเงื่อนไข (ยอดขั้นต่ำ)</span>
+                        <span className="text-[10px] text-red-400 font-medium italic">ไม่ตรงเงื่อนไข ({couponInvalidReason || 'โปรดตรวจสอบเงื่อนไข'})</span>
                     )}
                 </button>
 

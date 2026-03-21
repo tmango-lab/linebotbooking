@@ -46,7 +46,8 @@ const BookingV3Page: React.FC = () => {
         referralValid,
         referralError,
         referralRequireTermConsent,
-        referralTermConsentMessage
+        referralTermConsentMessage,
+        couponInvalidReason
     } = useBookingLogic();
 
     const [hasConsentedTerms, setHasConsentedTerms] = React.useState(false);
@@ -148,6 +149,7 @@ const BookingV3Page: React.FC = () => {
                 finalPrice={finalPrice}
                 couponName={[appliedMainCoupon?.name, appliedOntopCoupon?.name].filter(Boolean).join(' + ') || (appliedCoupon ? appliedCoupon.name : undefined)}
                 isCouponInvalid={!!(manualMainCoupon || manualOntopCoupon) && !appliedMainCoupon && !appliedOntopCoupon}
+                couponInvalidReason={couponInvalidReason}
                 onConfirm={() => setIsConfirmModalOpen(true)}
                 onOpenCoupons={() => setIsCouponSheetOpen(true)}
                 isVisible={!!selection}
