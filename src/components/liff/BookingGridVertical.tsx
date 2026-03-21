@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface Field {
     id: number;
@@ -12,6 +12,7 @@ interface BookingGridProps {
     fields: Field[];
     onSelect: (fieldId: number, startTime: string, endTime: string) => void;
     existingBookings?: any[];
+    initialSelection?: { fieldId: number; startTime: string; endTime: string } | null;
 }
 
 const TIME_SLOTS = [
@@ -20,12 +21,40 @@ const TIME_SLOTS = [
     "22:00", "22:30", "23:00", "23:30", "00:00"
 ];
 
-const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, existingBookings = [] }) => {
+const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, existingBookings = [], initialSelection }) => {
     const [selection, setSelection] = useState<{
         fieldId: number | null;
         startIdx: number | null;
         endIdx: number | null;
     }>({ fieldId: null, startIdx: null, endIdx: null });
+    const gridRef = useRef<HTMLDivElement>(null);
+    const hasAppliedInitial = useRef(false);
+
+    // Sync initial selection from URL params (Flash Deal auto-select)
+    useEffect(() => {
+        if (initialSelection && fields.length > 0 && !hasAppliedInitial.current) {
+            const startIdx = TIME_SLOTS.indexOf(initialSelection.startTime);
+            // endTime is the slot AFTER the last selected, so subtract 1
+            const endIdx = TIME_SLOTS.indexOf(initialSelection.endTime) - 1;
+            if (startIdx >= 0 && endIdx >= startIdx) {
+                setSelection({
+                    fieldId: initialSelection.fieldId,
+                    startIdx,
+                    endIdx
+                });
+                hasAppliedInitial.current = true;
+                // Auto-scroll to the selected row
+                setTimeout(() => {
+                    if (gridRef.current) {
+                        const rowHeight = 48; // h-12 = 48px
+                        const headerHeight = 50;
+                        const scrollTo = Math.max(0, (startIdx * rowHeight) - headerHeight);
+                        gridRef.current.scrollTop = scrollTo;
+                    }
+                }, 100);
+            }
+        }
+    }, [initialSelection, fields]);
 
     const isSlotOccupied = (fieldId: number, idx: number) => {
         const slotTime = TIME_SLOTS[idx];
@@ -82,7 +111,7 @@ const BookingGridVertical: React.FC<BookingGridProps> = ({ fields, onSelect, exi
     };
 
     return (
-        <div className="overflow-x-auto bg-white max-h-[85vh] overflow-y-auto relative">
+        <div ref={gridRef} className="overflow-x-auto bg-white max-h-[85vh] overflow-y-auto relative">
             <div className="min-w-fit">
                 {/* Sticky Header Row (Fields) */}
                 <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white shadow-sm">

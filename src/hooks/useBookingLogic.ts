@@ -241,6 +241,75 @@ export const useBookingLogic = () => {
                             }
                         }
                     }
+
+                    // [FLASH DEAL] Auto-collect promo code from URL
+                    const urlPromoCode = searchParams.get('promoCode');
+                    if (urlPromoCode && currentUserId) {
+                        console.log(`[Flash Deal] Auto-collecting promo code: ${urlPromoCode}`);
+                        try {
+                            const collectRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                                },
+                                body: JSON.stringify({ userId: currentUserId, secretCode: urlPromoCode })
+                            });
+                            const collectData = await collectRes.json();
+                            if (collectData.success && collectData.data) {
+                                console.log(`[Flash Deal] Coupon collected: ${collectData.data.id}`);
+                                // Re-fetch coupons so the new one appears
+                                const refreshRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                                    },
+                                    body: JSON.stringify({ userId: currentUserId })
+                                });
+                                const refreshData = await refreshRes.json();
+                                if (refreshData.success) {
+                                    const allRefreshed = [...(refreshData.main || []), ...(refreshData.on_top || [])];
+                                    const refreshedCoupons = allRefreshed.map((c: any) => {
+                                        const bValue = c.benefit?.value;
+                                        let discountVal = 0;
+                                        if (bValue) {
+                                            if (typeof bValue === 'number') discountVal = bValue;
+                                            else discountVal = bValue.amount || bValue.percent || 0;
+                                        }
+                                        return {
+                                            id: c.coupon_id,
+                                            campaign_id: c.campaign_id,
+                                            name: c.name,
+                                            discount_type: (bValue?.percent ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
+                                            discount_value: Number(discountVal),
+                                            min_spend: Number(c.conditions?.min_spend) || 0,
+                                            eligible_fields: c.conditions?.fields || null,
+                                            eligible_days: c.conditions?.days || null,
+                                            valid_time_start: c.conditions?.time?.start || null,
+                                            valid_time_end: c.conditions?.time?.end || null,
+                                            eligible_payments: c.conditions?.payment || null,
+                                            category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP",
+                                            expiry: c.expiry,
+                                            allow_ontop_stacking: c.is_stackable ? true : (c.allow_ontop_stacking ?? true)
+                                        };
+                                    });
+                                    setCoupons(refreshedCoupons);
+                                    // Auto-apply the freshly collected coupon
+                                    const newCoupon = refreshedCoupons.find((c: any) => c.id === collectData.data.id);
+                                    if (newCoupon) {
+                                        if (newCoupon.category === 'ONTOP') setManualOntopCoupon(newCoupon as Coupon);
+                                        else setManualMainCoupon(newCoupon as Coupon);
+                                        console.log(`[Flash Deal] Auto-applied coupon: ${newCoupon.name}`);
+                                    }
+                                }
+                            } else {
+                                console.warn(`[Flash Deal] Could not collect promo: ${collectData.error}`);
+                            }
+                        } catch (promoErr: any) {
+                            console.warn(`[Flash Deal] Promo collect error: ${promoErr.message}`);
+                        }
+                    }
                 }
 
                 // [REFERRAL] Validate referral code if present

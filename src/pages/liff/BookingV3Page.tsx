@@ -137,6 +137,7 @@ const BookingV3Page: React.FC = () => {
                         fields={fields}
                         existingBookings={existingBookings}
                         onSelect={(fid, start, end) => setSelection({ fieldId: fid, startTime: start, endTime: end })}
+                        initialSelection={selection}
                     />
                 </div>
             </main>

@@ -23,6 +23,32 @@ serve(async (req) => {
             -- Remove unique constraint to allow multiple referral coupons
             DROP INDEX IF EXISTS public.idx_user_coupons_unique_active;
 
+            -- Create Broadcasts table
+            CREATE TABLE IF NOT EXISTS public.broadcasts (
+                id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+                name TEXT NOT NULL,
+                template_type TEXT NOT NULL,
+                audience_mode TEXT NOT NULL,
+                audience_user_ids TEXT[],
+                content_payload JSONB NOT NULL,
+                built_message JSONB,
+                status TEXT NOT NULL DEFAULT 'draft',
+                sent_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            -- Enable RLS and add admin policy for broadcasts
+            ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
+            
+            DO $$
+            BEGIN
+              IF NOT EXISTS(SELECT 1 FROM pg_policies WHERE policyname = 'Enable all access for authenticated users on broadcasts') THEN
+                CREATE POLICY "Enable all access for authenticated users on broadcasts" ON public.broadcasts FOR ALL USING (auth.role() = 'authenticated');
+              END IF;
+            END
+            $$;
+
             -- 8. Function: process_referral_reward_sql
             CREATE OR REPLACE FUNCTION public.process_referral_reward_sql(p_booking_id TEXT)
             RETURNS JSONB

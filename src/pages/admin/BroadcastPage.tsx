@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Send, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Plus, Trash2, Radio, Lock } from 'lucide-react';
+import { Send, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Plus, Trash2, Radio, Lock, Edit2, Save, FileText, Calendar, Users, Eye } from 'lucide-react';
 import { supabase } from '../../lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -38,86 +38,195 @@ function buildFlashDealCarousel(
     slots: TimeSlot[],
     promoCode: string,
     date: string,
+    normalPrice: number,
+    discountPrice: number,
     forcePayment: ForcePayment = ''
 ) {
     const color = FIELD_COLORS[fieldId] || '#334155';
-    const bubbles = slots.map((slot) => ({
-        type: 'bubble',
-        size: 'kilo',
-        header: {
-            type: 'box',
-            layout: 'vertical',
-            backgroundColor: color,
-            paddingTop: '15px',
-            paddingBottom: '15px',
-            paddingStart: '20px',
-            contents: [{
-                type: 'text',
-                text: '🔥 FLASH DEAL วันนี้เท่านั้น!',
-                color: '#ffffff',
-                weight: 'bold',
-                size: 'sm'
-            }]
-        },
-        hero: {
-            type: 'image',
-            url: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800&auto=format&fit=crop',
-            size: 'full',
-            aspectRatio: '20:13',
-            aspectMode: 'cover'
-        },
-        body: {
-            type: 'box',
-            layout: 'vertical',
-            paddingAll: '20px',
-            contents: [
-                { type: 'text', text: fieldName, weight: 'bold', size: 'xl' },
-                {
-                    type: 'text',
-                    text: `${slot.startTime} - ${slot.endTime} น.`,
-                    size: 'lg',
-                    color: '#16a34a',
-                    weight: 'bold',
-                    margin: 'sm'
-                },
-                ...(promoCode ? [{
-                    type: 'box',
-                    layout: 'horizontal',
-                    margin: 'md',
-                    contents: [{
-                        type: 'text',
-                        text: `🎟️ โค้ด: ${promoCode}`,
-                        size: 'sm',
-                        color: '#64748b',
-                        wrap: true
-                    }]
-                }] : []),
-                ...(date ? [{
-                    type: 'text',
-                    text: `📅 ${date}`,
-                    size: 'sm',
-                    color: '#94a3b8',
-                    margin: 'sm'
-                }] : [])
-            ]
-        },
-        footer: {
-            type: 'box',
-            layout: 'vertical',
-            paddingAll: '20px',
-            paddingTop: '0px',
-            contents: [{
-                type: 'button',
-                style: 'primary',
-                color: color,
-                action: {
-                    type: 'uri',
-                    label: `จองคิว ${slot.startTime} เลย!`,
-                    uri: `${LIFF_BASE}/?fieldId=${fieldId}&startTime=${slot.startTime}&endTime=${slot.endTime}${date ? `&date=${date}` : ''}${forcePayment ? `&forcePayment=${forcePayment}` : ''}`
-                }
-            }]
+    
+    // Format date properly (e.g. 21 มีนาคม 2569)
+    let displayDate = date;
+    try {
+        if (date) {
+            displayDate = new Date(date).toLocaleDateString('th-TH', {
+                year: 'numeric', month: 'long', day: 'numeric'
+            });
         }
-    }));
+    } catch (e) { /* ignore */ }
+
+    const bubbles = slots.map((slot) => {
+        let percentStr = null;
+        if (normalPrice > discountPrice && discountPrice > 0) {
+            percentStr = `ลด ${Math.round(((normalPrice - discountPrice) / normalPrice) * 100)}%`;
+        }
+
+        return {
+            type: 'bubble',
+            size: 'kilo',
+            header: {
+                type: 'box',
+                layout: 'vertical',
+                backgroundColor: color,
+                paddingAll: '16px',
+                contents: [{
+                    type: 'text',
+                    text: '⚡ FLASH DEAL TODAY',
+                    color: '#ffffff',
+                    weight: 'bold',
+                    size: 'sm',
+                    align: 'center'
+                }]
+            },
+            hero: {
+                type: 'image',
+                url: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800&auto=format&fit=crop',
+                size: 'full',
+                aspectRatio: '20:13',
+                aspectMode: 'cover'
+            },
+            body: {
+                type: 'box',
+                layout: 'vertical',
+                paddingAll: '24px',
+                contents: [
+                    {
+                        type: 'box',
+                        layout: 'horizontal',
+                        alignItems: 'center',
+                        contents: [
+                            { type: 'text', text: fieldName, weight: 'bold', size: 'xl', color: '#1e293b', flex: 1 },
+                            ...(percentStr ? [{
+                                type: 'box',
+                                layout: 'vertical',
+                                backgroundColor: '#ffe4e6',
+                                cornerRadius: 'sm',
+                                paddingStart: '8px',
+                                paddingEnd: '8px',
+                                paddingTop: '4px',
+                                paddingBottom: '4px',
+                                flex: 0,
+                                contents: [{
+                                    type: 'text',
+                                    text: percentStr,
+                                    size: 'xs',
+                                    color: '#e11d48',
+                                    weight: 'bold',
+                                    align: 'center'
+                                }]
+                            }] : [])
+                        ]
+                    },
+                    {
+                        type: 'separator',
+                        margin: 'lg',
+                        color: '#e2e8f0'
+                    },
+                    {
+                        type: 'box',
+                        layout: 'horizontal',
+                        margin: 'lg',
+                        contents: [
+                            {
+                                type: 'box',
+                                layout: 'vertical',
+                                flex: 2,
+                                spacing: 'sm',
+                                contents: [
+                                    {
+                                        type: 'box',
+                                        layout: 'horizontal',
+                                        spacing: 'sm',
+                                        contents: [
+                                            { type: 'text', text: '📅', flex: 0, size: 'sm' },
+                                            { type: 'text', text: displayDate, size: 'sm', color: '#475569', weight: 'bold', wrap: true }
+                                        ]
+                                    },
+                                    {
+                                        type: 'box',
+                                        layout: 'horizontal',
+                                        spacing: 'sm',
+                                        contents: [
+                                            { type: 'text', text: '⏰', flex: 0, size: 'sm' },
+                                            { type: 'text', text: `${slot.startTime} - ${slot.endTime} น.`, size: 'sm', color: '#16a34a', weight: 'bold', wrap: true }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                type: 'box',
+                                layout: 'vertical',
+                                flex: 1,
+                                alignItems: 'flex-end',
+                                justifyContent: 'center',
+                                contents: [
+                                    ...(normalPrice ? [{
+                                        type: 'text',
+                                        text: `฿${normalPrice.toLocaleString()}`,
+                                        size: 'xs',
+                                        color: '#94a3b8',
+                                        decoration: 'line-through'
+                                    }] : []),
+                                    ...(discountPrice ? [{
+                                        type: 'text',
+                                        text: `฿${discountPrice.toLocaleString()}`,
+                                        size: 'xl',
+                                        color: '#e11d48',
+                                        weight: 'bold'
+                                    }] : [])
+                                ]
+                            }
+                        ]
+                    },
+                    ...(promoCode ? [
+                        {
+                            type: 'box',
+                            layout: 'vertical',
+                            margin: 'xl',
+                            backgroundColor: '#f8fafc',
+                            borderColor: '#e2e8f0',
+                            borderWidth: '1px',
+                            cornerRadius: 'md',
+                            paddingAll: '12px',
+                            contents: [
+                                {
+                                    type: 'text',
+                                    text: 'กรอกโค้ดนี้เมื่อเพิ่มลงตะกร้า',
+                                    size: 'xxs',
+                                    color: '#64748b',
+                                    align: 'center'
+                                },
+                                {
+                                    type: 'text',
+                                    text: promoCode,
+                                    size: 'md',
+                                    color: color,
+                                    weight: 'bold',
+                                    align: 'center',
+                                    margin: 'sm'
+                                }
+                            ]
+                        }
+                    ] : [])
+                ]
+            },
+            footer: {
+                type: 'box',
+                layout: 'vertical',
+                paddingAll: '24px',
+                paddingTop: '0px',
+                contents: [{
+                    type: 'button',
+                    style: 'primary',
+                    color: color,
+                    action: {
+                        type: 'uri',
+                        label: `จองรอบ ${slot.startTime} เลย!`,
+                        uri: `${LIFF_BASE}/?redirect=booking-v3&fieldId=${fieldId}&startTime=${slot.startTime}&endTime=${slot.endTime}${date ? `&date=${date}` : ''}${forcePayment ? `&forcePayment=${forcePayment}` : ''}${promoCode ? `&promoCode=${promoCode}` : ''}`
+                    }
+                }]
+            }
+        };
+    });
 
     return {
         type: 'flex',
@@ -448,6 +557,15 @@ function FlexPreviewCard({ message }: { message: any }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BroadcastPage() {
+    // ─── List View States ───
+    const [view, setView] = useState<'list' | 'form'>('list');
+    const [broadcasts, setBroadcasts] = useState<any[]>([]);
+    const [loadingBroadcasts, setLoadingBroadcasts] = useState(false);
+    
+    // ─── General Info ───
+    const [broadcastName, setBroadcastName] = useState('');
+    const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+
     // Template
     const [template, setTemplate] = useState<TemplateType>('flash_deal');
 
@@ -458,6 +576,8 @@ export default function BroadcastPage() {
         { startTime: '17:00', endTime: '18:00' },
         { startTime: '18:00', endTime: '19:00' },
     ]);
+    const [normalPrice, setNormalPrice] = useState<number>(1000);
+    const [discountPrice, setDiscountPrice] = useState<number>(500);
     const [promoCode, setPromoCode] = useState('');
     const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -505,6 +625,142 @@ export default function BroadcastPage() {
         fetchCampaigns();
     }, []);
 
+    useEffect(() => {
+        if (view === 'list') {
+            fetchBroadcasts();
+        }
+    }, [view]);
+
+    const fetchBroadcasts = async () => {
+        setLoadingBroadcasts(true);
+        try {
+            const { data, error } = await supabase
+                .from('broadcasts')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (!error && data) setBroadcasts(data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingBroadcasts(false);
+        }
+    };
+
+    const handleCreateNew = () => {
+        setEditingDraftId(null);
+        setBroadcastName('');
+        setTemplate('flash_deal');
+        setFieldId(6);
+        setFieldName('สนาม 6');
+        setSlots([{ startTime: '17:00', endTime: '18:00' }, { startTime: '18:00', endTime: '19:00' }]);
+        setNormalPrice(1000);
+        setDiscountPrice(500);
+        setPromoCode('');
+        setSelectedCampaignId('');
+        setDate(new Date().toISOString().split('T')[0]);
+        setForcePayment('');
+        setMsgHeader('');
+        setMsgBody('');
+        setMsgBtnLabel('จองสนาม');
+        setMsgBtnUrl(LIFF_BASE);
+        setMsgBgColor('#1e293b');
+        setCustomJson('');
+        setCustomAltText('ประกาศจากสนาม');
+        setAudienceMode('broadcast');
+        setUserIdsRaw('');
+        setResult(null);
+        setView('form');
+    };
+
+    const handleEditDraft = (b: any) => {
+        setEditingDraftId(b.id);
+        setBroadcastName(b.name);
+        setTemplate(b.template_type as TemplateType);
+        setAudienceMode(b.audience_mode as AudienceMode);
+        setUserIdsRaw(b.audience_user_ids ? b.audience_user_ids.join('\n') : '');
+
+        const p = b.content_payload || {};
+        if (b.template_type === 'flash_deal') {
+            setFieldId(p.fieldId || 6);
+            setFieldName(p.fieldName || 'สนาม 6');
+            setSlots(p.slots || []);
+            setNormalPrice(p.normalPrice || 0);
+            setDiscountPrice(p.discountPrice || 0);
+            setPromoCode(p.promoCode || '');
+            setSelectedCampaignId(p.selectedCampaignId || '');
+            setDate(p.date || new Date().toISOString().split('T')[0]);
+            setForcePayment(p.forcePayment || '');
+        } else if (b.template_type === 'simple_message') {
+            setMsgHeader(p.msgHeader || '');
+            setMsgBody(p.msgBody || '');
+            setMsgBtnLabel(p.msgBtnLabel || 'จองสนาม');
+            setMsgBtnUrl(p.msgBtnUrl || LIFF_BASE);
+            setMsgBgColor(p.msgBgColor || '#1e293b');
+        } else if (b.template_type === 'custom_json') {
+            setCustomJson(p.customJson || '');
+            setCustomAltText(p.customAltText || 'ประกาศจากสนาม');
+        }
+        setResult(null);
+        setView('form');
+    };
+
+    const buildPayloadForSave = () => {
+        const payload: any = {};
+        if (template === 'flash_deal') {
+            payload.fieldId = fieldId; payload.fieldName = fieldName; payload.slots = slots;
+            payload.normalPrice = normalPrice; payload.discountPrice = discountPrice;
+            payload.promoCode = promoCode; payload.selectedCampaignId = selectedCampaignId;
+            payload.date = date; payload.forcePayment = forcePayment;
+        } else if (template === 'simple_message') {
+            payload.msgHeader = msgHeader; payload.msgBody = msgBody; payload.msgBtnLabel = msgBtnLabel;
+            payload.msgBtnUrl = msgBtnUrl; payload.msgBgColor = msgBgColor;
+        } else if (template === 'custom_json') {
+            payload.customJson = customJson; payload.customAltText = customAltText;
+        }
+        return payload;
+    };
+
+    const handleSaveDraft = async () => {
+        if (!broadcastName.trim()) { alert('กรุณาตั้งชื่อ Broadcast'); return; }
+        setSending(true);
+        setResult(null);
+        try {
+            const dataToSave = {
+                name: broadcastName,
+                template_type: template,
+                audience_mode: audienceMode,
+                audience_user_ids: audienceMode === 'multicast' ? userIdsRaw.split('\n').map(s => s.trim()).filter(Boolean) : null,
+                content_payload: buildPayloadForSave(),
+                built_message: builtMessage,
+                status: 'draft'
+            };
+
+            if (editingDraftId) {
+                const { error } = await supabase.from('broadcasts').update(dataToSave).eq('id', editingDraftId);
+                if (error) throw error;
+                setResult({ ok: true, message: 'บันทึกฉบับร่างสำเร็จ!' });
+            } else {
+                const { data, error } = await supabase.from('broadcasts').insert([dataToSave]).select('id').single();
+                if (error) throw error;
+                setEditingDraftId(data.id);
+                setResult({ ok: true, message: 'สร้างฉบับร่างสำเร็จ!' });
+            }
+            fetchBroadcasts();
+        } catch (e: any) {
+            setResult({ ok: false, message: e.message });
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('ยืนยันลบฉบับร่างนี้?')) return;
+        try {
+            await supabase.from('broadcasts').delete().eq('id', id);
+            fetchBroadcasts();
+        } catch(e) { console.error(e); }
+    };
+
     // ── Build message object for preview + sending ──
     const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
     // Use: manual code > campaign secret_codes[0] > empty
@@ -512,7 +768,7 @@ export default function BroadcastPage() {
 
     const builtMessage = useMemo(() => {
         if (template === 'flash_deal') {
-            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment);
+            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, normalPrice, discountPrice, forcePayment);
         }
         if (template === 'simple_message') {
             return buildSimpleMessage(msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor);
@@ -536,7 +792,7 @@ export default function BroadcastPage() {
             } catch { return null; }
         }
         return null;
-    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
+    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, normalPrice, discountPrice, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
 
     // ── Handlers ──
     const addSlot = () => setSlots(s => [...s, { startTime: '19:00', endTime: '20:00' }]);
@@ -546,18 +802,38 @@ export default function BroadcastPage() {
     };
 
     const handleSend = async () => {
+        if (!broadcastName.trim()) { alert('กรุณาตั้งชื่อ Broadcast ก่อนส่ง'); return; }
         if (!builtMessage) { alert('ข้อมูลไม่ครบหรือ JSON ไม่ถูกต้อง'); return; }
         const confirmed = window.confirm(
             audienceMode === 'broadcast'
-                ? '⚠️ ยืนยันการส่ง Broadcast ไปยัง "ผู้ติดตามทุกคน"?'
-                : `⚠️ ยืนยันส่ง Multicast ไปยัง ${userIdsRaw.split('\n').filter(Boolean).length} คน?`
+                ? '⚠️ ยืนยันการส่ง Broadcast ไปยัง "ผู้ติดตามทุกคน" ทันที?'
+                : `⚠️ ยืนยันส่ง Multicast ไปยัง ${userIdsRaw.split('\n').filter(Boolean).length} คน ทันที?`
         );
         if (!confirmed) return;
 
         setSending(true);
         setResult(null);
-
+        let currentId = editingDraftId;
         try {
+            const dataToSave = {
+                name: broadcastName,
+                template_type: template,
+                audience_mode: audienceMode,
+                audience_user_ids: audienceMode === 'multicast' ? userIdsRaw.split('\n').map(s => s.trim()).filter(Boolean) : null,
+                content_payload: buildPayloadForSave(),
+                built_message: builtMessage,
+                status: 'draft'
+            };
+
+            // Auto-save first
+            if (currentId) {
+                await supabase.from('broadcasts').update(dataToSave).eq('id', currentId);
+            } else {
+                const { data } = await supabase.from('broadcasts').insert([dataToSave]).select('id').single();
+                currentId = data?.id;
+                setEditingDraftId(currentId);
+            }
+
             const payload: any = {
                 mode: audienceMode,
                 messages: [builtMessage],
@@ -575,9 +851,16 @@ export default function BroadcastPage() {
                 body: JSON.stringify(payload)
             });
 
-            const data = await res.json();
-            if (!res.ok || data.error) throw new Error(data.error || 'Unknown error');
-            setResult({ ok: true, message: data.message || 'ส่งสำเร็จ!' });
+            const sentData = await res.json();
+            if (!res.ok || sentData.error) {
+                throw new Error(sentData.error || 'Unknown error');
+            }
+            
+            // Mark as sent
+            await supabase.from('broadcasts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', currentId);
+            
+            setResult({ ok: true, message: sentData.message || 'ส่งสำเร็จ!' });
+            fetchBroadcasts();
         } catch (e: any) {
             setResult({ ok: false, message: e.message });
         } finally {
@@ -586,15 +869,130 @@ export default function BroadcastPage() {
     };
 
     // ── Render ──
+    if (view === 'list') {
+        return (
+            <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-6xl mx-auto">
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                <Radio className="text-indigo-500" size={26} /> จัดการ Broadcast
+                            </h1>
+                            <p className="text-gray-500 text-sm mt-1">สร้างฉบับร่างและประวัติการส่งข้อความ</p>
+                        </div>
+                        <button onClick={handleCreateNew}
+                            className="flex items-center gap-2 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-all">
+                            <Plus size={18} /> สร้างข้อความใหม่
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                        {loadingBroadcasts ? (
+                            <div className="p-8 text-center text-gray-500">กำลังโหลดข้อมูล...</div>
+                        ) : broadcasts.length === 0 ? (
+                            <div className="p-12 text-center text-gray-400">
+                                <FileText size={48} className="mx-auto mb-3 opacity-20" />
+                                <p>ยังไม่มีข้อความ หรือฉบับร่างที่บันทึกไว้</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-medium uppercase uppercase">
+                                        <th className="px-6 py-4 font-semibold text-gray-600">ชื่อ Broadcast</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600">ประเภทเนื้อหา</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600">ผู้รับ</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600">สถานะ</th>
+                                        <th className="px-6 py-4 font-semibold text-gray-600 text-right">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {broadcasts.map(b => (
+                                        <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <p className="text-sm font-semibold text-gray-900">{b.name}</p>
+                                                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                                    <Calendar size={12} />
+                                                    {new Date(b.created_at).toLocaleString('th-TH')}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded">
+                                                    {b.template_type === 'flash_deal' ? '🔥 Flash Deal' : b.template_type === 'simple_message' ? '📢 ข้อความ' : '🛠️ Custom JSON'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <p className="text-sm text-gray-600 flex items-center gap-1">
+                                                    <Users size={14} />
+                                                    {b.audience_mode === 'broadcast' ? 'ทุกคน' : `${b.audience_user_ids?.length || 0} คน`}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full ${
+                                                    b.status === 'sent' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                    {b.status === 'sent' ? <CheckCircle size={12} /> : <Save size={12} />}
+                                                    {b.status === 'sent' ? 'ส่งแล้ว' : 'ฉบับร่าง'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button onClick={() => handleEditDraft(b)}
+                                                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                                        title={b.status === 'sent' ? 'ดูรายละเอียด / ทำซ้ำ' : 'แก้ไข'}>
+                                                        {b.status === 'sent' ? <Eye size={16} /> : <Edit2 size={16} />}
+                                                    </button>
+                                                    {b.status !== 'sent' && (
+                                                        <button onClick={() => handleDelete(b.id)}
+                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="ลบ">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-5xl mx-auto">
                 {/* Header */}
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Radio className="text-indigo-500" size={26} /> ส่ง LINE Broadcast
-                    </h1>
-                    <p className="text-gray-500 text-sm mt-1">สร้างและส่ง Flex Message ผ่าน LINE Messaging API โดยตรง</p>
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <button onClick={() => setView('list')} className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mb-2 font-medium">
+                            <ChevronDown className="rotate-90" size={16} /> กลับไปหน้ารายการ
+                        </button>
+                        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                            <Radio className="text-indigo-500" size={26} /> {editingDraftId ? 'แก้ไข Broadcast' : 'สร้าง Broadcast ใหม่'}
+                        </h1>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                        <button onClick={handleSaveDraft} disabled={sending}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 text-gray-700 font-medium rounded-lg shadow-sm transition-all disabled:opacity-50">
+                            <Save size={16} /> บันทึกฉบับร่าง
+                        </button>
+                        <button onClick={handleSend} disabled={sending || !builtMessage}
+                            className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-medium rounded-lg shadow-sm transition-all">
+                            {sending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send size={16} />}
+                            ส่งทันที
+                        </button>
+                    </div>
+                </div>
+
+                {/* Name Input */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">🏷️ ชื่อ Broadcast (สำหรับอ้างอิงภายใน)</label>
+                    <input value={broadcastName} onChange={e => setBroadcastName(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                        placeholder="เช่น โพสต์โปรโมชั่น Flash Deal วันศุกร์" />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -644,6 +1042,21 @@ export default function BroadcastPage() {
                                     <label className="block text-xs font-medium text-gray-600 mb-1">วันที่</label>
                                     <input type="date" value={date} onChange={e => setDate(e.target.value)}
                                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">ราคาปกติ (฿)</label>
+                                        <input type="number" value={normalPrice === 0 ? '' : normalPrice} onChange={e => setNormalPrice(Number(e.target.value))}
+                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                                            placeholder="เช่น 1000" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">ราคาพิเศษลดเหลือ (฿)</label>
+                                        <input type="number" value={discountPrice === 0 ? '' : discountPrice} onChange={e => setDiscountPrice(Number(e.target.value))}
+                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                                            placeholder="เช่น 500" />
+                                    </div>
                                 </div>
 
                                 {/* Campaign / Promo Code row */}
@@ -834,13 +1247,7 @@ export default function BroadcastPage() {
                             </div>
                         )}
 
-                        {/* Send Button */}
-                        <button onClick={handleSend} disabled={sending || !builtMessage}
-                            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-md transition-all active:scale-95">
-                            {sending
-                                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> กำลังส่ง...</>
-                                : <><Send size={18} /> ส่ง{audienceMode === 'broadcast' ? ' Broadcast' : ' Multicast'}</>}
-                        </button>
+                        {/* Removed duplicate Send Button since it's in the top header now */}
                     </div>
 
                     {/* ── Right Panel: Preview ── */}
