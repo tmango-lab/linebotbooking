@@ -173,21 +173,6 @@ export const useBookingLogic = () => {
                         price_pre: f.price_pre || 0,
                         price_post: f.price_post || 0
                     })));
-
-                    // [FLASH DEAL] Auto-select field + time from URL params
-                    if (urlFieldId && urlStartTime && urlEndTime) {
-                        const fieldExists = fieldsData.some(f => f.id === urlFieldId);
-                        if (fieldExists) {
-                            setSelection({
-                                fieldId: urlFieldId,
-                                startTime: urlStartTime,
-                                endTime: urlEndTime
-                            });
-                            console.log(`[Flash Deal] Auto-selected: Field ${urlFieldId} | ${urlStartTime}-${urlEndTime}`);
-                        } else {
-                            console.warn(`[Flash Deal] Field ${urlFieldId} not found in active fields.`);
-                        }
-                    }
                 }
 
                 // 2. Process Bookings
@@ -199,6 +184,33 @@ export const useBookingLogic = () => {
                     court_id: reverseMap[b.court_id] || b.court_id
                 }));
                 setExistingBookings(normalizedBookings);
+
+                // [FLASH DEAL] Auto-select field + time ONLY IF not occupied
+                if (urlFieldId && urlStartTime && urlEndTime && fieldsData) {
+                    const fieldExists = fieldsData.some(f => f.id === urlFieldId);
+                    if (fieldExists) {
+                        // Check if occupied
+                        const isOccupied = normalizedBookings.some((b: any) => {
+                            if (b.status === 'CANCELLED') return false;
+                            if (b.court_id !== urlFieldId) return false;
+                            const bStart = b.start_time.substring(0, 5);
+                            const bEnd = b.end_time.substring(0, 5);
+                            return (urlStartTime < bEnd && urlEndTime > bStart);
+                        });
+
+                        if (!isOccupied) {
+                            setSelection({
+                                fieldId: urlFieldId,
+                                startTime: urlStartTime,
+                                endTime: urlEndTime
+                            });
+                            console.log(`[Flash Deal] Auto-selected: Field ${urlFieldId} | ${urlStartTime}-${urlEndTime}`);
+                        } else {
+                            console.warn(`[Flash Deal] Auto-select failed: Slot is already occupied.`);
+                            setErrorMsg("รอบที่คุณเลือกจากลิงก์ถูกจองไปแล้ว กรุณาเลือกรอบเวลาอื่น");
+                        }
+                    }
+                }
 
                 // 3. Process Coupons
                 if (couponData.success) {
