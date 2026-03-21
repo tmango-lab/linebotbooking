@@ -20,6 +20,8 @@ interface Campaign {
 interface TimeSlot {
     startTime: string;
     endTime: string;
+    normalPrice: number;
+    discountPrice: number;
 }
 
 const FIELD_COLORS: Record<number, string> = {
@@ -38,8 +40,6 @@ function buildFlashDealCarousel(
     slots: TimeSlot[],
     promoCode: string,
     date: string,
-    normalPrice: number,
-    discountPrice: number,
     forcePayment: ForcePayment = ''
 ) {
     const color = FIELD_COLORS[fieldId] || '#334155';
@@ -55,6 +55,9 @@ function buildFlashDealCarousel(
     } catch (e) { /* ignore */ }
 
     const bubbles = slots.map((slot) => {
+        // Use per-slot prices
+        const normalPrice = slot.normalPrice || 0;
+        const discountPrice = slot.discountPrice || 0;
         let percentStr = null;
         if (normalPrice > discountPrice && discountPrice > 0) {
             percentStr = `ลด ${Math.round(((normalPrice - discountPrice) / normalPrice) * 100)}%`;
@@ -554,7 +557,79 @@ function FlexPreviewCard({ message }: { message: any }) {
     }
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Price Calculator (matches booking logic: dual round-up at 18:00) ─────────
+function calcSlotPrice(pricePre: number, pricePost: number, startTime: string, endTime: string): number {
+    const toMins = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + (m || 0);
+    };
+    const sMins = toMins(startTime);
+    const eMins = toMins(endTime);
+    if (eMins <= sMins) return 0;
+    const cutoff = 18 * 60;
+    const preHours = Math.max(0, Math.min(eMins, cutoff) - sMins) / 60;
+    const postHours = Math.max(0, eMins - Math.max(sMins, cutoff)) / 60;
+    let prePrice = preHours * pricePre;
+    let postPrice = postHours * pricePost;
+    if (prePrice > 0 && prePrice % 100 !== 0) prePrice = Math.ceil(prePrice / 100) * 100;
+    if (postPrice > 0 && postPrice % 100 !== 0) postPrice = Math.ceil(postPrice / 100) * 100;
+    return Math.round(prePrice + postPrice);
+}
+
+// ─── Clean Time Picker: hour select + :00/:30 toggle ──────────────────────────
+function SlotTimePicker({
+    startTime, endTime, onChange
+}: {
+    startTime: string;
+    endTime: string;
+    onChange: (start: string, end: string) => void;
+}) {
+    const hours = Array.from({ length: 16 }, (_, i) => String(i + 8).padStart(2, '0'));
+    const [sH, sM] = (startTime || '17:00').split(':');
+    const [eH, eM] = (endTime || '18:00').split(':');
+
+    return (
+        <div className="flex items-end gap-2">
+            <div className="flex-1">
+                <p className="text-[10px] text-gray-400 mb-1">เวลาเริ่ม</p>
+                <div className="flex gap-1">
+                    <select value={sH} onChange={e => onChange(`${e.target.value}:${sM}`, endTime)}
+                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-300 font-medium">
+                        {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                    <div className="flex gap-1">
+                        {['00','30'].map(m => (
+                            <button key={m} type="button" onClick={() => onChange(`${sH}:${m}`, endTime)}
+                                className={`px-2 rounded-lg text-xs font-bold border transition-all ${sM === m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-300'}`}>
+                                :{m}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <span className="text-gray-300 pb-2">→</span>
+            <div className="flex-1">
+                <p className="text-[10px] text-gray-400 mb-1">เวลาสิ้นสุด</p>
+                <div className="flex gap-1">
+                    <select value={eH} onChange={e => onChange(startTime, `${e.target.value}:${eM}`)}
+                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-300 font-medium">
+                        {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                    <div className="flex gap-1">
+                        {['00','30'].map(m => (
+                            <button key={m} type="button" onClick={() => onChange(startTime, `${eH}:${m}`)}
+                                className={`px-2 rounded-lg text-xs font-bold border transition-all ${eM === m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-300'}`}>
+                                :{m}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- Main Component ---
 
 export default function BroadcastPage() {
     // ─── List View States ───
@@ -573,17 +648,17 @@ export default function BroadcastPage() {
     const [fieldId, setFieldId] = useState<number>(6);
     const [fieldName, setFieldName] = useState('สนาม 6');
     const [slots, setSlots] = useState<TimeSlot[]>([
-        { startTime: '17:00', endTime: '18:00' },
-        { startTime: '18:00', endTime: '19:00' },
+        { startTime: '17:00', endTime: '18:00', normalPrice: 1000, discountPrice: 500 },
+        { startTime: '18:00', endTime: '19:00', normalPrice: 1200, discountPrice: 600 },
     ]);
-    const [normalPrice, setNormalPrice] = useState<number>(1000);
-    const [discountPrice, setDiscountPrice] = useState<number>(500);
     const [promoCode, setPromoCode] = useState('');
     const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [campaignsLoading, setCampaignsLoading] = useState(false);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [forcePayment, setForcePayment] = useState<ForcePayment>('');
+    // Field price rates fetched from DB
+    const [fieldPrices, setFieldPrices] = useState<{ pre: number; post: number } | null>(null);
 
     // Simple message fields
     const [msgHeader, setMsgHeader] = useState('');
@@ -625,6 +700,43 @@ export default function BroadcastPage() {
         fetchCampaigns();
     }, []);
 
+    // Fetch field price rates when fieldId changes
+    useEffect(() => {
+        const fetchFieldPrices = async () => {
+            const { data } = await supabase
+                .from('fields')
+                .select('price_pre, price_post')
+                .eq('id', fieldId)
+                .maybeSingle();
+            if (data) setFieldPrices({ pre: data.price_pre || 0, post: data.price_post || 0 });
+        };
+        fetchFieldPrices();
+    }, [fieldId]);
+
+    // Auto-recalculate normalPrice for all slots when fieldPrices changes
+    useEffect(() => {
+        if (!fieldPrices) return;
+        setSlots(prev => prev.map(sl => ({
+            ...sl,
+            normalPrice: calcSlotPrice(fieldPrices.pre, fieldPrices.post, sl.startTime, sl.endTime)
+        })));
+    }, [fieldPrices]);
+
+    // Auto-recalculate discountPrice for all slots when campaign or slots' normalPrice changes
+    useEffect(() => {
+        const campaign = campaigns.find(c => c.id === selectedCampaignId);
+        if (!campaign) return;
+        setSlots(prev => prev.map(sl => ({
+            ...sl,
+            discountPrice: campaign.discount_amount > 0
+                ? Math.max(0, sl.normalPrice - campaign.discount_amount)
+                : campaign.discount_percent > 0
+                    ? Math.round(sl.normalPrice * (1 - campaign.discount_percent / 100))
+                    : sl.discountPrice
+        })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedCampaignId, campaigns]);
+
     useEffect(() => {
         if (view === 'list') {
             fetchBroadcasts();
@@ -652,9 +764,10 @@ export default function BroadcastPage() {
         setTemplate('flash_deal');
         setFieldId(6);
         setFieldName('สนาม 6');
-        setSlots([{ startTime: '17:00', endTime: '18:00' }, { startTime: '18:00', endTime: '19:00' }]);
-        setNormalPrice(1000);
-        setDiscountPrice(500);
+        setSlots([
+            { startTime: '17:00', endTime: '18:00', normalPrice: 1000, discountPrice: 500 },
+            { startTime: '18:00', endTime: '19:00', normalPrice: 1200, discountPrice: 600 },
+        ]);
         setPromoCode('');
         setSelectedCampaignId('');
         setDate(new Date().toISOString().split('T')[0]);
@@ -683,9 +796,12 @@ export default function BroadcastPage() {
         if (b.template_type === 'flash_deal') {
             setFieldId(p.fieldId || 6);
             setFieldName(p.fieldName || 'สนาม 6');
-            setSlots(p.slots || []);
-            setNormalPrice(p.normalPrice || 0);
-            setDiscountPrice(p.discountPrice || 0);
+            setSlots((p.slots || []).map((s: any) => ({
+                startTime: s.startTime || '17:00',
+                endTime: s.endTime || '18:00',
+                normalPrice: s.normalPrice != null ? s.normalPrice : (p.normalPrice || 0),
+                discountPrice: s.discountPrice != null ? s.discountPrice : (p.discountPrice || 0),
+            })));
             setPromoCode(p.promoCode || '');
             setSelectedCampaignId(p.selectedCampaignId || '');
             setDate(p.date || new Date().toISOString().split('T')[0]);
@@ -708,7 +824,6 @@ export default function BroadcastPage() {
         const payload: any = {};
         if (template === 'flash_deal') {
             payload.fieldId = fieldId; payload.fieldName = fieldName; payload.slots = slots;
-            payload.normalPrice = normalPrice; payload.discountPrice = discountPrice;
             payload.promoCode = promoCode; payload.selectedCampaignId = selectedCampaignId;
             payload.date = date; payload.forcePayment = forcePayment;
         } else if (template === 'simple_message') {
@@ -768,7 +883,7 @@ export default function BroadcastPage() {
 
     const builtMessage = useMemo(() => {
         if (template === 'flash_deal') {
-            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, normalPrice, discountPrice, forcePayment);
+            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment);
         }
         if (template === 'simple_message') {
             return buildSimpleMessage(msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor);
@@ -792,13 +907,41 @@ export default function BroadcastPage() {
             } catch { return null; }
         }
         return null;
-    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, normalPrice, discountPrice, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
+    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
 
     // ── Handlers ──
-    const addSlot = () => setSlots(s => [...s, { startTime: '19:00', endTime: '20:00' }]);
+    const addSlot = () => {
+        const last = slots[slots.length - 1];
+        const newStart = last?.endTime || '19:00';
+        const h = parseInt(newStart.split(':')[0]);
+        const newEnd = `${String(h + 1).padStart(2, '0')}:00`;
+        const campaign = campaigns.find(c => c.id === selectedCampaignId);
+        const nPrice = fieldPrices ? calcSlotPrice(fieldPrices.pre, fieldPrices.post, newStart, newEnd) : (last?.normalPrice || 1000);
+        const dPrice = campaign && (campaign.discount_amount || 0) > 0
+            ? Math.max(0, nPrice - (campaign.discount_amount || 0))
+            : campaign && (campaign.discount_percent || 0) > 0
+                ? Math.round(nPrice * (1 - (campaign.discount_percent || 0) / 100))
+                : (last?.discountPrice || 500);
+        setSlots(s => [...s, { startTime: newStart, endTime: newEnd, normalPrice: nPrice, discountPrice: dPrice }]);
+    };
     const removeSlot = (i: number) => setSlots(s => s.filter((_, idx) => idx !== i));
-    const updateSlot = (i: number, field: keyof TimeSlot, value: string) => {
-        setSlots(s => s.map((sl, idx) => idx === i ? { ...sl, [field]: value } : sl));
+    const updateSlot = (i: number, field: keyof TimeSlot, value: string | number) => {
+        setSlots(s => s.map((sl, idx) => {
+            if (idx !== i) return sl;
+            const updated = { ...sl, [field]: value };
+            // If time changed and we have field prices, recalculate normalPrice and discountPrice
+            if ((field === 'startTime' || field === 'endTime') && fieldPrices) {
+                const newNormal = calcSlotPrice(fieldPrices.pre, fieldPrices.post, updated.startTime, updated.endTime);
+                const campaign = campaigns.find(c => c.id === selectedCampaignId);
+                const newDiscount = campaign && (campaign.discount_amount || 0) > 0
+                    ? Math.max(0, newNormal - (campaign.discount_amount || 0))
+                    : campaign && (campaign.discount_percent || 0) > 0
+                        ? Math.round(newNormal * (1 - (campaign.discount_percent || 0) / 100))
+                        : updated.discountPrice;
+                return { ...updated, normalPrice: newNormal, discountPrice: newDiscount };
+            }
+            return updated;
+        }));
     };
 
     const handleSend = async () => {
@@ -1044,20 +1187,7 @@ export default function BroadcastPage() {
                                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">ราคาปกติ (฿)</label>
-                                        <input type="number" value={normalPrice === 0 ? '' : normalPrice} onChange={e => setNormalPrice(Number(e.target.value))}
-                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
-                                            placeholder="เช่น 1000" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">ราคาพิเศษลดเหลือ (฿)</label>
-                                        <input type="number" value={discountPrice === 0 ? '' : discountPrice} onChange={e => setDiscountPrice(Number(e.target.value))}
-                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
-                                            placeholder="เช่น 500" />
-                                    </div>
-                                </div>
+
 
                                 {/* Campaign / Promo Code row */}
 
@@ -1121,19 +1251,47 @@ export default function BroadcastPage() {
                                     </div>
                                     <div className="space-y-2">
                                         {slots.map((slot, i) => (
-                                            <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2">
-                                                <span className="text-xs text-gray-400 w-5 text-center">{i + 1}</span>
-                                                <input type="time" value={slot.startTime}
-                                                    onChange={e => updateSlot(i, 'startTime', e.target.value)}
-                                                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-indigo-300" />
-                                                <span className="text-gray-400 text-xs">→</span>
-                                                <input type="time" value={slot.endTime}
-                                                    onChange={e => updateSlot(i, 'endTime', e.target.value)}
-                                                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-indigo-300" />
-                                                <button onClick={() => removeSlot(i)} disabled={slots.length === 1}
-                                                    className="text-gray-300 hover:text-red-400 disabled:opacity-20 transition-colors">
-                                                    <Trash2 size={14} />
-                                                </button>
+                                            <div key={i} className="bg-gray-50 rounded-xl p-3 space-y-3">
+                                                {/* Time Picker + delete */}
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-xs text-gray-400 w-5 text-center font-semibold mt-2">{i + 1}</span>
+                                                    <div className="flex-1">
+                                                        <SlotTimePicker
+                                                            startTime={slot.startTime}
+                                                            endTime={slot.endTime}
+                                                            onChange={(start, end) => {
+                                                                if (start) updateSlot(i, 'startTime', start);
+                                                                if (end) updateSlot(i, 'endTime', end);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <button onClick={() => removeSlot(i)} disabled={slots.length === 1}
+                                                        className="text-gray-300 hover:text-red-400 disabled:opacity-20 transition-colors mt-2">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                                {/* Price row */}
+                                                <div className="flex items-center gap-2 pl-7">
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] text-gray-400 mb-0.5">ราคาปกติ (฿)</p>
+                                                        <input type="number" value={slot.normalPrice || ''}
+                                                            onChange={e => updateSlot(i, 'normalPrice', Number(e.target.value))}
+                                                            className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-indigo-300"
+                                                            placeholder="เช่น 1000" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] text-red-400 mb-0.5">ราคาพิเศษ (฿)</p>
+                                                        <input type="number" value={slot.discountPrice || ''}
+                                                            onChange={e => updateSlot(i, 'discountPrice', Number(e.target.value))}
+                                                            className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-red-200"
+                                                            placeholder="เช่น 500" />
+                                                    </div>
+                                                    {slot.normalPrice > 0 && slot.discountPrice > 0 && slot.normalPrice > slot.discountPrice && (
+                                                        <span className="text-[10px] font-bold text-emerald-600 whitespace-nowrap mt-4">
+                                                            ลด {Math.round(((slot.normalPrice - slot.discountPrice) / slot.normalPrice) * 100)}%
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
