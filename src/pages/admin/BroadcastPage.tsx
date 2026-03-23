@@ -181,36 +181,8 @@ function buildFlashDealCarousel(
                             }
                         ]
                     },
-                    ...(promoCode ? [
-                        {
-                            type: 'box',
-                            layout: 'vertical',
-                            margin: 'xl',
-                            backgroundColor: '#f8fafc',
-                            borderColor: '#e2e8f0',
-                            borderWidth: '1px',
-                            cornerRadius: 'md',
-                            paddingAll: '12px',
-                            contents: [
-                                {
-                                    type: 'text',
-                                    text: 'กรอกโค้ดนี้เมื่อเพิ่มลงตะกร้า',
-                                    size: 'xxs',
-                                    color: '#64748b',
-                                    align: 'center'
-                                },
-                                {
-                                    type: 'text',
-                                    text: promoCode,
-                                    size: 'md',
-                                    color: color,
-                                    weight: 'bold',
-                                    align: 'center',
-                                    margin: 'sm'
-                                }
-                            ]
-                        }
-                    ] : [])
+
+
                 ]
             },
             footer: {
