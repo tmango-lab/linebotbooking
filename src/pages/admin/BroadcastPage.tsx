@@ -646,8 +646,8 @@ export default function BroadcastPage() {
     const [template, setTemplate] = useState<TemplateType>('flash_deal');
 
     // Flash Deal fields
-    const [fieldId, setFieldId] = useState<number>(6);
-    const [fieldName, setFieldName] = useState('สนาม 6');
+    const [fieldId, setFieldId] = useState<number>(1);
+    const [fieldName, setFieldName] = useState('สนาม 1');
     const [slots, setSlots] = useState<TimeSlot[]>([
         { startTime: '17:00', endTime: '18:00', normalPrice: 1000, discountPrice: 500 },
         { startTime: '18:00', endTime: '19:00', normalPrice: 1200, discountPrice: 600 },
