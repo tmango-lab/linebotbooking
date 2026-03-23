@@ -50,7 +50,7 @@ function buildFlashDealCarousel(
     try {
         if (date) {
             displayDate = new Date(date).toLocaleDateString('th-TH', {
-                year: 'numeric', month: 'long', day: 'numeric'
+                year: 'numeric', month: 'short', day: 'numeric'
             });
         }
     } catch (e) { /* ignore */ }
@@ -151,7 +151,7 @@ function buildFlashDealCarousel(
                                         spacing: 'sm',
                                         contents: [
                                             { type: 'text', text: '⏰', flex: 0, size: 'sm' },
-                                            { type: 'text', text: `${slot.startTime} - ${slot.endTime} น.`, size: 'sm', color: '#16a34a', weight: 'bold', wrap: true }
+                                            { type: 'text', text: `${slot.startTime} - ${slot.endTime}`, size: 'sm', color: '#16a34a', weight: 'bold', wrap: true }
                                         ]
                                     }
                                 ]
