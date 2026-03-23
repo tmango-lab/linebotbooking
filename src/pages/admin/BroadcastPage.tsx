@@ -15,6 +15,7 @@ interface Campaign {
     discount_percent: number;
     description?: string;
     secret_codes?: string[];
+    payment_methods?: string[]; // e.g. ['QR'] | ['CASH'] | ['QR','CASH'] | []
 }
 
 interface TimeSlot {
@@ -687,7 +688,7 @@ export default function BroadcastPage() {
             try {
                 const { data, error } = await supabase
                     .from('campaigns')
-                    .select('id, name, discount_amount, discount_percent, description, secret_codes')
+                    .select('id, name, discount_amount, discount_percent, description, secret_codes, payment_methods')
                     .eq('status', 'active')
                     .order('created_at', { ascending: false });
                 if (!error && data) setCampaigns(data);
@@ -735,6 +736,17 @@ export default function BroadcastPage() {
                     : sl.discountPrice
         })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedCampaignId, campaigns]);
+
+    // Auto-sync forcePayment from campaign's payment_methods setting
+    useEffect(() => {
+        if (!selectedCampaignId) return;
+        const campaign = campaigns.find(c => c.id === selectedCampaignId);
+        if (!campaign?.payment_methods?.length) return;
+        const pm = campaign.payment_methods;
+        if (pm.length === 1 && pm[0] === 'QR') setForcePayment('QR');
+        else if (pm.length === 1 && pm[0] === 'CASH') setForcePayment('CASH');
+        else setForcePayment(''); // both allowed
     }, [selectedCampaignId, campaigns]);
 
     useEffect(() => {
@@ -1222,9 +1234,21 @@ export default function BroadcastPage() {
 
                                 {/* Force Payment */}
                                 <div>
-                                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-2">
-                                        <Lock size={11} /> บังคับวิธีชำระเงิน
-                                    </label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="flex items-center gap-1 text-xs font-medium text-gray-600">
+                                            <Lock size={11} /> บังคับวิธีชำระเงิน
+                                        </label>
+                                        {(() => {
+                                            const c = campaigns.find(x => x.id === selectedCampaignId);
+                                            const pm = c?.payment_methods;
+                                            if (pm?.length === 1) return (
+                                                <span className="text-[10px] text-orange-500 font-medium">
+                                                    📌 ล็อกโดยแคมเปญ ({pm[0]})
+                                                </span>
+                                            );
+                                            return null;
+                                        })()}
+                                    </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         {([
                                             { val: '' as ForcePayment, label: '🔓 เปิดทั้งคู่', desc: 'QR + เงินสด' },
