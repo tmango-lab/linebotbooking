@@ -127,56 +127,58 @@ function buildFlashDealCarousel(
                     },
                     {
                         type: 'box',
-                        layout: 'vertical',
+                        layout: 'horizontal',
                         margin: 'lg',
-                        spacing: 'sm',
                         contents: [
-                            // Date row
                             {
                                 type: 'box',
-                                layout: 'horizontal',
+                                layout: 'vertical',
+                                flex: 3,
                                 spacing: 'sm',
                                 contents: [
-                                    { type: 'text', text: '📅', flex: 0, size: 'sm' },
-                                    { type: 'text', text: displayDate, size: 'sm', color: '#475569', weight: 'bold', flex: 1 }
+                                    {
+                                        type: 'box',
+                                        layout: 'horizontal',
+                                        spacing: 'sm',
+                                        contents: [
+                                            { type: 'text', text: '📅', flex: 0, size: 'sm' },
+                                            { type: 'text', text: displayDate, size: 'sm', color: '#475569', weight: 'bold', wrap: true }
+                                        ]
+                                    },
+                                    {
+                                        type: 'box',
+                                        layout: 'horizontal',
+                                        spacing: 'sm',
+                                        contents: [
+                                            { type: 'text', text: '⏰', flex: 0, size: 'sm' },
+                                            { type: 'text', text: `${slot.startTime} - ${slot.endTime} น.`, size: 'sm', color: '#16a34a', weight: 'bold', wrap: true }
+                                        ]
+                                    }
                                 ]
                             },
-                            // Time + normal price (strikethrough) row
                             {
                                 type: 'box',
-                                layout: 'horizontal',
-                                spacing: 'sm',
+                                layout: 'vertical',
+                                flex: 2,
+                                alignItems: 'flex-end',
+                                justifyContent: 'center',
                                 contents: [
-                                    { type: 'text', text: '⏰', flex: 0, size: 'sm' },
-                                    { type: 'text', text: `${slot.startTime} - ${slot.endTime} น.`, size: 'sm', color: '#16a34a', weight: 'bold', flex: 2 },
                                     ...(normalPrice ? [{
                                         type: 'text',
                                         text: `฿${normalPrice.toLocaleString()}`,
-                                        size: 'sm',
+                                        size: 'xs',
                                         color: '#94a3b8',
-                                        decoration: 'line-through',
-                                        align: 'end',
-                                        flex: 1
-                                    } as const] : [])
-                                ]
-                            },
-                            // Discount price row — full width so it never gets cut
-                            ...(discountPrice ? [{
-                                type: 'box',
-                                layout: 'horizontal',
-                                contents: [
-                                    { type: 'filler' },
-                                    {
+                                        decoration: 'line-through'
+                                    }] : []),
+                                    ...(discountPrice ? [{
                                         type: 'text',
                                         text: `฿${discountPrice.toLocaleString()}`,
-                                        size: 'xxl',
+                                        size: 'lg',
                                         color: '#e11d48',
-                                        weight: 'bold',
-                                        align: 'end',
-                                        flex: 0
-                                    }
+                                        weight: 'bold'
+                                    }] : [])
                                 ]
-                            } as const] : [])
+                            }
                         ]
                     },
                     ...(promoCode ? [
