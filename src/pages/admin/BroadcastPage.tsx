@@ -774,8 +774,8 @@ export default function BroadcastPage() {
         setEditingDraftId(null);
         setBroadcastName('');
         setTemplate('flash_deal');
-        setFieldId(6);
-        setFieldName('สนาม 6');
+        setFieldId(1);
+        setFieldName('สนาม 1');
         setSlots([
             { startTime: '17:00', endTime: '18:00', normalPrice: 1000, discountPrice: 500 },
             { startTime: '18:00', endTime: '19:00', normalPrice: 1200, discountPrice: 600 },
@@ -806,8 +806,8 @@ export default function BroadcastPage() {
 
         const p = b.content_payload || {};
         if (b.template_type === 'flash_deal') {
-            setFieldId(p.fieldId || 6);
-            setFieldName(p.fieldName || 'สนาม 6');
+            setFieldId(p.fieldId || 1);
+            setFieldName(p.fieldName || 'สนาม 1');
             setSlots((p.slots || []).map((s: any) => ({
                 startTime: s.startTime || '17:00',
                 endTime: s.endTime || '18:00',
