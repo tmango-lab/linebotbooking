@@ -5,7 +5,7 @@ import { supabase } from '../../lib/api';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TemplateType = 'flash_deal' | 'simple_message' | 'custom_json';
-type AudienceMode = 'broadcast' | 'multicast';
+type AudienceMode = 'broadcast' | 'multicast' | 'multicast_by_tag' | 'exclude_by_tag';
 type ForcePayment = '' | 'QR' | 'CASH';
 
 interface Campaign {
@@ -647,6 +647,8 @@ export default function BroadcastPage() {
     // Audience
     const [audienceMode, setAudienceMode] = useState<AudienceMode>('broadcast');
     const [userIdsRaw, setUserIdsRaw] = useState('');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [availableTags, setAvailableTags] = useState<string[]>([]);
 
     // Submission state
     const [sending, setSending] = useState(false);
@@ -671,6 +673,22 @@ export default function BroadcastPage() {
             }
         };
         fetchCampaigns();
+    }, []);
+
+    // Fetch unique tags from profiles
+    useEffect(() => {
+        const fetchTags = async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('tags')
+                .not('tags', 'is', null);
+            if (data) {
+                const allTags = data.flatMap((p: any) => p.tags || []);
+                const unique = Array.from(new Set(allTags)).sort() as string[];
+                setAvailableTags(unique);
+            }
+        };
+        fetchTags();
     }, []);
 
     // Fetch field price rates when fieldId changes
@@ -765,6 +783,7 @@ export default function BroadcastPage() {
         setCustomAltText('ประกาศจากสนาม');
         setAudienceMode('broadcast');
         setUserIdsRaw('');
+        setSelectedTags([]);
         setResult(null);
         setView('form');
     };
@@ -775,6 +794,7 @@ export default function BroadcastPage() {
         setTemplate(b.template_type as TemplateType);
         setAudienceMode(b.audience_mode as AudienceMode);
         setUserIdsRaw(b.audience_user_ids ? b.audience_user_ids.join('\n') : '');
+        setSelectedTags(b.content_payload?.selectedTags || []);
 
         const p = b.content_payload || {};
         if (b.template_type === 'flash_deal') {
@@ -824,12 +844,16 @@ export default function BroadcastPage() {
         setSending(true);
         setResult(null);
         try {
+            const payload = buildPayloadForSave();
+            if (audienceMode === 'multicast_by_tag' || audienceMode === 'exclude_by_tag') {
+                payload.selectedTags = selectedTags;
+            }
             const dataToSave = {
                 name: broadcastName,
                 template_type: template,
                 audience_mode: audienceMode,
                 audience_user_ids: audienceMode === 'multicast' ? userIdsRaw.split('\n').map(s => s.trim()).filter(Boolean) : null,
-                content_payload: buildPayloadForSave(),
+                content_payload: payload,
                 built_message: builtMessage,
                 status: 'draft'
             };
@@ -931,23 +955,49 @@ export default function BroadcastPage() {
     const handleSend = async () => {
         if (!broadcastName.trim()) { alert('กรุณาตั้งชื่อ Broadcast ก่อนส่ง'); return; }
         if (!builtMessage) { alert('ข้อมูลไม่ครบหรือ JSON ไม่ถูกต้อง'); return; }
-        const confirmed = window.confirm(
-            audienceMode === 'broadcast'
-                ? '⚠️ ยืนยันการส่ง Broadcast ไปยัง "ผู้ติดตามทุกคน" ทันที?'
-                : `⚠️ ยืนยันส่ง Multicast ไปยัง ${userIdsRaw.split('\n').filter(Boolean).length} คน ทันที?`
-        );
+
+        // Resolve tag-based user IDs before confirming
+        let resolvedUserIds: string[] | null = null;
+        if (audienceMode === 'multicast_by_tag' || audienceMode === 'exclude_by_tag') {
+            if (selectedTags.length === 0) { alert('กรุณาเลือก Tag อย่างน้อย 1 อัน'); return; }
+            // Fetch all profiles
+            const { data: allProfiles } = await supabase.from('profiles').select('user_id, tags');
+            if (!allProfiles) { alert('ไม่สามารถดึงข้อมูลลูกค้าได้'); return; }
+            if (audienceMode === 'multicast_by_tag') {
+                // Send to profiles that HAVE any of the selected tags
+                resolvedUserIds = allProfiles
+                    .filter((p: any) => p.tags?.some((t: string) => selectedTags.includes(t)))
+                    .map((p: any) => p.user_id);
+            } else {
+                // exclude_by_tag: fetch excluded user IDs, pass to Narrowcast
+                resolvedUserIds = allProfiles
+                    .filter((p: any) => p.tags?.some((t: string) => selectedTags.includes(t)))
+                    .map((p: any) => p.user_id);
+            }
+        }
+
+        const audienceCount = audienceMode === 'broadcast' ? 'ผู้ติดตามทุกคน'
+            : audienceMode === 'multicast' ? `${userIdsRaw.split('\n').filter(Boolean).length} คน`
+            : audienceMode === 'multicast_by_tag' ? `${resolvedUserIds?.length || 0} คน (Tag: ${selectedTags.join(', ')})`
+            : `ผู้ติดตามทุกคน ยกเว้น ${resolvedUserIds?.length || 0} คน (Tag: ${selectedTags.join(', ')})`;
+
+        const confirmed = window.confirm(`⚠️ ยืนยันส่ง Broadcast ไปยัง ${audienceCount} ทันที?`);
         if (!confirmed) return;
 
         setSending(true);
         setResult(null);
         let currentId = editingDraftId;
         try {
+            const savedPayload = buildPayloadForSave();
+            if (audienceMode === 'multicast_by_tag' || audienceMode === 'exclude_by_tag') {
+                savedPayload.selectedTags = selectedTags;
+            }
             const dataToSave = {
                 name: broadcastName,
                 template_type: template,
                 audience_mode: audienceMode,
                 audience_user_ids: audienceMode === 'multicast' ? userIdsRaw.split('\n').map(s => s.trim()).filter(Boolean) : null,
-                content_payload: buildPayloadForSave(),
+                content_payload: savedPayload,
                 built_message: builtMessage,
                 status: 'draft'
             };
@@ -961,12 +1011,18 @@ export default function BroadcastPage() {
                 setEditingDraftId(currentId);
             }
 
-            const payload: any = {
-                mode: audienceMode,
-                messages: [builtMessage],
-            };
+            const sendPayload: any = { messages: [builtMessage] };
             if (audienceMode === 'multicast') {
-                payload.userIds = userIdsRaw.split('\n').map(s => s.trim()).filter(Boolean);
+                sendPayload.mode = 'multicast';
+                sendPayload.userIds = userIdsRaw.split('\n').map(s => s.trim()).filter(Boolean);
+            } else if (audienceMode === 'multicast_by_tag') {
+                sendPayload.mode = 'multicast';
+                sendPayload.userIds = resolvedUserIds || [];
+            } else if (audienceMode === 'exclude_by_tag') {
+                sendPayload.mode = 'narrowcast_exclude';
+                sendPayload.excludeUserIds = resolvedUserIds || [];
+            } else {
+                sendPayload.mode = 'broadcast';
             }
 
             const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-broadcast`, {
@@ -975,7 +1031,7 @@ export default function BroadcastPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(sendPayload)
             });
 
             const sentData = await res.json();
@@ -1050,7 +1106,10 @@ export default function BroadcastPage() {
                                             <td className="px-6 py-4">
                                                 <p className="text-sm text-gray-600 flex items-center gap-1">
                                                     <Users size={14} />
-                                                    {b.audience_mode === 'broadcast' ? 'ทุกคน' : `${b.audience_user_ids?.length || 0} คน`}
+                                                    {b.audience_mode === 'broadcast' ? 'ทุกคน (LINE OA)'
+                                                        : b.audience_mode === 'multicast_by_tag' ? `🏷️ Tag: ${b.content_payload?.selectedTags?.join(', ') || '-'}`
+                                                        : b.audience_mode === 'exclude_by_tag' ? `🚫 ยกเว้น: ${b.content_payload?.selectedTags?.join(', ') || '-'}`
+                                                        : `${b.audience_user_ids?.length || 0} คน`}
                                                 </p>
                                             </td>
                                             <td className="px-6 py-4">
@@ -1367,14 +1426,24 @@ export default function BroadcastPage() {
                                 {([
                                     { id: 'broadcast', label: '📡 ทุกคน', desc: 'ผู้ติดตาม OA ทั้งหมด' },
                                     { id: 'multicast', label: '👥 เฉพาะกลุ่ม', desc: 'ระบุ User IDs' },
+                                    { id: 'multicast_by_tag', label: '🏷️ ตาม Tag', desc: 'ส่งหาคนที่มี tag' },
+                                    { id: 'exclude_by_tag', label: '🚫 ยกเว้น Tag', desc: 'ส่งทุกคน OA ยกเว้น tag' },
                                 ] as const).map(a => (
-                                    <button key={a.id} onClick={() => setAudienceMode(a.id)}
-                                        className={`p-3 rounded-xl border-2 text-left transition-all ${audienceMode === a.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <button key={a.id} onClick={() => { setAudienceMode(a.id); setSelectedTags([]); }}
+                                        className={`p-3 rounded-xl border-2 text-left transition-all ${
+                                            audienceMode === a.id
+                                                ? a.id === 'exclude_by_tag' ? 'border-red-400 bg-red-50'
+                                                : a.id === 'multicast_by_tag' ? 'border-indigo-500 bg-indigo-50'
+                                                : 'border-indigo-500 bg-indigo-50'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                        }`}>
                                         <p className="font-semibold text-sm text-gray-800">{a.label}</p>
                                         <p className="text-[11px] text-gray-500 mt-0.5">{a.desc}</p>
                                     </button>
                                 ))}
                             </div>
+
+                            {/* User IDs panel */}
                             {audienceMode === 'multicast' && (
                                 <div>
                                     <label className="block text-xs font-medium text-gray-600 mb-1">User IDs (1 คนต่อบรรทัด)</label>
@@ -1385,6 +1454,49 @@ export default function BroadcastPage() {
                                     <p className="text-xs text-gray-400 mt-1">
                                         {userIdsRaw.split('\n').filter(Boolean).length} User IDs
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Tag picker panel */}
+                            {(audienceMode === 'multicast_by_tag' || audienceMode === 'exclude_by_tag') && (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-2">
+                                        {audienceMode === 'multicast_by_tag' ? 'เลือก Tag ที่ต้องการส่งหา' : 'เลือก Tag ที่ต้องการยกเว้น'}
+                                    </label>
+                                    {availableTags.length === 0 ? (
+                                        <p className="text-xs text-gray-400 italic">ยังไม่มี Tag ในระบบ (ไปติด Tag ที่หน้า Customers ก่อน)</p>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                            {availableTags.map(tag => (
+                                                <button
+                                                    key={tag}
+                                                    type="button"
+                                                    onClick={() => setSelectedTags(prev =>
+                                                        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                                                    )}
+                                                    className={`px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all ${
+                                                        selectedTags.includes(tag)
+                                                            ? audienceMode === 'exclude_by_tag'
+                                                                ? 'bg-red-100 border-red-400 text-red-700'
+                                                                : 'bg-indigo-100 border-indigo-500 text-indigo-700'
+                                                            : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'
+                                                    }`}
+                                                >
+                                                    {selectedTags.includes(tag) ? '✓ ' : ''}{tag}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {selectedTags.length > 0 && (
+                                        <p className={`text-xs mt-2 font-medium ${
+                                            audienceMode === 'exclude_by_tag' ? 'text-red-500' : 'text-indigo-500'
+                                        }`}>
+                                            {audienceMode === 'multicast_by_tag'
+                                                ? `📤 ส่งหาลูกค้าที่มี tag: ${selectedTags.join(', ')}`
+                                                : `🚫 จะยกเว้นลูกค้าที่มี tag: ${selectedTags.join(', ')} (Narrowcast ไปทุกคนใน OA)`
+                                            }
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>

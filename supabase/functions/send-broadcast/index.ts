@@ -15,7 +15,7 @@ serve(async (req) => {
         }
 
         const body = await req.json();
-        const { mode, messages, userIds } = body;
+        const { mode, messages, userIds, excludeUserIds } = body;
 
         // Validate
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -25,11 +25,15 @@ serve(async (req) => {
             throw new Error('LINE API allows max 5 messages per request');
         }
 
-        let lineRes: Response;
+        const authHeaders = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+        };
+
         let resultInfo: any;
 
         if (mode === 'multicast') {
-            // Multicast: send to specific user IDs (chunked 500 at a time)
+            // ── Multicast: send to specific user IDs (chunked 500 at a time) ──
             if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
                 throw new Error('userIds array is required for multicast mode');
             }
@@ -41,10 +45,7 @@ serve(async (req) => {
                 const chunk = userIds.slice(i, i + chunkSize);
                 const res = await fetch("https://api.line.me/v2/bot/message/multicast", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
-                    },
+                    headers: authHeaders,
                     body: JSON.stringify({ to: chunk, messages })
                 });
 
@@ -58,14 +59,69 @@ serve(async (req) => {
 
             resultInfo = { mode: 'multicast', totalUsers: userIds.length, chunks: results };
 
-        } else {
-            // Broadcast: send to ALL followers
-            lineRes = await fetch("https://api.line.me/v2/bot/message/broadcast", {
+        } else if (mode === 'narrowcast_exclude') {
+            // ── Narrowcast with Exclusion ──
+            // Step 1: Upload an audience group of users to EXCLUDE
+            let audienceGroupId: number | null = null;
+
+            if (excludeUserIds && Array.isArray(excludeUserIds) && excludeUserIds.length > 0) {
+                const uploadRes = await fetch("https://api.line.me/v2/bot/audienceGroup/upload", {
+                    method: "POST",
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        description: `Broadcast Exclude ${new Date().toISOString()}`,
+                        isIfaAudience: false,
+                        audiences: excludeUserIds.map((uid: string) => ({ id: uid }))
+                    })
+                });
+
+                const uploadData = await uploadRes.json();
+                if (!uploadRes.ok) {
+                    throw new Error(`LINE Audience Upload Error: ${JSON.stringify(uploadData)}`);
+                }
+                audienceGroupId = uploadData.audienceGroupId;
+                console.log(`[Narrowcast] Uploaded exclude audience: ${audienceGroupId} (${excludeUserIds.length} users)`);
+            }
+
+            // Step 2: Send Narrowcast (with NOT exclusion if we have an audience group)
+            const narrowcastBody: any = {
+                messages,
+                notificationDisabled: false
+            };
+
+            if (audienceGroupId) {
+                narrowcastBody.recipient = {
+                    type: "operator",
+                    not: {
+                        type: "audience",
+                        audienceGroupId
+                    }
+                };
+            }
+
+            const narrowcastRes = await fetch("https://api.line.me/v2/bot/message/narrowcast", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
-                },
+                headers: authHeaders,
+                body: JSON.stringify(narrowcastBody)
+            });
+
+            const narrowcastText = await narrowcastRes.text();
+            if (!narrowcastRes.ok) {
+                throw new Error(`LINE Narrowcast Error: ${narrowcastText}`);
+            }
+
+            resultInfo = {
+                mode: 'narrowcast_exclude',
+                excludedUsers: excludeUserIds?.length || 0,
+                audienceGroupId,
+                status: narrowcastRes.status
+            };
+
+        } else {
+            // ── Broadcast: send to ALL followers ──
+            const lineRes = await fetch("https://api.line.me/v2/bot/message/broadcast", {
+                method: "POST",
+                headers: authHeaders,
                 body: JSON.stringify({ messages })
             });
 
@@ -79,11 +135,16 @@ serve(async (req) => {
 
         console.log(`[Send Broadcast] Success:`, JSON.stringify(resultInfo));
 
+        const successMessage =
+            mode === 'multicast'
+                ? `ส่ง Multicast สำเร็จ ถึง ${userIds?.length || 0} คน`
+                : mode === 'narrowcast_exclude'
+                ? `ส่ง Narrowcast สำเร็จ (ยกเว้น ${excludeUserIds?.length || 0} คน)`
+                : 'ส่ง Broadcast สำเร็จ ถึงผู้ติดตามทุกคน';
+
         return new Response(JSON.stringify({
             success: true,
-            message: mode === 'multicast'
-                ? `ส่ง Multicast สำเร็จ ถึง ${userIds?.length || 0} คน`
-                : 'ส่ง Broadcast สำเร็จ ถึงผู้ติดตามทุกคน',
+            message: successMessage,
             result: resultInfo
         }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
