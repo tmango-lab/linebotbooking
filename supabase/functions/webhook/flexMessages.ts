@@ -1325,34 +1325,7 @@ export function buildBookingsCarousel(bookings: any[], offset: number, totalCoun
                 type: "box",
                 layout: "vertical",
                 spacing: "sm",
-                contents: [
-                    // Confirm Button (Hide if already confirmed or cancel requested)
-                    ...(!isConfirmed && !isCancelRequested ? [{
-                        type: "button",
-                        style: "primary",
-                        color: "#06C755",
-                        action: {
-                            type: "postback",
-                            label: "✅ ยืนยันมา",
-                            data: `action=confirmBookingStatus&booking_id=${booking.booking_id}`,
-                            displayText: "ยืนยันการจอง"
-                        },
-                        height: "sm"
-                    } as const] : []),
-                    // Cancel Button (Hide if already cancel requested OR confirmed)
-                    ...(!isCancelRequested && !isConfirmed ? [{
-                        type: "button",
-                        style: "primary",
-                        color: "#FF4B4B",
-                        height: "sm",
-                        action: {
-                            type: "postback",
-                            label: "🚫 ขอยกเลิก",
-                            data: `action=requestCancelBooking&booking_id=${booking.booking_id}`,
-                            displayText: "ขอยกเลิกรายการนี้"
-                        }
-                    } as const] : [])
-                ]
+                contents: []
             }
         };
     });

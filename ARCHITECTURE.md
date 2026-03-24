@@ -607,9 +607,18 @@ Admins can manage tags directly from the **Customer Detail Page**:
 
 ### 14.4 Full Admin Broadcast Page (2026-03)
 A dedicated interface located at `/admin/broadcast` to empower marketing efforts via LINE Flex Messages:
-1.  **Campaign Integration**: Direct dropdown to link active campaigns. Automatically extracts the first `secret_code` to embed into the generated Flash Deal link.
-2.  **Force Payment Settings**: Admins can easily configure the final LIFF link to contain `&forcePayment=QR`, ensuring flash sales are strictly paid via PromptPay without manual error.
-3.  **Audience Control**: Connects with `send-broadcast` Edge Function, allowing targeting 'Everyone' (broadcast) or specific tags (multicast) up to 500 users per API call.
+1.  **Multiple Audience Modes**:
+    - **📡 ทุกคน (Broadcast)**: Reaches 100% of OA followers via LINE's broadcast API.
+    - **👥 เฉพาะกลุ่ม (Multicast)**: Reaches specific User IDs entered manually.
+    - **🏷️ ตาม Tag (Multicast by Tag)**: Reaches users in the `profiles` table that have the selected tags.
+    - **🚫 ยกเว้น Tag (Narrowcast)**: Reaches everyone in LINE OA **EXCEPT** users in our system with the selected tags (e.g., to exclude staff).
+2.  **Flash Deal Automation**: Drops down to link active campaigns, extracts `secret_code`, and generates LIFF links with `&forcePayment=QR`.
+
+### 14.5 Narrowcast Exclude Logic (Backend)
+The "Exclude Tag" mode uses a specialized high-reliability flow in the `send-broadcast` Edge Function:
+1.  **Audience Upload**: Resolves excluded User IDs from the `profiles` table and uploads them to LINE as an "Audience Group".
+2.  **Polling (Ready Check)**: LINE takes 2-10 seconds to process new audience groups. The Edge Function polls the status every 2 seconds (up to 30s) until status is `READY`.
+3.  **Execution**: Sends a `narrowcast` message using an `operator` with a `not` condition on the newly created audience group ID.
 
 ---
 
