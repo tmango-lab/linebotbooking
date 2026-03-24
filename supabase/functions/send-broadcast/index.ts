@@ -81,6 +81,33 @@ serve(async (req) => {
                 }
                 audienceGroupId = uploadData.audienceGroupId;
                 console.log(`[Narrowcast] Uploaded exclude audience: ${audienceGroupId} (${excludeUserIds.length} users)`);
+
+                // Polling to wait for audience group to be READY
+                let isReady = false;
+                for (let attempt = 0; attempt < 10; attempt++) {
+                    // Wait 2 seconds before checking
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    const statusRes = await fetch(`https://api.line.me/v2/bot/audienceGroup/${audienceGroupId}`, {
+                        method: "GET",
+                        headers: authHeaders
+                    });
+                    
+                    if (statusRes.ok) {
+                        const statusData = await statusRes.json();
+                        console.log(`[Narrowcast] Audience ${audienceGroupId} status: ${statusData.status}`);
+                        if (statusData.status === 'READY') {
+                            isReady = true;
+                            break;
+                        } else if (statusData.status === 'FAILED' || statusData.status === 'EXPIRED') {
+                            throw new Error(`Audience group failed to process. Status: ${statusData.status}`);
+                        }
+                    }
+                }
+
+                if (!isReady) {
+                    throw new Error(`Audience group ${audienceGroupId} is not ready after 20 seconds. Please try again.`);
+                }
             }
 
             // Step 2: Send Narrowcast (with NOT exclusion if we have an audience group)
