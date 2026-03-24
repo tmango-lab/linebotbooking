@@ -83,8 +83,9 @@ serve(async (req) => {
                 console.log(`[Narrowcast] Uploaded exclude audience: ${audienceGroupId} (${excludeUserIds.length} users)`);
 
                 // Polling to wait for audience group to be READY
+                // LINE API returns: { audienceGroup: { status: "READY"|"IN_PROGRESS"|"FAILED" } }
                 let isReady = false;
-                for (let attempt = 0; attempt < 10; attempt++) {
+                for (let attempt = 0; attempt < 15; attempt++) {
                     // Wait 2 seconds before checking
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     
@@ -95,18 +96,20 @@ serve(async (req) => {
                     
                     if (statusRes.ok) {
                         const statusData = await statusRes.json();
-                        console.log(`[Narrowcast] Audience ${audienceGroupId} status: ${statusData.status}`);
-                        if (statusData.status === 'READY') {
+                        // LINE returns the status nested under audienceGroup object
+                        const status = statusData.audienceGroup?.status;
+                        console.log(`[Narrowcast] Attempt ${attempt + 1}: Audience ${audienceGroupId} status: ${status}`);
+                        if (status === 'READY') {
                             isReady = true;
                             break;
-                        } else if (statusData.status === 'FAILED' || statusData.status === 'EXPIRED') {
-                            throw new Error(`Audience group failed to process. Status: ${statusData.status}`);
+                        } else if (status === 'FAILED' || status === 'EXPIRED') {
+                            throw new Error(`Audience group failed to process. Status: ${status}`);
                         }
                     }
                 }
 
                 if (!isReady) {
-                    throw new Error(`Audience group ${audienceGroupId} is not ready after 20 seconds. Please try again.`);
+                    throw new Error(`Audience group ${audienceGroupId} is not ready after 30 seconds. Please try again.`);
                 }
             }
 
