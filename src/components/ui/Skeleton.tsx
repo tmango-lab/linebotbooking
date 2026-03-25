@@ -117,30 +117,41 @@ export function CouponCardSkeleton({ dark = false }: { dark?: boolean }) {
 }
 
 // ── WalletSkeleton ────────────────────────────────────────────────────────────
-// Mirrors WalletPage: green header → tab bar → coupon list
+// Mirrors WalletPage exactly:
+//   <div className="bg-white pt-8 px-6 pb-4 shadow-sm rounded-b-[2rem] sticky top-0 z-40">
+//     h1 "กระเป๋าคูปอง" + points (orange) on right
+//     tab bar: คูปองของฉัน | เก็บคูปอง | แลกแต้ม
+//   </div>
+//   then coupon cards below
 export function WalletSkeleton() {
     return (
-        <div className="min-h-screen bg-[#F0F2F5]">
+        <div className="min-h-screen bg-gray-50 font-sans pb-20">
 
-            {/* Points header banner (green) */}
-            <div className="bg-gradient-to-br from-green-600 to-emerald-700 px-6 pt-12 pb-8">
-                <Skeleton className="h-3 w-24 rounded mb-3"
-                    style={{ background: 'rgba(255,255,255,0.25)', backgroundSize: '800px 100%' }} />
-                <Skeleton className="h-10 w-20 rounded-xl"
-                    style={{ background: 'rgba(255,255,255,0.25)', backgroundSize: '800px 100%' }} />
-                <Skeleton className="h-3 w-36 rounded mt-2"
-                    style={{ background: 'rgba(255,255,255,0.2)', backgroundSize: '800px 100%' }} />
+            {/* ── Header: mirrors the real sticky white header ── */}
+            <div className="bg-white pt-8 px-6 pb-4 shadow-sm rounded-b-[2rem] mb-4 sticky top-0 z-40">
+                {/* Title row + Points */}
+                <div className="flex justify-between items-center mb-4">
+                    {/* Left: title + subtitle */}
+                    <div className="flex flex-col gap-1.5">
+                        <Skeleton className="h-7 w-36 rounded" />
+                        <Skeleton className="h-3 w-44 rounded" />
+                    </div>
+                    {/* Right: points number */}
+                    <div className="flex flex-col items-end gap-1">
+                        <Skeleton className="h-6 w-20 rounded" />
+                    </div>
+                </div>
+
+                {/* Tab bar: 3 equal-width buttons inside bg-gray-100 pill */}
+                <div className="flex bg-gray-100 p-1 rounded-xl mb-4 gap-1">
+                    <Skeleton className="flex-1 h-8 rounded-lg" />
+                    <Skeleton className="flex-1 h-8 rounded-lg" />
+                    <Skeleton className="flex-1 h-8 rounded-lg" />
+                </div>
             </div>
 
-            {/* Tab bar */}
-            <div className="flex gap-2 px-4 py-3 bg-white shadow-sm border-b border-gray-100">
-                {['w-24', 'w-20', 'w-20'].map((w, i) => (
-                    <Skeleton key={i} className={`h-8 ${w} rounded-full`} />
-                ))}
-            </div>
-
-            {/* Coupon list (1 dark main + 2 light on-top) */}
-            <div className="flex flex-col gap-3 px-4 pt-4">
+            {/* ── Coupon list ── */}
+            <div className="px-5 space-y-4">
                 <CouponCardSkeleton dark />
                 <CouponCardSkeleton />
                 <CouponCardSkeleton />
