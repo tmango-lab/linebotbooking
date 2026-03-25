@@ -214,8 +214,12 @@ export default function WalletPage() {
         setIsDetailOpen(true);
     };
 
-    // ── Skeleton guard: show skeleton while React Query loads coupons ──
-    if (loading && wallet.main.length === 0 && wallet.on_top.length === 0) {
+    // ── Skeleton guard ──
+    // Show skeleton when:
+    //   1. userId not yet resolved (LIFF still initializing) → !userId
+    //   2. Query is loading AND no cached data to show yet
+    const hasNoData = wallet.main.length === 0 && wallet.on_top.length === 0;
+    if (!userId || (loading && hasNoData)) {
         return <WalletSkeleton />;
     }
 
