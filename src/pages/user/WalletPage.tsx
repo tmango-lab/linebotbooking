@@ -8,6 +8,7 @@ import MerchantCouponPopup from '../../components/ui/MerchantCouponPopup';
 import { formatDate } from '../../utils/date';
 import { useCouponsQuery } from '../../hooks/useCouponsQuery';
 import { queryClient } from '../../providers/QueryProvider';
+import { WalletSkeleton } from '../../components/ui/Skeleton';
 
 interface Coupon {
     coupon_id: string; // user_coupon_id
@@ -212,6 +213,11 @@ export default function WalletPage() {
         setSelectedCoupon(item);
         setIsDetailOpen(true);
     };
+
+    // ── Skeleton guard: show skeleton while React Query loads coupons ──
+    if (loading && wallet.main.length === 0 && wallet.on_top.length === 0) {
+        return <WalletSkeleton />;
+    }
 
     // Components
     const CouponCard = ({ coupon, type, isHistory = false }: { coupon: Coupon, type: 'Main' | 'On-top', isHistory?: boolean }) => {
