@@ -226,7 +226,15 @@ export const useBookingLogic = () => {
                 });
                 const collectData = await collectRes.json();
                 if (collectData.success && collectData.data) {
-                    console.log(`[Flash Deal] Coupon collected: ${collectData.data.id}`);
+                    const newCouponId = collectData.data.id;
+                    console.log(`[Flash Deal] Coupon collected/found: ${newCouponId}`);
+                    
+                    // [FIX] Convert promoCode to couponId in URL to trigger auto-select logic
+                    const newSearchParams = new URLSearchParams(searchParams);
+                    newSearchParams.set('couponId', newCouponId);
+                    newSearchParams.delete('promoCode');
+                    navigate(`?${newSearchParams.toString()}`, { replace: true });
+                    
                     // Invalidate coupon cache so React Query re-fetches fresh data
                     queryClient.invalidateQueries({ queryKey: ['coupons', userId] });
                 } else {
