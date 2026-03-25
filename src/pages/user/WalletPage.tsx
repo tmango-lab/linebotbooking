@@ -6,6 +6,8 @@ import { Loader2, Ticket, Clock, AlertCircle, Share2, Award, Store } from 'lucid
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 import MerchantCouponPopup from '../../components/ui/MerchantCouponPopup';
 import { formatDate } from '../../utils/date';
+import { useCouponsQuery } from '../../hooks/useCouponsQuery';
+import { queryClient } from '../../providers/QueryProvider';
 
 interface Coupon {
     coupon_id: string; // user_coupon_id
@@ -33,8 +35,6 @@ interface Wallet {
 export default function WalletPage() {
     // State
     const [userId, setUserId] = useState('');
-    const [wallet, setWallet] = useState<Wallet>({ main: [], on_top: [] }); // Active Coupons
-    const [loading, setLoading] = useState(false);
     const [points, setPoints] = useState<number>(0);
 
     // UI State
@@ -47,12 +47,15 @@ export default function WalletPage() {
     const [collecting, setCollecting] = useState(false);
     const collectingRef = useRef(false);
 
-    // Market
+    // Market (available campaigns to collect)
     const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
 
     const { isReady, liffUser } = useLiff();
 
-    // Init
+    // --- React Query: cached coupons ---
+    const couponsQuery = useCouponsQuery(userId || null);
+
+    // Init: resolve userId from LIFF or URL params
     useEffect(() => {
         if (!isReady) return;
 
@@ -79,7 +82,13 @@ export default function WalletPage() {
 
             if (uid) {
                 setUserId(uid);
-                fetchWallet(uid);
+                // Points are lightweight — fetch directly
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('points')
+                    .eq('user_id', uid)
+                    .maybeSingle();
+                if (profile) setPoints(profile.points || 0);
 
                 if (action === 'collect' && (cid || code) && !collectingRef.current) {
                     collectingRef.current = true;
@@ -91,93 +100,45 @@ export default function WalletPage() {
         initUser();
     }, [isReady, liffUser]);
 
-    // Data Fetching
-    const fetchWallet = async (uid: string) => {
-        if (!uid) return;
-        setLoading(true);
-        try {
-            const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    // Derive wallet state from React Query
+    const loading = couponsQuery.isLoading;
+    const rawWallet = couponsQuery.data;
+    const wallet: Wallet = {
+        main: (rawWallet?.main as any[]) ?? [],
+        on_top: (rawWallet?.on_top as any[]) ?? [],
+    };
 
-            // 0. Fetch Points & History
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('points')
-                .eq('user_id', uid)
-                .maybeSingle();
-            if (profile) setPoints(profile.points || 0);
+    // Fetch market campaigns whenever userId resolves
+    useEffect(() => {
+        if (!userId) return;
+        fetchMarketCampaigns(userId);
+    }, [userId, couponsQuery.dataUpdatedAt]); // Re-run when coupons refresh (after collect/redeem)
 
+    const fetchMarketCampaigns = async (uid: string) => {
+        const token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: uid, filter: 'active' })
+        });
 
-            // 1. Fetch Active
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ userId: uid, filter: 'active' })
-            });
+        const { data: campaigns } = await supabase
+            .from('campaigns')
+            .select('*, merchants(name)')
+            .eq('is_public', true)
+            .eq('status', 'active')
+            .gt('end_date', new Date().toISOString())
+            .lte('start_date', new Date().toISOString());
 
-            if (res.ok) {
-                const data = await res.json();
-
-                // Fetch merchant info for partner coupons
-                const { data: partnerCampaigns } = await supabase
-                    .from('campaigns')
-                    .select('id, merchant_id, reward_item, merchants(name)')
-                    .not('merchant_id', 'is', null);
-
-                const merchantMap = new Map<string, { merchant_id: string; merchant_name: string; reward_item: string | null }>();
-                if (partnerCampaigns) {
-                    partnerCampaigns.forEach((pc: any) => {
-                        merchantMap.set(pc.id, {
-                            merchant_id: pc.merchant_id,
-                            merchant_name: pc.merchants?.name || '',
-                            reward_item: pc.reward_item,
-                        });
-                    });
-                }
-
-                // Enrich wallet coupons with merchant info
-                const enrichCoupon = (c: Coupon): Coupon => {
-                    const info = merchantMap.get(c.campaign_id);
-                    if (info) {
-                        return { ...c, merchant_id: info.merchant_id, merchant_name: info.merchant_name, reward_item: info.reward_item };
-                    }
-                    return c;
-                };
-                data.main = data.main.map(enrichCoupon);
-                data.on_top = data.on_top.map(enrichCoupon);
-
-                setWallet(data);
-
-                // Fetch Market (Available)
-                const { data: campaigns } = await supabase
-                    .from('campaigns')
-                    .select('*, merchants(name)')
-                    .eq('is_public', true)
-                    .eq('status', 'active')
-                    .gt('end_date', new Date().toISOString())
-                    .lte('start_date', new Date().toISOString());
-
-                if (campaigns) {
-                    const myCoupons = [...data.main, ...data.on_top];
-
-                    const availableToCollect = campaigns.filter(c => {
-                        const collectedCount = myCoupons.filter(userCoupon => userCoupon.campaign_id === c.id).length;
-                        return collectedCount < (c.limit_per_user || 1);
-                    });
-
-                    setAvailableCampaigns(availableToCollect);
-                }
-            }
-
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
+        if (campaigns && res.ok) {
+            const data = await res.json();
+            const myCoupons = [...(data.main || []), ...(data.on_top || [])];
+            setAvailableCampaigns(campaigns.filter((c: any) => {
+                const collected = myCoupons.filter((u: any) => u.campaign_id === c.id).length;
+                return collected < (c.limit_per_user || 1);
+            }));
         }
     };
-    // Actions
     const doAutoCollect = async (uid: string, cid: string, code: string) => {
         setCollecting(true);
         try {
@@ -205,7 +166,8 @@ export default function WalletPage() {
             const newUrl = `${window.location.pathname}${cleanHash}?userId=${uid}`;
             window.history.replaceState({}, '', newUrl);
 
-            fetchWallet(uid);
+            // Invalidate cache to trigger fresh fetch
+            queryClient.invalidateQueries({ queryKey: ['coupons', uid] });
         } catch (error: any) {
             alert(`เสียใจด้วยครับ 😅\n${error.message}`);
         } finally {
@@ -218,7 +180,6 @@ export default function WalletPage() {
 
         setCollecting(true);
         try {
-            // Call the new RPC function we just created
             const { data, error } = await supabase.rpc('redeem_points_for_campaign', {
                 p_user_id: uid,
                 p_campaign_id: cid
@@ -228,10 +189,9 @@ export default function WalletPage() {
 
             if (data && data.success) {
                 alert(`🎉 ${data.message}`);
-                // Update local points state to reflect the change immediately
                 setPoints(data.points_remaining);
-                // Refresh wallet
-                fetchWallet(uid);
+                // Invalidate cache so coupons refresh
+                queryClient.invalidateQueries({ queryKey: ['coupons', uid] });
             } else {
                 throw new Error(data?.error || 'เกิดข้อผิดพลาดในการแลกแต้ม');
             }

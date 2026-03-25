@@ -4,11 +4,14 @@ import './index.css'
 import App from './App.tsx'
 
 import ErrorBoundary from './components/ErrorBoundary.tsx'
+import { QueryProvider } from './providers/QueryProvider.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <QueryProvider>
+        <App />
+      </QueryProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/api';
 import { getLiffUser } from '../lib/liff';
 import { formatDate } from '../utils/date';
+import { useFieldsQuery } from './useFieldsQuery';
+import { useBookingsQuery } from './useBookingsQuery';
+import { useCouponsQuery } from './useCouponsQuery';
+import { queryClient } from '../providers/QueryProvider';
 
 export interface Field {
     id: number;
@@ -39,12 +42,10 @@ export interface UserProfile {
 export const useBookingLogic = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const [isReady, setIsReady] = useState(false);
 
-    // Data State
-    const [fields, setFields] = useState<Field[]>([]);
-    const [coupons, setCoupons] = useState<Coupon[]>([]);
-    const [existingBookings, setExistingBookings] = useState<any[]>([]);
+    // User identity state (must be resolved before queries run)
+    const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
+    const [userIdentified, setUserIdentified] = useState(false);
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
     // Selection State
@@ -79,7 +80,26 @@ export const useBookingLogic = () => {
     // [FLASH DEAL] Force payment method from URL (e.g. forcePayment=QR)
     const urlForcePayment = searchParams.get('forcePayment'); // 'QR' | 'CASH' | null
 
-    const [userId, setUserId] = useState<string | null>(searchParams.get('userId'));
+    // --- React Query Hooks ---
+    const fieldsQuery = useFieldsQuery();
+    const bookingsQuery = useBookingsQuery(selectedDate);
+    const couponsQuery = useCouponsQuery(userIdentified ? userId : null);
+
+    // Derive data from queries (with empty fallbacks so downstream logic never breaks)
+    const fields = fieldsQuery.data ?? [];
+    const existingBookings = bookingsQuery.data ?? [];
+    const couponsData = couponsQuery.data;
+    const coupons: Coupon[] = [
+        ...(couponsData?.main ?? []),
+        ...(couponsData?.on_top ?? []),
+    ];
+
+    // isReady = user identified + all queries done loading
+    const isReady =
+        userIdentified &&
+        !fieldsQuery.isLoading &&
+        !bookingsQuery.isLoading &&
+        (userId ? !couponsQuery.isLoading : true);
 
     // [REFERRAL] Referral code from URL
     // [REFERRAL] Referral code from URL
@@ -102,310 +122,167 @@ export const useBookingLogic = () => {
         return `${days[dObj.getDay()]}, ${dObj.getDate()} ${months[dObj.getMonth()]}`;
     };
 
-    // --- 1. Init Data ---
+    // --- 1. Identify User (LIFF Login) ---
     useEffect(() => {
-        const init = async () => {
+        const identifyUser = async () => {
             setErrorMsg(null);
-            const liffUser = await getLiffUser({ requireLogin: true }); // [MOD] Enforce login for booking
+            const liffUser = await getLiffUser({ requireLogin: true });
 
             if (liffUser.isLoggingIn) {
-                // Browser is about to redirect to LINE Login, so stay in the loading state
+                // Redirecting to LINE Login — stay on loading screen
                 return;
             }
 
             const currentUserId = liffUser.userId || userId;
 
             if (!currentUserId) {
-                setErrorMsg("ไม่พบข้อมูลผู้ใช้งาน (User ID Missing). กรุณาเปิดผ่าน LINE อีกครั้ง");
-                setIsReady(true);
+                setErrorMsg('ไม่พบข้อมูลผู้ใช้งาน (User ID Missing). กรุณาเปิดผ่าน LINE อีกครั้ง');
+                setUserIdentified(true); // Mark as done so isReady can resolve
                 return;
             }
+
             setUserId(currentUserId);
-
-            try {
-                // [OPTIMIZED] Fetch all data in parallel
-                const fieldsPromise = supabase
-                    .from('fields')
-                    .select('*')
-                    .eq('active', true)
-                    .order('id');
-
-                const bookingsPromise = fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-bookings`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                    },
-                    body: JSON.stringify({ date: selectedDate })
-                }).then(res => res.json());
-
-                // Start fetching coupons if user exists
-                let couponsPromise = Promise.resolve({ success: false, main: [], on_top: [], profile: null }) as Promise<any>;
-                if (currentUserId) {
-                    couponsPromise = fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                        },
-                        body: JSON.stringify({ userId: currentUserId })
-                    }).then(res => res.json());
-                }
-
-                // Wait for all
-                const [fieldsResult, bookingData, couponData] = await Promise.all([
-                    fieldsPromise,
-                    bookingsPromise,
-                    couponsPromise
-                ]);
-
-                // 1. Process Fields
-                const { data: fieldsData, error: fieldsError } = fieldsResult;
-                if (fieldsError) throw fieldsError;
-
-                if (!fieldsData || fieldsData.length === 0) {
-                    setErrorMsg("No active fields found.");
-                } else {
-                    setFields(fieldsData.map(f => ({
-                        id: f.id,
-                        name: f.label,
-                        type: f.type,
-                        price_pre: f.price_pre || 0,
-                        price_post: f.price_post || 0
-                    })));
-                }
-
-                // 2. Process Bookings
-                const reverseMap: Record<number, number> = {
-                    2424: 1, 2425: 2, 2428: 3, 2426: 4, 2427: 5, 2429: 6
-                };
-                const normalizedBookings = (bookingData.bookings || []).map((b: any) => ({
-                    ...b,
-                    court_id: reverseMap[b.court_id] || b.court_id
-                }));
-                setExistingBookings(normalizedBookings);
-
-                // [FLASH DEAL] Auto-select field + time ONLY IF not occupied
-                if (urlFieldId && urlStartTime && urlEndTime && fieldsData) {
-                    const fieldExists = fieldsData.some(f => f.id === urlFieldId);
-                    if (fieldExists) {
-                        // Check if occupied — API returns time_start/time_end as "YYYY-MM-DD HH:MM:SS"
-                        const isOccupied = normalizedBookings.some((b: any) => {
-                            if (b.status === 'CANCELLED') return false;
-
-                            const bCourtId = Number(b.court_id);
-                            if (bCourtId !== urlFieldId) return false;
-
-                            // time_start = "2026-03-21 17:00:00" → take last 5 chars of "HH:MM:SS" part
-                            const rawStart = b.time_start || b.start_time || '';
-                            const rawEnd = b.time_end || b.end_time || '';
-                            if (!rawStart || !rawEnd) return false;
-
-                            // Extract HH:MM — works for both "HH:MM" and "YYYY-MM-DD HH:MM:SS"
-                            const bStart = rawStart.includes(' ')
-                                ? rawStart.split(' ')[1].substring(0, 5)
-                                : rawStart.substring(0, 5);
-                            const bEnd = rawEnd.includes(' ')
-                                ? rawEnd.split(' ')[1].substring(0, 5)
-                                : rawEnd.substring(0, 5);
-
-                            return (urlStartTime < bEnd && urlEndTime > bStart);
-                        });
-
-                        if (!isOccupied) {
-                            setSelection({
-                                fieldId: urlFieldId,
-                                startTime: urlStartTime,
-                                endTime: urlEndTime
-                            });
-                            console.log(`[Flash Deal] Auto-selected: Field ${urlFieldId} | ${urlStartTime}-${urlEndTime}`);
-                        } else {
-                            console.warn(`[Flash Deal] Auto-select failed: Slot is already occupied.`);
-                            setErrorMsg("รอบที่คุณเลือกจากลิงก์ถูกจองไปแล้ว กรุณาเลือกรอบเวลาอื่น");
-                        }
-                    }
-                }
-
-                // 3. Process Coupons
-                if (couponData.success) {
-                    const allUserCoupons = [...(couponData.main || []), ...(couponData.on_top || [])];
-                    const fetchedCoupons = allUserCoupons.map((c: any) => {
-                        const bValue = c.benefit?.value;
-                        let discountVal = 0;
-                        if (bValue) {
-                            if (typeof bValue === 'number') discountVal = bValue;
-                            else discountVal = bValue.amount || bValue.percent || 0;
-                        }
-                        return {
-                            id: c.coupon_id,
-                            campaign_id: c.campaign_id,
-                            name: c.name,
-                            discount_type: (bValue?.percent ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
-                            discount_value: Number(discountVal),
-                            min_spend: Number(c.conditions?.min_spend) || 0,
-                            eligible_fields: c.conditions?.fields || null,
-                            eligible_days: c.conditions?.days || null,
-                            valid_time_start: c.conditions?.time?.start || null,
-                            valid_time_end: c.conditions?.time?.end || null,
-                            eligible_payments: c.conditions?.payment || null,
-                            category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP",
-                            expiry: c.expiry, // [NEW]
-                            allow_ontop_stacking: c.is_stackable ? true : (c.allow_ontop_stacking ?? true)
-                        };
-                    });
-                    setCoupons(fetchedCoupons);
-
-                    // Auto-select coupon from URL
-                    const urlCouponId = searchParams.get('couponId');
-                    if (urlCouponId) {
-                        const target = fetchedCoupons.find(c => c.id === urlCouponId);
-                        if (target) {
-                            if (target.category === 'ONTOP') {
-                                setManualOntopCoupon(target as Coupon);
-                            } else {
-                                setManualMainCoupon(target as Coupon);
-                            }
-                        }
-                    }
-
-                    // [FLASH DEAL] Auto-collect promo code from URL
-                    const urlPromoCode = searchParams.get('promoCode');
-                    if (urlPromoCode && currentUserId) {
-                        console.log(`[Flash Deal] Auto-collecting promo code: ${urlPromoCode}`);
-                        try {
-                            const collectRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                                },
-                                body: JSON.stringify({ userId: currentUserId, secretCode: urlPromoCode })
-                            });
-                            const collectData = await collectRes.json();
-                            if (collectData.success && collectData.data) {
-                                console.log(`[Flash Deal] Coupon collected: ${collectData.data.id}`);
-                                // Re-fetch coupons so the new one appears
-                                const refreshRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-my-coupons`, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                                    },
-                                    body: JSON.stringify({ userId: currentUserId })
-                                });
-                                const refreshData = await refreshRes.json();
-                                if (refreshData.success) {
-                                    const allRefreshed = [...(refreshData.main || []), ...(refreshData.on_top || [])];
-                                    const refreshedCoupons = allRefreshed.map((c: any) => {
-                                        const bValue = c.benefit?.value;
-                                        let discountVal = 0;
-                                        if (bValue) {
-                                            if (typeof bValue === 'number') discountVal = bValue;
-                                            else discountVal = bValue.amount || bValue.percent || 0;
-                                        }
-                                        return {
-                                            id: c.coupon_id,
-                                            campaign_id: c.campaign_id,
-                                            name: c.name,
-                                            discount_type: (bValue?.percent ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
-                                            discount_value: Number(discountVal),
-                                            min_spend: Number(c.conditions?.min_spend) || 0,
-                                            eligible_fields: c.conditions?.fields || null,
-                                            eligible_days: c.conditions?.days || null,
-                                            valid_time_start: c.conditions?.time?.start || null,
-                                            valid_time_end: c.conditions?.time?.end || null,
-                                            eligible_payments: c.conditions?.payment || null,
-                                            category: (c.is_stackable ? 'ONTOP' : 'MAIN') as "MAIN" | "ONTOP",
-                                            expiry: c.expiry,
-                                            allow_ontop_stacking: c.is_stackable ? true : (c.allow_ontop_stacking ?? true)
-                                        };
-                                    });
-                                    setCoupons(refreshedCoupons);
-                                    // Auto-apply the freshly collected coupon
-                                    const newCoupon = refreshedCoupons.find((c: any) => c.id === collectData.data.id);
-                                    if (newCoupon) {
-                                        if (newCoupon.category === 'ONTOP') setManualOntopCoupon(newCoupon as Coupon);
-                                        else setManualMainCoupon(newCoupon as Coupon);
-                                        console.log(`[Flash Deal] Auto-applied coupon: ${newCoupon.name}`);
-                                    }
-                                }
-                            } else {
-                                console.warn(`[Flash Deal] Could not collect promo: ${collectData.error}`);
-                            }
-                        } catch (promoErr: any) {
-                            console.warn(`[Flash Deal] Promo collect error: ${promoErr.message}`);
-                        }
-                    }
-                }
-
-                // [REFERRAL] Validate referral code if present
-                const refCode = searchParams.get('ref');
-                if (refCode && currentUserId) {
-                    try {
-                        const refRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-referral`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                            },
-                            body: JSON.stringify({ referralCode: refCode, userId: currentUserId })
-                        });
-                        const refData = await refRes.json();
-
-                        if (refRes.ok && refData.valid) {
-                            setReferralCode(refCode);
-                            // [FIX] Access correctly nested program data, fallback to 50
-                            const discountPct = refData.program?.discountPercent || 50;
-                            setReferralDiscount(discountPct);
-                            setReferralRequireTermConsent(refData.program?.require_term_consent || false);
-                            setReferralTermConsentMessage(refData.program?.term_consent_message || null);
-                            setReferralValid(true);
-                            setReferralError(null);
-
-                            // Auto-apply Referral Coupon
-                            const referralCoupon: Coupon = {
-                                id: 'REFERRAL-' + refCode,
-                                campaign_id: 0,
-                                name: `ส่วนลดแนะนำเพื่อน (${discountPct}%)`,
-                                discount_type: 'PERCENT',
-                                discount_value: discountPct,
-                                min_spend: 0,
-                                eligible_fields: null,
-                                eligible_days: null,
-                                valid_time_start: null,
-                                valid_time_end: null,
-                                eligible_payments: refData.program?.allowed_payment_methods || null,
-                                category: 'MAIN',
-                                expiry: '',
-                                allow_ontop_stacking: refData.program?.allow_ontop_stacking ?? true
-                            };
-                            setManualMainCoupon(referralCoupon);
-                        } else {
-                            setReferralCode(null);
-                            const errMsg = refData.error || 'Code invalid';
-                            console.warn('[Referral] Invalid code:', errMsg);
-                            setReferralError(errMsg);
-                        }
-                    } catch (refErr: any) {
-                        console.error('[Referral] Validation error:', refErr);
-                        setReferralCode(null);
-                        setReferralError(refErr.message || "Validation Error");
-                    }
-                }
-
-                if (couponData.profile) {
-                    setUserProfile(couponData.profile);
-                }
-
-            } catch (err: any) {
-                console.error("Unexpected error:", err);
-                setErrorMsg("System error: " + err.message);
-            }
-            setIsReady(true);
+            setUserIdentified(true);
         };
-        init();
+        identifyUser();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedDate]);
+    }, []);
+
+    // --- 2. Post-load derived effects (run after all queries resolve) ---
+    // Sync userProfile from coupons result
+    useEffect(() => {
+        if (couponsData?.profile) {
+            setUserProfile(couponsData.profile);
+        }
+    }, [couponsData]);
+
+    // Auto-select coupon from URL (once coupons are available)
+    useEffect(() => {
+        if (!coupons.length) return;
+        const urlCouponId = searchParams.get('couponId');
+        if (urlCouponId) {
+            const target = coupons.find(c => c.id === urlCouponId);
+            if (target) {
+                if (target.category === 'ONTOP') setManualOntopCoupon(target as Coupon);
+                else setManualMainCoupon(target as Coupon);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [couponsQuery.dataUpdatedAt]);
+
+    // Auto-select flash deal slot from URL (once bookings are available)
+    useEffect(() => {
+        if (!existingBookings.length || !fields.length) return;
+        if (!urlFieldId || !urlStartTime || !urlEndTime) return;
+
+        const fieldExists = fields.some(f => f.id === urlFieldId);
+        if (!fieldExists) return;
+
+        const isOccupied = existingBookings.some((b: any) => {
+            if (b.status === 'CANCELLED') return false;
+            if (Number(b.court_id) !== urlFieldId) return false;
+            const rawStart = b.time_start || b.start_time || '';
+            const rawEnd = b.time_end || b.end_time || '';
+            if (!rawStart || !rawEnd) return false;
+            const bStart = rawStart.includes(' ') ? rawStart.split(' ')[1].substring(0, 5) : rawStart.substring(0, 5);
+            const bEnd = rawEnd.includes(' ') ? rawEnd.split(' ')[1].substring(0, 5) : rawEnd.substring(0, 5);
+            return urlStartTime < bEnd && urlEndTime > bStart;
+        });
+
+        if (!isOccupied) {
+            setSelection({ fieldId: urlFieldId, startTime: urlStartTime, endTime: urlEndTime });
+            console.log(`[Flash Deal] Auto-selected: Field ${urlFieldId} | ${urlStartTime}-${urlEndTime}`);
+        } else {
+            console.warn('[Flash Deal] Auto-select failed: Slot is already occupied.');
+            setErrorMsg('รอบที่คุณเลือกจากลิงก์ถูกจองไปแล้ว กรุณาเลือกรอบเวลาอื่น');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bookingsQuery.dataUpdatedAt, fieldsQuery.dataUpdatedAt]);
+
+    // Auto-collect promo code from URL (once user is identified)
+    useEffect(() => {
+        const urlPromoCode = searchParams.get('promoCode');
+        if (!urlPromoCode || !userId) return;
+
+        const doPromoCollect = async () => {
+            console.log(`[Flash Deal] Auto-collecting promo code: ${urlPromoCode}`);
+            try {
+                const collectRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+                    body: JSON.stringify({ userId, secretCode: urlPromoCode })
+                });
+                const collectData = await collectRes.json();
+                if (collectData.success && collectData.data) {
+                    console.log(`[Flash Deal] Coupon collected: ${collectData.data.id}`);
+                    // Invalidate coupon cache so React Query re-fetches fresh data
+                    queryClient.invalidateQueries({ queryKey: ['coupons', userId] });
+                } else {
+                    console.warn(`[Flash Deal] Could not collect promo: ${collectData.error}`);
+                }
+            } catch (promoErr: any) {
+                console.warn(`[Flash Deal] Promo collect error: ${promoErr.message}`);
+            }
+        };
+        doPromoCollect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
+
+    // Validate referral code from URL (once user is identified)
+    useEffect(() => {
+        const refCode = searchParams.get('ref');
+        if (!refCode || !userId) return;
+
+        const validateRef = async () => {
+            try {
+                const refRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-referral`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+                    body: JSON.stringify({ referralCode: refCode, userId })
+                });
+                const refData = await refRes.json();
+
+                if (refRes.ok && refData.valid) {
+                    setReferralCode(refCode);
+                    const discountPct = refData.program?.discountPercent || 50;
+                    setReferralDiscount(discountPct);
+                    setReferralRequireTermConsent(refData.program?.require_term_consent || false);
+                    setReferralTermConsentMessage(refData.program?.term_consent_message || null);
+                    setReferralValid(true);
+                    setReferralError(null);
+
+                    const referralCoupon: Coupon = {
+                        id: 'REFERRAL-' + refCode,
+                        campaign_id: 0,
+                        name: `ส่วนลดแนะนำเพื่อน (${discountPct}%)`,
+                        discount_type: 'PERCENT',
+                        discount_value: discountPct,
+                        min_spend: 0,
+                        eligible_fields: null,
+                        eligible_days: null,
+                        valid_time_start: null,
+                        valid_time_end: null,
+                        eligible_payments: refData.program?.allowed_payment_methods || null,
+                        category: 'MAIN',
+                        expiry: '',
+                        allow_ontop_stacking: refData.program?.allow_ontop_stacking ?? true
+                    };
+                    setManualMainCoupon(referralCoupon);
+                } else {
+                    setReferralCode(null);
+                    const errMsg = refData.error || 'Code invalid';
+                    console.warn('[Referral] Invalid code:', errMsg);
+                    setReferralError(errMsg);
+                }
+            } catch (refErr: any) {
+                console.error('[Referral] Validation error:', refErr);
+                setReferralCode(null);
+                setReferralError(refErr.message || 'Validation Error');
+            }
+        };
+        validateRef();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
 
     // --- 2. Calculate Price ---
     useEffect(() => {
@@ -570,6 +447,10 @@ export const useBookingLogic = () => {
 
             const data = await res.json();
             if (data.success) {
+                // Invalidate bookings & coupons cache so data is fresh after returning
+                queryClient.invalidateQueries({ queryKey: ['bookings', selectedDate] });
+                queryClient.invalidateQueries({ queryKey: ['coupons', userId] });
+
                 const params = new URLSearchParams({
                     bookingId: data.booking.id,
                     price: data.booking.price.toString(),
@@ -582,10 +463,10 @@ export const useBookingLogic = () => {
                 });
                 navigate(`/booking-success?${params.toString()}`);
             } else {
-                throw new Error(data.error || "Booking failed");
+                throw new Error(data.error || 'Booking failed');
             }
         } catch (err: any) {
-            alert("❌ จองไม่สำเร็จ: " + err.message);
+            alert('❌ จองไม่สำเร็จ: ' + err.message);
             setIsConfirmModalOpen(false);
         }
     };
