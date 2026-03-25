@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getLiffUser } from '../lib/liff';
-import { formatDate } from '../utils/date';
+import { formatDate, getThaiTodayStr } from '../utils/date';
 import { useFieldsQuery } from './useFieldsQuery';
 import { useBookingsQuery } from './useBookingsQuery';
 import { useCouponsQuery } from './useCouponsQuery';
@@ -67,9 +67,16 @@ export const useBookingLogic = () => {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // Date State
-    const todayStr = new Date().toISOString().split('T')[0];
-    const urlDate = searchParams.get('date');
-    const [selectedDate, setSelectedDate] = useState<string>(urlDate || todayStr);
+    const todayStr = getThaiTodayStr();
+    const rawUrlDate = searchParams.get('date');
+    let initialDate = rawUrlDate || todayStr;
+    const isPastDateLink = !!(rawUrlDate && rawUrlDate < todayStr);
+
+    if (isPastDateLink) {
+        initialDate = todayStr;
+    }
+    
+    const [selectedDate, setSelectedDate] = useState<string>(initialDate);
     const [isDateModalOpen, setIsDateModalOpen] = useState(false);
 
     // [FLASH DEAL] URL Params for pre-selecting field + time
@@ -174,6 +181,11 @@ export const useBookingLogic = () => {
     useEffect(() => {
         if (!existingBookings.length || !fields.length) return;
         if (!urlFieldId || !urlStartTime || !urlEndTime) return;
+        
+        if (isPastDateLink) {
+            setErrorMsg('ลิงก์นี้เป็นของวันที่ผ่านมาแล้ว ระบบได้เปลี่ยนเป็นวันที่ปัจจุบัน และยกเลิกรอบเวลาเดิมที่เคยเลือกไว้');
+            return;
+        }
 
         const fieldExists = fields.some(f => f.id === urlFieldId);
         if (!fieldExists) return;

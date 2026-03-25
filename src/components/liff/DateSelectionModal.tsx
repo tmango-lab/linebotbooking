@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { getThaiTodayStr } from '../../utils/date';
 
 interface DateSelectionModalProps {
     isOpen: boolean;
@@ -36,7 +37,7 @@ const DateSelectionModal: React.FC<DateSelectionModalProps> = ({ isOpen, onClose
 
     const handlePrevMonth = () => setViewDate(new Date(currentYear, currentMonth - 1, 1));
     const handleNextMonth = () => setViewDate(new Date(currentYear, currentMonth + 1, 1));
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getThaiTodayStr();
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end justify-center">

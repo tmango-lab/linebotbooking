@@ -92,3 +92,10 @@ export const formatDateTime = (dateInput: string | Date | null | undefined): str
         return dateStr;
     }
 };
+
+export const getThaiTodayStr = (): string => {
+    const d = new Date();
+    const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+    const thaiTime = new Date(utc + (3600000 * 7));
+    return thaiTime.toISOString().split('T')[0];
+};

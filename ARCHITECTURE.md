@@ -761,9 +761,9 @@ To ensure instantaneous page loads for customers:
 1.  **Selective Lazy Loading**:
     *   **Admin Pages**: Lazy loaded (`React.lazy`) to keep the initial bundle small.
     *   **Customer Pages**: **Statically Imported** (Wallet, Booking) to ensure they are immediately available without a second network request.
-2.  **Parallel Data Fetching**:
-    *   `useBookingLogic` fetches **Fields**, **Bookings**, and **Coupons** simultaneously using `Promise.all`.
-    *   Reduces initial data wait time by ~40-50%.
+2.  **Client-Side Data Caching (React Query)** _(2026-03)_:
+    *   `useBookingLogic` and `WalletPage` now use **`@tanstack/react-query`** to cache server data in memory.
+    *   See **Section 23** for full details and cache invalidation strategy.
 
 ---
 
@@ -991,3 +991,82 @@ Instead of hardcoding point formulas, the system calculates points dynamically b
 - **`system_settings.point_earn_reward`**: The points awarded per threshold (e.g., earn 10 points).
 - The Postgres trigger `handle_booking_points_earn` uses these settings. Formula: `FLOOR(Price / point_earn_condition_thb) * point_earn_reward`.
 
+---
+
+## 22. Real-time Admin Dashboard (2026-03)
+
+### 22.1 Overview
+The Admin Dashboard (`DashboardPage.tsx`) subscribes to **Supabase Realtime** to automatically reflect booking changes without manual page refreshes. This eliminates the risk of admins working with stale data and prevents double-bookings in multi-admin scenarios.
+
+### 22.2 Implementation
+**File**: `src/pages/admin/DashboardPage.tsx`
+
+A Supabase Realtime channel is opened on mount and closed on unmount:
+```typescript
+const channel = supabase
+  .channel('bookings-realtime')
+  .on('postgres_changes', {
+    event: '*',           // INSERT, UPDATE, DELETE
+    schema: 'public',
+    table: 'bookings'
+  }, () => {
+    fetchBookings(selectedDate, true); // silent=true: no loading spinner
+  })
+  .subscribe();
+```
+
+### 22.3 UX Design Decisions
+- **Silent Refresh (No Spinner)**: The callback calls `fetchBookings(..., silent=true)`. This updates the grid in the background without showing a loading overlay, ensuring the admin's current workflow (e.g., filling a booking form) is not disrupted.
+- **Form State Safety**: All form/modal state is managed separately from booking grid state. A background data refresh never resets an open modal or clears typed input.
+- **Conflict Safety**: If two admins try to book the same slot simultaneously, the backend `create-booking` performs a conflict check. Only one succeeds; the other gets a "slot taken" error. The Realtime subscription ensures both admins see the final state immediately.
+
+### 22.4 Prerequisites (Supabase Setup)
+> **REQUIRED**: In the Supabase Dashboard → **Table Editor → `bookings` table → Edit → Enable Realtime**.
+>
+> Without this toggle, the subscription connects but receives no events.
+
+---
+
+## 23. React Query Data Caching (2026-03)
+
+### 23.1 Overview
+The frontend uses **`@tanstack/react-query`** (v5) to cache API responses in memory, reducing redundant network requests and making page transitions feel instantaneous.
+
+### 23.2 Architecture
+
+**Provider** (`src/providers/QueryProvider.tsx`):
+- Wraps the entire app via `main.tsx`.
+- Exposes a shared `queryClient` instance for programmatic cache control (e.g., `invalidateQueries`).
+- Global config: `retry: 1`, `refetchOnWindowFocus: false`.
+
+**Custom Hooks**:
+
+| Hook | File | Cache Key | staleTime | Notes |
+|------|------|-----------|-----------|-------|
+| `useFieldsQuery` | `src/hooks/useFieldsQuery.ts` | `['fields']` | **60 min** | Fields rarely change |
+| `useBookingsQuery` | `src/hooks/useBookingsQuery.ts` | `['bookings', date]` | **30 sec** | Keyed by date, auto-refetches on date change |
+| `useCouponsQuery` | `src/hooks/useCouponsQuery.ts` | `['coupons', userId]` | **5 min** | Only runs when `userId` is known (`enabled`) |
+
+### 23.3 Integration Points
+
+**`useBookingLogic.ts`**:
+- Replaced a single `Promise.all` inside a large `useEffect` with the 3 hooks above.
+- `isReady` is now computed: `userIdentified && !isLoadingFields && !isLoadingBookings && !isLoadingCoupons`.
+- User identity (LIFF/LINE login) is resolved in a separate `useEffect` that sets `userIdentified = true` once complete, which then enables the `useCouponsQuery` hook.
+
+**`WalletPage.tsx`**:
+- Replaced the `fetchWallet()` function (4 nested async calls) with `useCouponsQuery`.
+- Market campaigns (`availableCampaigns`) are fetched in a separate `useEffect` that re-runs whenever `couponsQuery.dataUpdatedAt` changes.
+
+### 23.4 Cache Invalidation Strategy
+To ensure data freshness after mutations, the following `invalidateQueries` calls are made:
+
+| Event | Invalidates |
+|-------|-------------|
+| Booking created (`handleFinalConfirm` success) | `['bookings', date]` + `['coupons', userId]` |
+| Coupon collected (`doAutoCollect` success) | `['coupons', userId]` |
+| Points redeemed (`doRedeemPoints` success) | `['coupons', userId]` |
+| Promo code auto-collected from URL | `['coupons', userId]` |
+
+> [!NOTE]
+> The `['bookings']` cache and the Admin Dashboard's Supabase Realtime subscription (Section 22) are **complementary**: Realtime handles cross-tab/cross-admin sync, while React Query handles within-session caching for the customer LIFF flow.
