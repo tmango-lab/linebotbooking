@@ -5,6 +5,7 @@ import CouponBottomSheet from '../../components/liff/CouponBottomSheet';
 import BookingConfirmationModal from '../../components/liff/BookingConfirmationModal';
 import DateSelectionModal from '../../components/liff/DateSelectionModal';
 import { useBookingLogic } from '../../hooks/useBookingLogic';
+import { BookingGridSkeleton } from '../../components/ui/Skeleton';
 
 const BookingV2Page: React.FC = () => {
     const {
@@ -52,16 +53,9 @@ const BookingV2Page: React.FC = () => {
     const [hasConsentedTerms, setHasConsentedTerms] = React.useState(false);
 
     if (!isReady) {
-        return (
-            <div className="h-screen flex items-center justify-center flex-col bg-[#F0F2F5]">
-                <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                <div className="mt-6 text-center animate-pulse">
-                    <h3 className="text-lg font-bold text-gray-800">Booking System</h3>
-                    <p className="text-sm text-gray-500 mt-1">กำลังเตรียมข้อมูล...</p>
-                </div>
-            </div>
-        );
+        return <BookingGridSkeleton />;
     }
+
 
     // [New] Block access if critical error (e.g. not logged in)
     if (errorMsg && !fields.length) {
