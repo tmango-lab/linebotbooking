@@ -6,6 +6,7 @@ import BookingDetailModal from '../../components/ui/BookingDetailModal';
 import PromoCodeModal from '../../components/ui/PromoCodeModal';
 import BookingCard from '../../components/admin/BookingCard';
 import { formatDate, formatTime } from '../../utils/date';
+import { supabase } from '../../lib/api';
 
 interface MatchdayMatch {
     id: string | number;
@@ -119,6 +120,24 @@ export default function DashboardPage() {
 
     useEffect(() => {
         fetchBookings(selectedDate);
+
+        // --- Real-time Subscription ---
+        const channel = supabase
+            .channel('dashboard-bookings-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'bookings' },
+                (payload) => {
+                    console.log('[Realtime] Booking changed!', payload);
+                    // ทริกเกอร์ให้โหลดข้อมูลของวันนั้นใหม่แบบเงียบๆ (ไม่มี Loading รบกวนหน้าจอ)
+                    fetchBookings(selectedDate, true);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [selectedDate]);
 
     useEffect(() => {
