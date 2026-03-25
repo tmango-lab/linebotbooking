@@ -51,7 +51,7 @@ function getMonthRange() {
     };
 }
 
-type SortKey = 'date' | 'time_from' | 'field_no' | 'display_name' | 'price_total_thb' | 'created_at';
+type SortKey = 'date' | 'time_from' | 'field_no' | 'display_name' | 'price_total_thb' | 'created_at' | 'updated_at';
 type SortDir = 'asc' | 'desc';
 
 interface BookingRow {
@@ -78,6 +78,7 @@ interface BookingRow {
     remark: string | null;
     discount?: number;
     created_at?: string;
+    updated_at?: string;
 }
 
 // Helper to check if set has id
@@ -347,6 +348,7 @@ export default function BookingSearchPage() {
             payment_slip_url: b.payment_slip_url,
             timeout_at: b.timeout_at,
             created_at: b.created_at,
+            updated_at: b.updated_at,
         });
         setModalOpen(true);
     }
@@ -639,6 +641,7 @@ export default function BookingSearchPage() {
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">สถานะ</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">ช่องทาง</th>
                                         <SortHeader label="จองเมื่อ" sortKey="created_at" currentKey={sortKey} dir={sortDir} onClick={handleSort} />
+                                        <SortHeader label="แก้ไขล่าสุด" sortKey="updated_at" currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -690,6 +693,9 @@ export default function BookingSearchPage() {
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
                                                     {b.created_at ? formatDateTime(b.created_at) : '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-amber-600">
+                                                    {b.updated_at ? formatDateTime(b.updated_at) : '-'}
                                                 </td>
                                             </tr>
                                         );

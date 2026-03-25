@@ -1070,3 +1070,66 @@ To ensure data freshness after mutations, the following `invalidateQueries` call
 
 > [!NOTE]
 > The `['bookings']` cache and the Admin Dashboard's Supabase Realtime subscription (Section 22) are **complementary**: Realtime handles cross-tab/cross-admin sync, while React Query handles within-session caching for the customer LIFF flow.
+
+---
+
+## 24. Skeleton Loaders (UX Enhancement) (2026-03)
+
+### 24.1 Overview
+To eliminate "Layout Shift" and provide a premium "instant loading" feel, the system uses **pixel-accurate Skeleton Loaders** instead of generic loading spinners.
+
+### 24.2 Design Implementation
+**File**: `src/components/ui/Skeleton.tsx`
+
+Each skeleton component is hard-coded with the **exact Tailwind classes, padding, and dimensions** of its production counterpart. This ensures that the skeleton perfectly overlays the space where the real data will appear.
+
+| Skeleton Component | Mirrors | Key Dimensions |
+|--------------------|---------|----------------|
+| `BookingGridSkeleton` | `BookingGridVertical` | `w-16` time col, `w-[80px]` field cols, `h-12` rows |
+| `WalletSkeleton` | `WalletPage` | `bg-white` sticky header, `rounded-b-[2rem]`, `px-5` list |
+| `CouponCardSkeleton` | `WalletPage` card | Same padding, border-radius, and dark/light gradient options |
+
+### 24.3 Trigger Logic
+Skeletons are triggered in the page components (`BookingV3Page`, `WalletPage`) using a guard condition:
+```typescript
+if (!userId || (loading && hasNoData)) {
+    return <WalletSkeleton />;
+}
+```
+- **Phase 1**: `!userId` (LIFF initializing) → Skeleton shows.
+- **Phase 2**: `loading && hasNoData` (CLI fetching data) → Skeleton remains.
+- **Phase 3**: Data arrives → Smooth transition to real UI with **Zero Layout Shift**.
+
+---
+
+## 25. LIFF Routing Guard (2026-03)
+
+### 25.1 The "Route Flash" Problem
+When opening a specific deep link (e.g., `#/wallet`) via LINE, the `HashRouter` renders the default route (`/`) for a split second before resolving the hash path. This caused a brief "flash" of the Booking Grid Skeleton even when the user was going to the Wallet.
+
+### 25.2 Implementation: `AppRouter`
+**File**: `src/App.tsx`
+
+The routing logic was moved into a dedicated `AppRouter` component that wraps all `Routes`. It uses a global guard from `LiffProvider`:
+
+```typescript
+function AppRouter() {
+  const { isReady: liffReady } = useLiff();
+
+  if (!liffReady) {
+    // Show neutral background while LIFF initializes
+    return <div className="h-screen bg-gray-50" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>...</Routes>
+    </Suspense>
+  );
+}
+```
+
+### 25.3 Result
+1. **Neutral Start**: The app starts with a blank neutral background (`bg-gray-50`).
+2. **Deterministic Mounting**: No page component is mounted until LIFF has finished its initialization and the router has resolved the correct path.
+3. **Correct Skeleton**: Only the skeleton corresponding to the final destination is ever shown.
