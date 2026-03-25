@@ -30,7 +30,7 @@ const MerchantPortal = lazy(() => import('./pages/merchant/MerchantPortal'));
 const BroadcastPage = lazy(() => import('./pages/admin/BroadcastPage'));
 const ExportPage = lazy(() => import('./pages/admin/ExportPage'));
 
-// Branded Loader
+// Branded Loader (used by Suspense for lazy admin pages)
 const PageLoader = ({ text = "Loading..." }) => (
   <div className="h-screen flex items-center justify-center flex-col bg-gray-50">
     <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
@@ -48,7 +48,6 @@ function StatusPage() {
   const [secretInput, setSecretInput] = useState('');
   const navigate = useNavigate();
 
-  // Use Provider
   const { isReady, liffUser, error } = useLiff();
 
   useEffect(() => {
@@ -61,7 +60,6 @@ function StatusPage() {
         const { count: bookingsCount, error: bookingError } = await supabase.from('bookings').select('*', { count: 'exact', head: true });
 
         if (bookingError) {
-          // Ignore 401 Unauthorized (likely anonymous user/wallet user)
           if (bookingError.code === '401' || bookingError.message.includes('401')) {
             setConnectionCheck('Connected (Anonymous Access) 🟢');
             setStatus('Ready (Public Mode) ✅');
@@ -77,7 +75,6 @@ function StatusPage() {
       }
     };
     checkConnection();
-
   }, []);
 
   const handleSecretCheck = (val: string) => {
@@ -87,8 +84,6 @@ function StatusPage() {
     }
   };
 
-
-  // Global Loading State for LIFF
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
@@ -101,22 +96,15 @@ function StatusPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', fontFamily: 'monospace', backgroundColor: '#f8f9fa', color: '#333' }}>
       <h1>Booking System</h1>
-
       <div style={{ padding: '2rem', border: '1px solid #ccc', borderRadius: '8px', marginTop: '2rem', textAlign: 'center', backgroundColor: 'white' }}>
         <p><strong>Status:</strong> {status}</p>
-        <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
-          {connectionCheck}
-        </div>
-
+        <div style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>{connectionCheck}</div>
         {liffUser?.userId && <p style={{ color: 'green', marginTop: '10px' }}>LIFF User: {liffUser.displayName || 'Identified'}</p>}
         {error && <p style={{ color: 'red', marginTop: '10px' }}>LIFF Error: {error}</p>}
-
         <div style={{ marginTop: '2rem' }}>
           <a href="#/admin/dashboard" className="status-link">Go to Admin Dashboard &rarr;</a>
         </div>
-
-        {/* Secret Trigger Area */}
-        <div style={{ marginTop: '3rem', opacity: 0.1, }}>
+        <div style={{ marginTop: '3rem', opacity: 0.1 }}>
           <input
             value={secretInput}
             onChange={(e) => handleSecretCheck(e.target.value)}
@@ -134,84 +122,79 @@ function RootRedirect() {
   const searchParams = new URLSearchParams(window.location.search);
   const redirect = searchParams.get('redirect');
 
-  // [NEW] Check App Mode from Environment
-  const appMode = import.meta.env.VITE_APP_MODE; // 'admin', 'booking', 'wallet'
-  const searchStr = window.location.search; // Preserve all params (ref, userId, etc.)
+  const appMode = import.meta.env.VITE_APP_MODE;
+  const searchStr = window.location.search;
 
-  // 1. Priority: Explicit Redirect Param (Deep Links)
-  if (redirect === 'wallet') {
-    return <Navigate to={`/wallet${searchStr}`} replace />;
-  }
-  if (redirect === 'booking-v2') {
-    return <Navigate to={`/booking-v2${searchStr}`} replace />;
-  }
-  if (redirect === 'booking-v3') {
-    return <Navigate to={`/booking-v3${searchStr}`} replace />;
-  }
-  if (redirect === 'affiliate-dashboard') {
-    return <Navigate to={`/affiliate-dashboard${searchStr}`} replace />;
-  }
-  if (redirect === 'affiliate-register') {
-    return <Navigate to={`/affiliate-register${searchStr}`} replace />;
-  }
+  if (redirect === 'wallet') return <Navigate to={`/wallet${searchStr}`} replace />;
+  if (redirect === 'booking-v2') return <Navigate to={`/booking-v2${searchStr}`} replace />;
+  if (redirect === 'booking-v3') return <Navigate to={`/booking-v3${searchStr}`} replace />;
+  if (redirect === 'affiliate-dashboard') return <Navigate to={`/affiliate-dashboard${searchStr}`} replace />;
+  if (redirect === 'affiliate-register') return <Navigate to={`/affiliate-register${searchStr}`} replace />;
 
-  // 2. Secondary Priority: App Mode Default
-  if (appMode === 'booking') {
-    return <Navigate to={`/booking-v2${searchStr}`} replace />;
-  }
-  if (appMode === 'wallet') {
-    return <Navigate to={`/wallet${searchStr}`} replace />;
-  }
+  if (appMode === 'booking') return <Navigate to={`/booking-v2${searchStr}`} replace />;
+  if (appMode === 'wallet') return <Navigate to={`/wallet${searchStr}`} replace />;
 
-  // 3. Default: Admin Dashboard
   return <Navigate to="/admin" replace />;
+}
+
+// ── AppRouter ─────────────────────────────────────────────────────────────────
+// Blocks ALL route rendering until LiffProvider.isReady = true.
+// This eliminates the "wrong skeleton flash" — e.g. BookingGridSkeleton showing
+// for a split-second when navigating directly to the wallet page via a LINE link.
+function AppRouter() {
+  const { isReady: liffReady } = useLiff();
+
+  // Neutral blank screen while LIFF initializes.
+  // No page component is mounted yet → no skeleton flash.
+  if (!liffReady) {
+    return <div className="h-screen bg-gray-50" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/status" element={<StatusPage />} />
+
+        {/* Customer Routes */}
+        <Route path="/wallet" element={<WalletPage />} />
+        <Route path="/booking-v2" element={<BookingV2Page />} />
+        <Route path="/booking-v3" element={<BookingV3Page />} />
+        <Route path="/booking-success" element={<BookingSuccessPage />} />
+        <Route path="/affiliate-register" element={<AffiliateRegisterPage />} />
+        <Route path="/affiliate-dashboard" element={<AffiliateDashboardPage />} />
+        <Route path="/merchant" element={<MerchantPortal />} />
+
+        {/* Admin Routes */}
+        <Route path="/admin/login" element={<LoginPage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="booking-search" element={<BookingSearchPage />} />
+          <Route path="customers" element={<CustomerPage />} />
+          <Route path="customers/:id" element={<CustomerDetailPage />} />
+          <Route path="campaigns" element={<CampaignPage />} />
+          <Route path="reports" element={<ReportPage />} />
+          <Route path="promo-codes" element={<PromoCodePage />} />
+          <Route path="refunds" element={<RefundPage />} />
+          <Route path="partners" element={<PartnerCampaignPage />} />
+          <Route path="referral-settings" element={<ReferralSettingsPage />} />
+          <Route path="system-settings" element={<SystemSettingsPage />} />
+          <Route path="broadcast" element={<BroadcastPage />} />
+          <Route path="export" element={<ExportPage />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
+  );
 }
 
 function App() {
   return (
     <LiffProvider>
       <HashRouter>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            {/* Smart Redirect for Root */}
-            <Route path="/" element={<RootRedirect />} />
-
-            {/* Status Page for Debugging */}
-            <Route path="/status" element={<StatusPage />} />
-
-            {/* User Routes (V2) */}
-            <Route path="/wallet" element={<WalletPage />} />
-            <Route path="/booking-v2" element={<BookingV2Page />} />
-            <Route path="/booking-v3" element={<BookingV3Page />} />
-            <Route path="/booking-success" element={<BookingSuccessPage />} />
-            <Route path="/affiliate-register" element={<AffiliateRegisterPage />} />
-            <Route path="/affiliate-dashboard" element={<AffiliateDashboardPage />} />
-            <Route path="/merchant" element={<MerchantPortal />} />
-
-            {/* Admin Routes */}
-            <Route path="/admin/login" element={<LoginPage />} />
-
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="/admin/dashboard" replace />} />
-              <Route path="dashboard" element={<DashboardPage />} />
-              <Route path="booking-search" element={<BookingSearchPage />} />
-              <Route path="customers" element={<CustomerPage />} />
-              <Route path="customers/:id" element={<CustomerDetailPage />} />
-              <Route path="campaigns" element={<CampaignPage />} />
-              <Route path="reports" element={<ReportPage />} />
-              <Route path="promo-codes" element={<PromoCodePage />} />
-              <Route path="refunds" element={<RefundPage />} />
-              <Route path="partners" element={<PartnerCampaignPage />} />
-              <Route path="referral-settings" element={<ReferralSettingsPage />} />
-              <Route path="system-settings" element={<SystemSettingsPage />} />
-              <Route path="broadcast" element={<BroadcastPage />} />
-              <Route path="export" element={<ExportPage />} />
-            </Route>
-
-            {/* Catch All - Redirect to Status Page */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+        <AppRouter />
       </HashRouter>
     </LiffProvider>
   );
