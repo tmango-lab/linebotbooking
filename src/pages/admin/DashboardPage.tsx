@@ -780,6 +780,31 @@ export default function DashboardPage() {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Footer Summary Row */}
+                        <div className="sticky bottom-0 z-30 bg-white border-t-2 border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] grid grid-cols-[60px_repeat(6,1fr)] text-sm leading-tight divide-x divide-gray-200">
+                            <div className="flex items-center justify-center py-2 bg-gray-50 font-bold text-gray-500 text-xs shadow-inner">รวม</div>
+                            {COURTS.map(c => {
+                                const courtBookings = bookings.filter(b => b.court_id === c.id && !b.is_refunded && b.status !== 'CANCELLED' && b.status !== 'cancelled');
+                                let totalMins = 0;
+                                let totalPrice = 0;
+                                courtBookings.forEach(b => {
+                                    const s = new Date(b.time_start.replace(' ', 'T')).getTime();
+                                    const e = new Date(b.time_end.replace(' ', 'T')).getTime();
+                                    if (!isNaN(s) && !isNaN(e)) {
+                                        totalMins += (e - s) / 60000;
+                                    }
+                                    totalPrice += b.price || 0;
+                                });
+                                const hours = totalMins / 60;
+                                return (
+                                    <div key={c.id} className="flex flex-col items-center justify-center py-1.5 bg-gray-50/95 backdrop-blur-md">
+                                        <span className="font-bold text-indigo-700 text-[13px] leading-none">฿{totalPrice.toLocaleString()}</span>
+                                        <span className="text-[10px] text-gray-500 font-medium leading-none mt-1">{hours > 0 ? `${hours.toFixed(1).replace(/\.0$/, '')} ชม.` : '-'}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>

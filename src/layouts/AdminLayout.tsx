@@ -69,9 +69,9 @@ export default function AdminLayout() {
     ];
 
     return (
-        <div className="flex min-h-screen bg-gray-50 font-sans">
+        <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
             {/* Sidebar - Dark Modern Style */}
-            <aside className="w-72 bg-gray-900 text-white hidden md:flex flex-col shadow-xl z-20">
+            <aside className="w-72 bg-gray-900 text-white hidden md:flex flex-col shadow-xl z-20 flex-shrink-0">
                 {/* Logo Section */}
                 <div className="h-20 flex items-center px-8 border-b border-gray-800 bg-gray-900">
                     <div className="flex items-center gap-3">
@@ -86,8 +86,8 @@ export default function AdminLayout() {
                 </div>
 
                 {/* Navigation Links */}
-                <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto">
-                    <p className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <p className="px-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
                         Menu
                     </p>
                     {navigation.map((item) => {
@@ -99,7 +99,7 @@ export default function AdminLayout() {
                                 href={item.href}
                                 onClick={(e) => { e.preventDefault(); navigate(item.href); }}
                                 className={`
-                                    group flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200
+                                    group flex items-center justify-between px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200
                                     ${isActive
                                         ? 'bg-indigo-600/10 text-indigo-400 ring-1 ring-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
                                         : 'text-gray-400 hover:bg-gray-800 hover:text-white'
@@ -148,7 +148,7 @@ export default function AdminLayout() {
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50">
+            <main className="flex-1 flex flex-col h-full bg-gray-50 min-w-0">
                 {/* Mobile Header (Visible only on small screens) */}
                 <div className="md:hidden h-16 bg-gray-900 text-white flex items-center px-4 justify-between shadow-md flex-none z-30">
                     <div className="flex items-center gap-2">
@@ -163,7 +163,7 @@ export default function AdminLayout() {
                 </div>
 
                 {/* Content Outlet */}
-                <div className="flex-1 overflow-auto relative">
+                <div className="flex-1 overflow-auto relative min-h-0">
                     <Outlet />
                 </div>
             </main>
