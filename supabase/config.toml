@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.process-referral-reward]
 verify_jwt = false
+
+[functions.notify-admin]
+verify_jwt = false
