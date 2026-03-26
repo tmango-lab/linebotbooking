@@ -48,41 +48,45 @@ export function BookingGridSkeleton() {
 
             {/* ── Main: mirrors <div className="bg-white overflow-hidden…"> ── */}
             <main className="max-w-lg mx-auto">
-                <div className="bg-white overflow-hidden border-b border-gray-200 shadow-sm">
+                <div className="bg-white overflow-hidden border-b border-gray-200 shadow-sm relative">
 
-                    {/* Sticky grid header: corners + field name columns */}
-                    <div className="flex border-b border-gray-200 sticky top-[57px] z-20 bg-white shadow-sm">
-                        {/* Corner "เวลา" cell */}
-                        <div className="w-16 shrink-0 p-3 border-r border-gray-100 bg-gray-50 flex items-center justify-center">
-                            <Skeleton className="h-3 w-8 rounded" />
-                        </div>
-                        {/* Field header cells */}
-                        <div className="flex">
-                            {Array.from({ length: FIELD_COUNT }).map((_, i) => (
-                                <div key={i} className="w-[80px] shrink-0 p-2 text-center border-r border-gray-100 last:border-r-0 bg-white flex flex-col items-center gap-1">
-                                    <Skeleton className="h-4 w-8 rounded" />
-                                    <Skeleton className="h-3 w-10 rounded" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    {/* This div mirrors the actual scroll container of BookingGridVertical */}
+                    <div className="overflow-x-auto bg-white max-h-[85vh] overflow-y-hidden relative">
 
-                    {/* Body rows: each row = time label + 6 slot cells */}
-                    {Array.from({ length: ROW_COUNT }).map((_, row) => (
-                        <div key={row} className="flex border-b border-gray-100 last:border-b-0">
-                            {/* Time cell */}
-                            <div className="w-16 shrink-0 p-2 border-r border-gray-100 flex items-center justify-center bg-gray-50">
-                                <Skeleton className="h-3 w-10 rounded" />
+                        {/* Sticky grid header: corners + field name columns */}
+                        <div className="flex border-b border-gray-200 sticky top-0 z-20 bg-white shadow-sm">
+                            {/* Corner "เวลา" cell */}
+                            <div className="w-16 shrink-0 p-3 border-r border-gray-100 bg-gray-50 flex items-center justify-center sticky left-0 z-30">
+                                <Skeleton className="h-3 w-8 rounded" />
                             </div>
-                            {/* Slot cells */}
+                            {/* Field header cells */}
                             <div className="flex">
-                                {Array.from({ length: FIELD_COUNT }).map((_, col) => (
-                                    <div key={col} className="w-[80px] shrink-0 h-12 border-r border-gray-100 last:border-r-0 skeleton-shimmer" />
+                                {Array.from({ length: FIELD_COUNT }).map((_, i) => (
+                                    <div key={i} className="w-[80px] shrink-0 p-2 text-center border-r border-gray-100 last:border-r-0 bg-white flex flex-col items-center gap-1 justify-center">
+                                        <Skeleton className="h-3.5 w-10 rounded" />
+                                        <Skeleton className="h-2.5 w-12 rounded" />
+                                    </div>
                                 ))}
                             </div>
                         </div>
-                    ))}
 
+                        {/* Body rows: each row = time label + 6 slot cells */}
+                        {Array.from({ length: ROW_COUNT }).map((_, row) => (
+                            <div key={row} className="flex border-b border-gray-100 last:border-b-0">
+                                {/* Time cell */}
+                                <div className="w-16 shrink-0 p-2 border-r border-gray-100 flex items-center justify-center bg-gray-50 sticky left-0 z-10">
+                                    <Skeleton className="h-3 w-10 rounded" />
+                                </div>
+                                {/* Slot cells */}
+                                <div className="flex">
+                                    {Array.from({ length: FIELD_COUNT }).map((_, col) => (
+                                        <div key={col} className="w-[80px] shrink-0 h-12 border-r border-gray-100 last:border-r-0 bg-white" />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+
+                    </div>
                 </div>
             </main>
         </div>
