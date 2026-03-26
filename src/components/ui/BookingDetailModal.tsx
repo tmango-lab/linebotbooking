@@ -35,6 +35,7 @@ interface BookingDetailModalProps {
         }[];
         created_at?: string | null;
         updated_at?: string | null;
+        attendance_status?: 'confirmed' | 'cancel_requested' | null;
     } | null;
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void;
@@ -55,6 +56,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const [editPrice, setEditPrice] = useState<string>('');
     const [editNote, setEditNote] = useState('');
     const [isPaid, setIsPaid] = useState(false);
+    const [isAttendanceConfirmed, setIsAttendanceConfirmed] = useState(false);
 
     // Reset state when modal opens or booking changes
     useEffect(() => {
@@ -69,6 +71,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             // For QR bookings: deposit_paid means deposit received, not fully paid
             const ps = booking.payment_status;
             setIsPaid(ps === 'paid' || !!booking.paid_at);
+            setIsAttendanceConfirmed(booking.attendance_status === 'confirmed');
 
             setError(null);
             setIsConfirming(false);
@@ -236,6 +239,48 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
         }
     };
 
+    const handleToggleAttendance = async () => {
+        if (!booking) return;
+        
+        const newValue = !isAttendanceConfirmed;
+        setIsAttendanceConfirmed(newValue);
+        setLoading(true);
+        setError(null);
+
+        try {
+            const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const updatePayload = {
+                matchId: booking.id,
+                attendanceStatus: newValue ? 'confirmed' : null,
+            };
+
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-booking`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Update failed: ${errorText}`);
+            }
+
+            if (onBookingUpdated) {
+                onBookingUpdated(); // Trigger refresh on Parent to update BookingCard
+            }
+        } catch (err: any) {
+            console.error('Failed to update attendance:', err);
+            setError(err.message || 'Failed to update attendance status');
+            setIsAttendanceConfirmed(!newValue); // Revert UI
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleClose = () => {
         setIsConfirming(false);
         setIsEditingDetails(false);
@@ -333,6 +378,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                 {booking.is_promo && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-pink-100 text-pink-800"><Tag className="w-3 h-3 mr-1" /> Promo</span>}
                                 {isPendingPayment && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 animate-pulse"><Clock className="w-3 h-3 mr-1" /> รอโอนมัดจำ</span>}
                                 {booking.is_refunded && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">คืนเงินแล้ว</span>}
+                                {booking.attendance_status === 'cancel_requested' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800 animate-pulse"><AlertTriangle className="w-3 h-3 mr-1" /> ลูกค้ายกเลิกล่วงหน้า</span>}
                             </div>
                         </div>
 
@@ -394,7 +440,28 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                                     className="block w-48 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-1.5 border text-right"
                                                 />
                                             ) : (
-                                                <div className="text-gray-900 font-bold text-base">{editTel || '-'}</div>
+                                                <div className="flex items-center flex-row-reverse gap-3">
+                                                    <div className="text-gray-900 font-bold text-base tracking-wide">{editTel || '-'}</div>
+                                                    
+                                                    {/* Attendance Confirmation (v4 placement) */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleToggleAttendance}
+                                                        disabled={loading}
+                                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border shadow-sm ${
+                                                            isAttendanceConfirmed 
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                        }`}
+                                                        title="แอดมินยืนยันว่าลูกค้ามาแน่นอน"
+                                                    >
+                                                        {isAttendanceConfirmed ? (
+                                                            <><CheckCircle2 className="w-3.5 h-3.5" /> ยืนยันแล้ว</>
+                                                        ) : (
+                                                            <><Phone className="w-3.5 h-3.5" /> โทรยืนยัน</>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
