@@ -136,23 +136,25 @@ export default function CampaignPage() {
     };
 
     const handleCopyLink = (campaign: any) => {
-        // Construct Deep Link
-        // Construct Direct Collection Link
-        // Format: https://.../wallet?id=CAMPAIGN_ID&action=collect
-        // If it has a secret code, add &code=...
+        const liffId = import.meta.env.VITE_LIFF_ID;
+        const baseUrl = liffId ? `https://liff.line.me/${liffId}` : window.location.origin;
 
-        let url = `${window.location.origin}/#/wallet?id=${campaign.id}&action=collect`;
+        let url = `${baseUrl}/#/wallet?id=${campaign.id}&action=collect`;
 
         if (!campaign.is_public && campaign.secret_codes && campaign.secret_codes.length > 0) {
             url += `&code=${campaign.secret_codes[0]}`;
         } else if (campaign.is_public) {
             // Even for public, adding action=collect makes it a "one-click" link
-            // We pass an empty code for public ones
             url += `&code=`;
         }
 
         navigator.clipboard.writeText(url);
-        alert(`คัดลอกลิงก์เก็บคูปองด่วนแล้ว!\n${url}\n\n(หมายเหตุ: ลิงก์นี้ต้องการ userId=... ต่อท้ายเพื่อให้ทำงานสมบูรณ์ใน LINE)`);
+        
+        if (liffId) {
+            alert(`คัดลอกลิงก์ LIFF สำหรับเก็บคูปองด่วนแล้ว!\n${url}\n\n(นำไปใช้บรอดแคสต์หรือใส่ใน Rich Message ได้เลย ลูกค้ากดแล้วจะเข้า LINE อัตโนมัติ)`);
+        } else {
+            alert(`คัดลอกลิงก์เก็บคูปองด่วนแล้ว!\n${url}\n\n(หลีกเลี่ยงการเปิดในบราวเซอร์อื่น แนะนำให้ใช้คู่กับ LIFF)`);
+        }
     };
 
     const handleBroadcastClick = (campaign: any) => {
