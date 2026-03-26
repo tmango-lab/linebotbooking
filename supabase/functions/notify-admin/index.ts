@@ -50,7 +50,8 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
     
     // Format Date and Time
     const dateStr = data.date || '-';
-    const timeStr = data.time_from && data.time_to ? `${data.time_from} - ${data.time_to}` : '-';
+    const fmtTime = (t: string) => t && t.length >= 5 ? t.substring(0, 5) : t;
+    const timeStr = data.time_from && data.time_to ? `${fmtTime(data.time_from)} - ${fmtTime(data.time_to)}` : '-';
     const priceStr = data.price_total_thb ? `${data.price_total_thb} บาท` : '-';
 
     const boxContents: any[] = [
@@ -148,14 +149,19 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
     if (isUpdate && oldRecord) {
         let changedText = '';
         if (record.status !== oldRecord.status) changedText += `สถานะ: ${translateStatus(oldRecord.status)} ➡️ ${translateStatus(record.status)}\n`;
-        if (record.date !== oldRecord.date || record.time_from !== oldRecord.time_from) {
-            changedText += `เวลา: ${oldRecord.date} ${oldRecord.time_from} ➡️ ${record.date} ${record.time_from}\n`;
+        
+        if (record.date !== oldRecord.date || record.time_from !== oldRecord.time_from || record.time_to !== oldRecord.time_to || record.duration_h !== oldRecord.duration_h) {
+            changedText += `เวลา: ${oldRecord.date} ${fmtTime(oldRecord.time_from)}-${fmtTime(oldRecord.time_to)} ➡️ ${record.date} ${fmtTime(record.time_from)}-${fmtTime(record.time_to)}\n`;
         }
+        
         if (record.payment_status !== oldRecord.payment_status) {
             changedText += `การจ่าย: ${translateStatus(oldRecord.payment_status)} ➡️ ${translateStatus(record.payment_status)}\n`;
         }
         if (record.field_no !== oldRecord.field_no) {
             changedText += `ย้ายสนาม: ไปสนาม ${record.field_no}\n`;
+        }
+        if (record.price_total_thb !== oldRecord.price_total_thb) {
+            changedText += `ราคา: ${oldRecord.price_total_thb} ➡️ ${record.price_total_thb} บาท\n`;
         }
         
         if (changedText) {
@@ -247,8 +253,11 @@ serve(async (req) => {
                 record.status !== old_record.status || 
                 record.date !== old_record.date || 
                 record.time_from !== old_record.time_from ||
+                record.time_to !== old_record.time_to ||
+                record.duration_h !== old_record.duration_h ||
                 record.payment_status !== old_record.payment_status ||
-                record.field_no !== old_record.field_no
+                record.field_no !== old_record.field_no ||
+                record.price_total_thb !== old_record.price_total_thb
             ) {
                 shouldSend = true;
             }
@@ -299,6 +308,7 @@ serve(async (req) => {
         
         await pushMessage(LINE_ADMIN_GROUP_ID, flexMsg);
         console.log(`[Admin Notify] Sent notification to ${LINE_ADMIN_GROUP_ID}`);
+
 
 
         return new Response(JSON.stringify({ success: true }), {
