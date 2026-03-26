@@ -177,8 +177,8 @@ const BookingV2Page: React.FC = () => {
                     else setManualMainCoupon(c);
                 }}
                 originalPrice={originalPrice}
-                appliedMainCoupon={appliedMainCoupon}
-                appliedOntopCoupon={appliedOntopCoupon}
+                appliedMainCoupon={manualMainCoupon}
+                appliedOntopCoupon={manualOntopCoupon}
                 onSelectMain={setManualMainCoupon}
                 onSelectOntop={setManualOntopCoupon}
             />

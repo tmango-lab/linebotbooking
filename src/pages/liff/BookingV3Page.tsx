@@ -168,8 +168,8 @@ const BookingV3Page: React.FC = () => {
                 }}
                 originalPrice={originalPrice}
                 // Connect new props
-                appliedMainCoupon={appliedMainCoupon}
-                appliedOntopCoupon={appliedOntopCoupon}
+                appliedMainCoupon={manualMainCoupon}
+                appliedOntopCoupon={manualOntopCoupon}
                 onSelectMain={setManualMainCoupon}
                 onSelectOntop={setManualOntopCoupon}
             />

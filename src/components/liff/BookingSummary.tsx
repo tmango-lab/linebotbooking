@@ -32,7 +32,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
     const isCouponInvalid = explicitInvalid ?? Boolean(couponName && discount === 0);
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-40 animate-slide-up">
+        <div className={`fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-40 animate-slide-up ${isCouponInvalid ? 'border-t-4 border-t-red-500 rounded-t-2xl' : ''}`}>
             <div className="flex justify-between items-center mb-4">
                 <button
                     onClick={onOpenCoupons}
