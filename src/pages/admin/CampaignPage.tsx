@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/api';
-import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users, Send } from 'lucide-react';
+import { Plus, Search, Calendar, Tag, Layers, Edit2, Trash2, Share2, Lock, Eye, Code, Users, Send, Gift } from 'lucide-react';
 import { formatDate } from '../../utils/date';
 import CampaignModal from '../../components/admin/CampaignModal';
 import BroadcastModal from '../../components/admin/BroadcastModal';
@@ -243,11 +243,13 @@ export default function CampaignPage() {
 
                                 <div className="space-y-2 text-sm text-gray-600">
                                     <div className="flex items-center">
-                                        <WalletIcon type={campaign.discount_amount > 0 ? 'amount' : 'percent'} />
+                                        <WalletIcon type={campaign.discount_amount > 0 ? 'amount' : 'percent'} hasItem={!!campaign.reward_item} />
                                         <span className="ml-2 font-medium text-indigo-700">
-                                            {campaign.discount_amount > 0
-                                                ? `ส่วนลด ${campaign.discount_amount.toLocaleString()} บาท`
-                                                : `ส่วนลด ${campaign.discount_percent}%`
+                                            {campaign.reward_item 
+                                                ? `ของรางวัล: ${campaign.reward_item}`
+                                                : (campaign.discount_amount > 0
+                                                    ? `ส่วนลด ${campaign.discount_amount.toLocaleString()} บาท`
+                                                    : `ส่วนลด ${campaign.discount_percent}%`)
                                             }
                                         </span>
                                     </div>
@@ -359,7 +361,10 @@ export default function CampaignPage() {
     );
 }
 
-function WalletIcon({ type }: { type: 'amount' | 'percent' }) {
+function WalletIcon({ type, hasItem }: { type: 'amount' | 'percent', hasItem?: boolean }) {
+    if (hasItem) {
+        return <div className="w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-bold"><Gift className="w-3 h-3" /></div>
+    }
     if (type === 'amount') {
         return <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold">฿</div>
     }

@@ -1133,3 +1133,35 @@ function AppRouter() {
 1. **Neutral Start**: The app starts with a blank neutral background (`bg-gray-50`).
 2. **Deterministic Mounting**: No page component is mounted until LIFF has finished its initialization and the router has resolved the correct path.
 3. **Correct Skeleton**: Only the skeleton corresponding to the final destination is ever shown.
+
+---
+
+## 26. Admin LINE Notifications (Real-time Alerts) (2026-03)
+
+### 26.1 Overview
+To ensure management is immediately aware of all booking activities, the system uses a **Database Webhook** to trigger an **Edge Function** that pushes Flex Messages to the Admin's LINE account whenever the `bookings` table is modified.
+
+### 26.2 Infrastructure
+1.  **Supabase Database Webhook**: Configured to listen for `INSERT`, `UPDATE`, and `DELETE` events on the `bookings` table.
+2.  **Edge Function (`notify-admin`)**:
+    - **Trigger**: Receives a standard Supabase Webhook payload.
+    - **LINE Integration**: Uses the `lineClient.ts` shared utility to push messages.
+    - **Security**: JWT verification is disabled in `config.toml` for this function to allow direct POST requests from the Supabase internal webhook system.
+
+### 26.3 Logic & Payload Processing
+The function performs the following logic based on the event type:
+
+| Event | Logic | Flex Message Detail |
+|-------|-------|---------------------|
+| **INSERT** | **Auto-Profile Lookup**: Since the `bookings` record might not have full name/phone yet (if from LIFF), the function fetches the `profiles` table using `user_id`. | Shows green "New Booking" header with full customer details. |
+| **UPDATE** | **Change Detection (Diff)**: Compares `record` vs `old_record`. Triggers only if `status`, `time`, `duration`, `notes`, or `price` changes. | Shows orange "Modified" header with a **"📋 การเปลี่ยนแปลงล่าสุด:"** section highlighting exactly what changed (e.g., Status A ➡️ Status B). |
+| **DELETE** | **Safety Alert**: Reconstructs the message using `old_record` data. | Shows red "Cancelled/Deleted" header to warn the admin. |
+
+### 26.4 Time Formatting
+To maintain clean aesthetics, the function truncates the `HH:MM:SS` strings from PostgreSQL to `HH:MM` in the Flex Message.
+
+### 26.5 Silent Update Filtering
+To prevent spam, the function ignores updates that do not change critical booking fields (e.g., updating a purely internal timestamp or non-critical column).
+
+---
+

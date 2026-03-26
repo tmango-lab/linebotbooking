@@ -418,9 +418,10 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อของรางวัลที่ได้รับ</label>
                                                     <input type="text" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
-                                                        placeholder="เช่น น้ำดื่มตราน้ำทิพย์ 1 แพ็ค"
+                                                        placeholder="เช่น กระเป๋าสนามผ้าใบ Limited Edition"
                                                         value={formData.reward_item}
                                                         onChange={e => setFormData({ ...formData, reward_item: e.target.value })} />
+                                                    <p className="mt-1 text-[10px] text-indigo-600 font-medium italic">💡 ทิป: ระบุชื่อของรางวัลให้ชัดเจนเพื่อให้พนักงานหน้าสนามหยิบให้ถูกชิ้นครับ</p>
                                                 </div>
                                             )}
                                         </div>
@@ -565,7 +566,8 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                 value={formData.redemption_limit}
                                                 onChange={e => setFormData({ ...formData, redemption_limit: parseInt(e.target.value) || 0 })} />
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1">จำนวนครั้งที่ใช้ได้จริง (เช่น แจก 100 ใบ แต่ให้ใช้ได้แค่ 5 คน)</p>
+                                        <p className="text-xs text-gray-500 mt-1">จำนวนครั้งที่ใช้ได้จริง (เช่น แจก 100 ใบ แต่ให้ใช้ได้แค่ 3 คนแรกที่จอง)</p>
+                                        <p className="mt-1 text-[10px] text-red-500 font-bold uppercase tracking-tight">🔥 ใช้สร้างแคมเปญแบบ "จำกัดจำนวนของรางวัล" ได้ดีเยี่ยม!</p>
                                     </div>
                                     <div className="md:col-span-1">
                                         <label className="block text-sm font-medium text-gray-700">อายุคูปองหลังเก็บ (วัน)</label>
