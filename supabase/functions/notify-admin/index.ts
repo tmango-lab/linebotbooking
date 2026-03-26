@@ -200,6 +200,8 @@ serve(async (req) => {
         const { type, table, record, old_record } = payload;
 
         console.log(`[Admin Notify] Received ${type} event on ${table}`);
+        console.log(`[Admin Notify] Token Present: ${!!Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')}`);
+        console.log(`[Admin Notify] Admin ID: ${LINE_ADMIN_GROUP_ID}`);
 
         if (table !== 'bookings') {
             return new Response('Ignored', { headers: corsHeaders });
