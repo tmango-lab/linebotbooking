@@ -282,6 +282,16 @@ export default function CampaignPage() {
                                             จำนวน: {campaign.total_quantity} | สิทธิ์ต่อคน: {campaign.limit_per_user}
                                         </span>
                                     </div>
+                                    {(campaign.min_duration_minutes > 0 || campaign.min_spend > 0) && (
+                                        <div className="flex items-center text-indigo-600 font-medium">
+                                            <span className="w-4 h-4 mr-2 flex items-center justify-center text-xs">⚠️</span>
+                                            <span className="text-xs">
+                                                {campaign.min_duration_minutes > 0 && `ขั้นต่ำ ${campaign.min_duration_minutes} นาที `}
+                                                {campaign.min_duration_minutes > 0 && campaign.min_spend > 0 && '| '}
+                                                {campaign.min_spend > 0 && `ยอดขั้นต่ำ ฿${campaign.min_spend.toLocaleString()}`}
+                                            </span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center text-red-600 font-medium mt-1">
                                         <Users className="w-4 h-4 mr-2" />
                                         <span>

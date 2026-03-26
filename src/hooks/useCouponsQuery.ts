@@ -21,6 +21,7 @@ function parseCoupon(c: any): Coupon {
         discount_type: (bValue?.percent ? 'PERCENT' : 'FIXED') as 'FIXED' | 'PERCENT',
         discount_value: Number(discountVal),
         min_spend: Number(c.conditions?.min_spend) || 0,
+        min_duration_minutes: Number(c.conditions?.min_duration_minutes) || 0,
         eligible_fields: c.conditions?.fields || null,
         eligible_days: c.conditions?.days || null,
         valid_time_start: c.conditions?.time?.start || null,

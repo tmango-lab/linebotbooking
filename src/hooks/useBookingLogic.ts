@@ -22,6 +22,7 @@ export interface Coupon {
     discount_type: 'FIXED' | 'PERCENT';
     discount_value: number;
     min_spend: number;
+    min_duration_minutes?: number; // [NEW]
     eligible_fields: number[] | null;
     eligible_days: string[] | null;
     valid_time_start: string | null;
@@ -278,6 +279,7 @@ export const useBookingLogic = () => {
                         discount_type: 'PERCENT',
                         discount_value: discountPct,
                         min_spend: 0,
+                        min_duration_minutes: 0,
                         eligible_fields: null,
                         eligible_days: null,
                         valid_time_start: null,
@@ -368,12 +370,24 @@ export const useBookingLogic = () => {
             if (!coupon.eligible_days.includes(currentDay)) return 'ไม่ใช่วันที่ใช้งานได้';
         }
 
-        // 4. Valid Time Range
+        // 4. Valid Time Range & Duration
         if (selection) {
             const getHM = (t: string) => t.substring(0, 5);
             const selStart = getHM(selection.startTime);
             if (coupon.valid_time_start && selStart < getHM(coupon.valid_time_start)) return `ใช้ได้ตั้งแต่ ${getHM(coupon.valid_time_start)} น.`;
             if (coupon.valid_time_end && selStart > getHM(coupon.valid_time_end)) return `ใช้ได้ถึง ${getHM(coupon.valid_time_end)} น.`;
+
+            // [NEW] Min Duration Check
+            if (coupon.min_duration_minutes && coupon.min_duration_minutes > 0) {
+                const startH = parseFloat(selection.startTime.split(':')[0]) + parseFloat(selection.startTime.split(':')[1]) / 60;
+                const endH = parseFloat(selection.endTime.split(':')[0]) + parseFloat(selection.endTime.split(':')[1]) / 60;
+                let durationMinutes = (endH - startH) * 60;
+                if (durationMinutes < 0) durationMinutes += 24 * 60;
+                
+                if (durationMinutes < coupon.min_duration_minutes) {
+                    return `ต้องจองอย่างน้อย ${coupon.min_duration_minutes} นาที`;
+                }
+            }
         }
 
         // 5. Expiry Date (Booking Date vs Coupon Expiry)

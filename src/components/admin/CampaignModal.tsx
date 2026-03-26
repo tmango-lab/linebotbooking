@@ -37,6 +37,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
         eligible_fields: [] as number[], // [1, 2]
         payment_methods: [] as string[], // ['QR', 'CASH']
         min_spend: 0, // New
+        min_duration_minutes: 0, // New: Minimum booking duration in minutes
         eligible_days: [] as string[], // New: ['Mon', 'Tue']
 
         // Inventory
@@ -77,6 +78,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     eligible_fields: campaign.eligible_fields || [],
                     payment_methods: campaign.payment_methods || [],
                     min_spend: campaign.min_spend || 0,
+                    min_duration_minutes: campaign.min_duration_minutes || 0,
                     eligible_days: campaign.eligible_days || [],
 
                     limit_per_user: campaign.limit_per_user || 1,
@@ -108,6 +110,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                     eligible_fields: [],
                     payment_methods: [],
                     min_spend: 0,
+                    min_duration_minutes: 0,
                     eligible_days: [],
                     limit_per_user: 1,
                     total_quantity: 100,
@@ -182,6 +185,7 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
 
                 // Conditions
                 min_spend: Number(formData.min_spend),
+                min_duration_minutes: Number(formData.min_duration_minutes) || 0,
                 start_date: new Date(formData.start_date).toISOString(),
                 end_date: new Date(formData.end_date).toISOString(),
                 valid_time_start: formData.valid_time_start || null,
@@ -463,6 +467,19 @@ export default function CampaignModal({ isOpen, onClose, campaign, onSuccess }: 
                                                     placeholder="0" />
                                             </div>
                                             <p className="mt-1 text-xs text-gray-500">ยอดจองต้องไม่ต่ำกว่าราคาที่กำหนดจึงจะใช้คูปองได้</p>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">ระยะเวลาจองขั้นต่ำ (นาที)</label>
+                                            <div className="relative rounded-md shadow-sm max-w-xs">
+                                                <input type="number" min="0" step="30" className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
+                                                    value={formData.min_duration_minutes}
+                                                    onChange={e => setFormData({ ...formData, min_duration_minutes: parseInt(e.target.value) || 0 })}
+                                                    placeholder="0" />
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 sm:text-sm">นาที</span>
+                                                </div>
+                                            </div>
+                                            <p className="mt-1 text-xs text-gray-500">ระยะเวลาจองขั้นต่ำถึงจะใช้คูปองนี้ได้ (เช่น 60 นาที = 1 ชั่วโมง)</p>
                                         </div>
                                     </div>
 

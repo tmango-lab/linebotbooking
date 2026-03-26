@@ -80,6 +80,7 @@ serve(async (req) => {
                     max_discount,
                     reward_item,
                     min_spend,
+                    min_duration_minutes,
                     conditions,
                     image_url,
                     eligible_fields,
@@ -159,7 +160,8 @@ serve(async (req) => {
                             end: campaign.valid_time_end
                         },
                         days: campaign.eligible_days,
-                        min_spend: campaign.min_spend || 0
+                        min_spend: campaign.min_spend || 0,
+                        min_duration_minutes: campaign.min_duration_minutes || 0
                     },
                     is_stackable: campaign.is_stackable || false,
                     allow_ontop_stacking: campaign.allow_ontop_stacking ?? true

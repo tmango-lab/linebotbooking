@@ -205,6 +205,10 @@ serve(async (req) => {
 
                 // Micro-Conditions Validation
                 if (campaign.min_spend && originalPrice < campaign.min_spend) throw new Error(`Min spend ${campaign.min_spend} required`);
+                if (campaign.min_duration_minutes && campaign.min_duration_minutes > 0) {
+                    const durationMinutes = durationH * 60;
+                    if (durationMinutes < campaign.min_duration_minutes) throw new Error(`Minimum booking duration of ${campaign.min_duration_minutes} minutes required`);
+                }
 
                 // Benefit Application
                 if (campaign.reward_item) {
