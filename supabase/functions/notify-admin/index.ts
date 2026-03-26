@@ -23,7 +23,7 @@ function translateStatus(status: string) {
 }
 
 // Build Flex Message for Admin
-function buildAdminNotificationFlex(event: string, record: any, oldRecord: any = null, fieldLabel: string = '') {
+function buildAdminNotificationFlex(event: string, record: any, oldRecord: any = null, extraData: any = {}) {
     const isInsert = event === 'INSERT';
     const isDelete = event === 'DELETE';
     const isUpdate = event === 'UPDATE';
@@ -40,9 +40,13 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
         headerColor = '#FF9500'; // Orange
     }
 
-    // Determine the data to show
+    // Determine the data to show (Use new record for UPDATE/INSERT, old for DELETE)
     const data = isDelete ? oldRecord : record;
-    const name = data.display_name || data.user_id || 'ไม่ระบุชื่อ';
+    
+    // Prefer passed extraData (from profiles table) over booking record data
+    const name = extraData.profileName || data.display_name || data.user_id || 'ไม่ระบุชื่อ';
+    const phone = extraData.profilePhone || data.phone_number || '-';
+    const fieldName = extraData.fieldLabel || `สนาม ${data.field_no || '-'}`;
     
     // Format Date and Time
     const dateStr = data.date || '-';
@@ -88,7 +92,7 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
                     spacing: "sm",
                     contents: [
                         { type: "text", text: "เบอร์โทร", color: "#aaaaaa", size: "sm", flex: 2 },
-                        { type: "text", text: data.phone_number || '-', wrap: true, color: "#666666", size: "sm", flex: 5 }
+                        { type: "text", text: phone, wrap: true, color: "#666666", size: "sm", flex: 5 }
                     ]
                 },
                 {
@@ -97,7 +101,7 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
                     spacing: "sm",
                     contents: [
                         { type: "text", text: "สนาม", color: "#aaaaaa", size: "sm", flex: 2 },
-                        { type: "text", text: fieldLabel || `สนาม ${data.field_no || '-'}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                        { type: "text", text: fieldName, wrap: true, color: "#666666", size: "sm", flex: 5 }
                     ]
                 },
                 {
@@ -105,8 +109,17 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
                     layout: "baseline",
                     spacing: "sm",
                     contents: [
-                        { type: "text", text: "วัน-เวลา", color: "#aaaaaa", size: "sm", flex: 2 },
-                        { type: "text", text: `${dateStr} | ${timeStr}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                        { type: "text", text: "วันที่", color: "#aaaaaa", size: "sm", flex: 2 },
+                        { type: "text", text: dateStr, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                    ]
+                },
+                {
+                    type: "box",
+                    layout: "baseline",
+                    spacing: "sm",
+                    contents: [
+                        { type: "text", text: "เวลา", color: "#aaaaaa", size: "sm", flex: 2 },
+                        { type: "text", text: timeStr, wrap: true, color: "#666666", size: "sm", flex: 5 }
                     ]
                 },
                 {
@@ -141,6 +154,9 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
         if (record.payment_status !== oldRecord.payment_status) {
             changedText += `การจ่าย: ${translateStatus(oldRecord.payment_status)} ➡️ ${translateStatus(record.payment_status)}\n`;
         }
+        if (record.field_no !== oldRecord.field_no) {
+            changedText += `ย้ายสนาม: ไปสนาม ${record.field_no}\n`;
+        }
         
         if (changedText) {
             boxContents.push(
@@ -150,13 +166,24 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
                     layout: "vertical",
                     margin: "md",
                     contents: [
-                       { type: "text", text: "📋 การเปลี่ยนแปลง:", color: "#aaaaaa", size: "xs" },
-                       { type: "text", text: changedText.trim(), wrap: true, size: "xs", color: "#FF9500" }
+                       { type: "text", text: "📋 การเปลี่ยนแปลงล่าสุด:", color: "#aaaaaa", size: "sm", weight: "bold" },
+                       { type: "text", text: changedText.trim(), wrap: true, size: "sm", color: "#FF9500", margin: "sm" }
                     ]
                 }
             );
         } else {
-            // If nothing meaningful changed, we might not send it, but handled upstream
+            // Force show update if no critical diff but triggered
+            boxContents.push(
+                { type: "separator", margin: "md" },
+                {
+                    type: "box",
+                    layout: "vertical",
+                    margin: "md",
+                    contents: [
+                       { type: "text", text: "📋 มีการกดบันทึกหรืออัปเดตข้อมูลการจองนี้", color: "#aaaaaa", size: "sm", wrap: true }
+                    ]
+                }
+            );
         }
     }
 
@@ -168,7 +195,7 @@ function buildAdminNotificationFlex(event: string, record: any, oldRecord: any =
                 layout: "vertical",
                 margin: "md",
                 contents: [
-                   { type: "text", text: `หมายเหตุ: ${data.admin_note}`, color: "#666666", size: "sm", wrap: true }
+                   { type: "text", text: `หมายเหตุแอดมิน: ${data.admin_note}`, color: "#FF3B30", size: "sm", wrap: true, weight: "bold" }
                 ]
             }
         );
@@ -215,13 +242,19 @@ serve(async (req) => {
         } else if (type === 'DELETE') {
             shouldSend = true;
         } else if (type === 'UPDATE') {
-            // Only send if something important changed
+            // Send on meaningful changes
             if (
                 record.status !== old_record.status || 
                 record.date !== old_record.date || 
                 record.time_from !== old_record.time_from ||
-                record.payment_status !== old_record.payment_status
+                record.payment_status !== old_record.payment_status ||
+                record.field_no !== old_record.field_no
             ) {
+                shouldSend = true;
+            }
+            
+            // Allow sending if admin_note changes
+            if (record.admin_note !== old_record.admin_note) {
                 shouldSend = true;
             }
         }
@@ -231,27 +264,42 @@ serve(async (req) => {
             return new Response('Ignored (No critical changes)', { headers: corsHeaders });
         }
 
-        // Fetch Field Label
+        // Fetch Field Label & Customer Data
         let fieldLabel = '';
+        let profileName = '';
+        let profilePhone = '';
         try {
             const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
             const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
             const supabase = createClient(supabaseUrl, serviceRoleKey);
             
             const targetRecord = type === 'DELETE' ? old_record : record;
+            
+            // Fetch field info
             if (targetRecord?.field_no) {
                 const { data } = await supabase.from('fields').select('label').eq('id', targetRecord.field_no).single();
                 if (data) fieldLabel = data.label;
             }
+            
+            // Fetch profile info (vital for INSERT since bookings table doesn't have name/phone natively yet)
+            if (targetRecord?.user_id) {
+                const { data } = await supabase.from('profiles').select('display_name, phone_number').eq('user_id', targetRecord.user_id).single();
+                if (data) {
+                    profileName = data.display_name;
+                    profilePhone = data.phone_number;
+                }
+            }
         } catch (err) {
-            console.error('[Admin Notify] Failed to fetch field label', err);
+            console.error('[Admin Notify] Failed to fetch extra info', err);
         }
 
         // Build and Send Flex Message
-        const flexMsg = buildAdminNotificationFlex(type, record, old_record, fieldLabel);
+        const extraData = { fieldLabel, profileName, profilePhone };
+        const flexMsg = buildAdminNotificationFlex(type, record, old_record, extraData);
         
         await pushMessage(LINE_ADMIN_GROUP_ID, flexMsg);
         console.log(`[Admin Notify] Sent notification to ${LINE_ADMIN_GROUP_ID}`);
+
 
         return new Response(JSON.stringify({ success: true }), {
             status: 200,
