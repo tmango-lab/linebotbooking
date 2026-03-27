@@ -137,8 +137,8 @@ serve(async (req) => {
         if (targetTags && Array.isArray(targetTags) && targetTags.length > 0 && !targetTags.includes('All')) {
             console.log(`[Broadcast] Targeting tags: ${targetTags.join(', ')}`);
 
-            // Query profiles with matching tags — fetch line_user_id (not user_id which is a Supabase UUID)
-            const profilesRes = await fetch(`${supabaseUrl}/rest/v1/profiles?select=line_user_id,tags`, {
+            // Query profiles — user_id IS the LINE User ID (this system uses LINE Login as primary auth)
+            const profilesRes = await fetch(`${supabaseUrl}/rest/v1/profiles?select=user_id,tags`, {
                 headers: {
                     'apikey': supabaseKey,
                     'Authorization': `Bearer ${supabaseKey}`
@@ -153,10 +153,16 @@ serve(async (req) => {
             const profiles: any[] = await profilesRes.json();
             console.log(`[Broadcast] Fetched ${profiles.length} profiles from DB.`);
 
-            // Filter users who have AT LEAST ONE of the target tags AND have a line_user_id
+            // Filter users who have AT LEAST ONE of the target tags
+            // Also skip non-LINE user IDs (manual_ prefix = admin-created entries without LINE)
             targetUserIds = profiles
-                .filter((p: any) => p.tags && p.tags.some((t: string) => targetTags.includes(t)) && p.line_user_id)
-                .map((p: any) => p.line_user_id);
+                .filter((p: any) =>
+                    p.tags &&
+                    p.tags.some((t: string) => targetTags.includes(t)) &&
+                    p.user_id &&
+                    !p.user_id.startsWith('manual_')
+                )
+                .map((p: any) => p.user_id);
 
             console.log(`[Broadcast] Found ${targetUserIds.length} matching users with LINE IDs.`);
 
