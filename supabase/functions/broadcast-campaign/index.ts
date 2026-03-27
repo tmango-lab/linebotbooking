@@ -10,7 +10,7 @@ serve(async (req) => {
     }
 
     try {
-        const { campaignId, targetTags } = await req.json(); // [NEW] Accept targetTags
+        const { campaignId, targetTags } = await req.json();
 
         if (!campaignId) {
             throw new Error('Campaign ID is required');
@@ -26,9 +26,13 @@ serve(async (req) => {
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
+        if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Supabase configuration missing');
+        }
+
         const campaignRes = await fetch(`${supabaseUrl}/rest/v1/campaigns?id=eq.${campaignId}`, {
             headers: {
-                'apikey': supabaseKey!,
+                'apikey': supabaseKey,
                 'Authorization': `Bearer ${supabaseKey}`
             }
         });
@@ -126,39 +130,35 @@ serve(async (req) => {
             }
         };
 
-        // [NEW] Logic: Broadcast vs Multicast
+        // Logic: Broadcast vs Multicast
         // If targetTags is provided and NOT empty or "All", we filter users.
         let targetUserIds: string[] = [];
 
         if (targetTags && Array.isArray(targetTags) && targetTags.length > 0 && !targetTags.includes('All')) {
             console.log(`[Broadcast] Targeting tags: ${targetTags.join(', ')}`);
 
-            // Query profiles with matching tags
-            const { data: profiles, error: profileError } = await fetch(`${supabaseUrl}/rest/v1/profiles?select=line_user_id,tags`, {
+            // Query profiles with matching tags — fetch line_user_id (not user_id which is a Supabase UUID)
+            const profilesRes = await fetch(`${supabaseUrl}/rest/v1/profiles?select=line_user_id,tags`, {
                 headers: {
-                    'apikey': supabaseKey!,
+                    'apikey': supabaseKey,
                     'Authorization': `Bearer ${supabaseKey}`
                 }
-            }).then(res => res.json())
-                .then((data: any[]) => {
-                    // Filter client-side or use .contains() if possible.
-                    // PostgREST .cs (contains) works for array columns: tags=cs.{vip}
-                    // However, to support ANY match (OR logic), we might need manual filter if complex.
-                    // Let's rely on client filter for flexibility now or simple overlaps.
-                    // Actually, let's fetch all and filter to be safe or use specific query.
-                    // For now, let's just fetch all profiles (if small) or use .ov (overlap)
-                    // best: .ov.{tag1,tag2} means overlap.
-                    return { data, error: null };
-                });
+            });
 
-            if (profileError) throw profileError;
+            if (!profilesRes.ok) {
+                const errText = await profilesRes.text();
+                throw new Error(`Failed to fetch profiles: ${errText}`);
+            }
+
+            const profiles: any[] = await profilesRes.json();
+            console.log(`[Broadcast] Fetched ${profiles.length} profiles from DB.`);
 
             // Filter users who have AT LEAST ONE of the target tags AND have a line_user_id
             targetUserIds = profiles
                 .filter((p: any) => p.tags && p.tags.some((t: string) => targetTags.includes(t)) && p.line_user_id)
                 .map((p: any) => p.line_user_id);
 
-            console.log(`[Broadcast] Found ${targetUserIds.length} matching users.`);
+            console.log(`[Broadcast] Found ${targetUserIds.length} matching users with LINE IDs.`);
 
             if (targetUserIds.length === 0) {
                 return new Response(JSON.stringify({
@@ -174,19 +174,16 @@ serve(async (req) => {
             console.log(`[Broadcast] Targeting ALL users (Broadcast API)`);
         }
 
-        let broadcastRes;
-
         if (targetUserIds.length > 0) {
             // MULTICAST (Chunked 500)
-            // https://developers.line.biz/en/reference/messaging-api/#send-multicast-message
             const chunkSize = 500;
-            const chunks = [];
+            const chunks: string[][] = [];
             for (let i = 0; i < targetUserIds.length; i += chunkSize) {
                 chunks.push(targetUserIds.slice(i, i + chunkSize));
             }
 
-            const results = [];
             for (const chunk of chunks) {
+                console.log(`[Multicast] Sending to ${chunk.length} users...`);
                 const res = await fetch("https://api.line.me/v2/bot/message/multicast", {
                     method: "POST",
                     headers: {
@@ -198,14 +195,24 @@ serve(async (req) => {
                         messages: [flexMessage]
                     })
                 });
-                results.push(await res.json());
+
+                if (!res.ok) {
+                    const errBody = await res.text();
+                    throw new Error(`LINE Multicast API Error (${res.status}): ${errBody}`);
+                }
             }
-            // Aggregate results mock
-            broadcastRes = { ok: true, json: async () => ({ multicasts: results }) };
+
+            return new Response(JSON.stringify({
+                success: true,
+                message: "Broadcast sent successfully",
+                result: { mode: 'multicast', count: targetUserIds.length }
+            }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
 
         } else {
-            // BROADCAST (To All)
-            broadcastRes = await fetch("https://api.line.me/v2/bot/message/broadcast", {
+            // BROADCAST (To All Followers)
+            const broadcastRes = await fetch("https://api.line.me/v2/bot/message/broadcast", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -215,28 +222,23 @@ serve(async (req) => {
                     messages: [flexMessage]
                 })
             });
+
+            if (!broadcastRes.ok) {
+                const errorText = await broadcastRes.text();
+                throw new Error(`LINE Broadcast API Error (${broadcastRes.status}): ${errorText}`);
+            }
+
+            return new Response(JSON.stringify({
+                success: true,
+                message: "Broadcast sent to all followers",
+                result: { mode: 'broadcast' }
+            }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
         }
-
-        // Handle Response
-        if (!broadcastRes.ok && targetUserIds.length === 0) { // Only check if using standard broadcast
-            const errorText = await broadcastRes.text ? await broadcastRes.text() : 'Unknown Error';
-            throw new Error(`LINE API Error: ${errorText}`);
-        }
-
-        const result = targetUserIds.length > 0 ? { mode: 'multicast', count: targetUserIds.length } : await broadcastRes.json();
-
-
-        return new Response(JSON.stringify({
-            success: true,
-            message: "Broadcast sent successfully",
-            result
-        }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-
 
     } catch (error: any) {
-        console.error(error);
+        console.error('[broadcast-campaign] Error:', error.message);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
