@@ -36,10 +36,12 @@ COMMENT ON COLUMN public.user_coupons.redemption_token IS 'Token สำหรั
 ALTER TABLE public.merchants ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated (admin) full access
+DROP POLICY IF EXISTS "Admin full access on merchants" ON public.merchants;
 CREATE POLICY "Admin full access on merchants" ON public.merchants
     FOR ALL USING (true) WITH CHECK (true);
 
 -- Allow anon to read active merchants (for PIN login check)
+DROP POLICY IF EXISTS "Anon read active merchants" ON public.merchants;
 CREATE POLICY "Anon read active merchants" ON public.merchants
     FOR SELECT USING (status = 'active');
 

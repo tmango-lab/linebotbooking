@@ -134,7 +134,7 @@ serve(async (req) => {
             console.log(`[Broadcast] Targeting tags: ${targetTags.join(', ')}`);
 
             // Query profiles with matching tags
-            const { data: profiles, error: profileError } = await fetch(`${supabaseUrl}/rest/v1/profiles?select=user_id,tags`, {
+            const { data: profiles, error: profileError } = await fetch(`${supabaseUrl}/rest/v1/profiles?select=line_user_id,tags`, {
                 headers: {
                     'apikey': supabaseKey!,
                     'Authorization': `Bearer ${supabaseKey}`
@@ -153,10 +153,10 @@ serve(async (req) => {
 
             if (profileError) throw profileError;
 
-            // Filter users who have AT LEAST ONE of the target tags
+            // Filter users who have AT LEAST ONE of the target tags AND have a line_user_id
             targetUserIds = profiles
-                .filter((p: any) => p.tags && p.tags.some((t: string) => targetTags.includes(t)))
-                .map((p: any) => p.user_id);
+                .filter((p: any) => p.tags && p.tags.some((t: string) => targetTags.includes(t)) && p.line_user_id)
+                .map((p: any) => p.line_user_id);
 
             console.log(`[Broadcast] Found ${targetUserIds.length} matching users.`);
 
