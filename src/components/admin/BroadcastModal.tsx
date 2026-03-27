@@ -71,16 +71,24 @@ export default function BroadcastModal({ isOpen, onClose, campaign, onSuccess }:
 
         setSending(true);
         try {
-            const { error } = await supabase.functions.invoke('broadcast-campaign', {
+            const { data, error } = await supabase.functions.invoke('broadcast-campaign', {
                 body: {
                     campaignId: campaign.id,
                     targetTags: targetType === 'all' ? ['All'] : selectedTags
                 }
             });
 
-            if (error) throw error;
+            if (error) {
+                // Extract real error body from FunctionsHttpError (Supabase wraps it)
+                let realMessage = error.message;
+                try {
+                    const body = await (error as any).context?.json?.();
+                    if (body?.error) realMessage = body.error;
+                } catch (_) { /* ignore */ }
+                throw new Error(realMessage);
+            }
 
-            alert('Broadcast sent successfully!');
+            alert(`Broadcast sent successfully! ${data?.result ? JSON.stringify(data.result) : ''}`);
             onSuccess();
             onClose();
         } catch (err: any) {
