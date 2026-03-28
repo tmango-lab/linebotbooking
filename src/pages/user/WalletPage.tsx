@@ -11,7 +11,7 @@ import { queryClient } from '../../providers/QueryProvider';
 import { WalletSkeleton } from '../../components/ui/Skeleton';
 
 interface Coupon {
-    coupon_id: string; // user_coupon_id
+    id: string; // user_coupon_id
     campaign_id: string;
     name: string;
     description?: string | null;
@@ -205,7 +205,7 @@ export default function WalletPage() {
 
     const handleUseCoupon = (e: React.MouseEvent, coupon: Coupon) => {
         e.stopPropagation(); // Don't open detail modal
-        const target = `/booking-v3?userId=${userId}&couponId=${coupon.coupon_id}`;
+        const target = `/booking-v3?userId=${userId}&couponId=${coupon.id}`;
         window.location.hash = `#${target}`;
     };
 
@@ -397,7 +397,7 @@ export default function WalletPage() {
                                         return (
                                             <>
                                                 {Array.from(mainGroups.values()).map(({ coupon, count }) => (
-                                                    <div key={coupon.coupon_id} className="relative">
+                                                    <div key={coupon.id} className="relative">
                                                         {count > 1 && (
                                                             <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
                                                                 x{count}
@@ -407,7 +407,7 @@ export default function WalletPage() {
                                                     </div>
                                                 ))}
                                                 {Array.from(ontopGroups.values()).map(({ coupon, count }) => (
-                                                    <div key={coupon.coupon_id} className="relative">
+                                                    <div key={coupon.id} className="relative">
                                                         {count > 1 && (
                                                             <div className="absolute -top-2 -right-2 z-20 bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
                                                                 x{count}
@@ -604,7 +604,7 @@ export default function WalletPage() {
                 <MerchantCouponPopup
                     isOpen={merchantPopup.open}
                     onClose={() => setMerchantPopup({ open: false, coupon: null })}
-                    couponId={merchantPopup.coupon.coupon_id}
+                    couponId={merchantPopup.coupon.id}
                     couponName={merchantPopup.coupon.name}
                     rewardItem={merchantPopup.coupon.reward_item || merchantPopup.coupon.name}
                     merchantName={merchantPopup.coupon.merchant_name || ''}
