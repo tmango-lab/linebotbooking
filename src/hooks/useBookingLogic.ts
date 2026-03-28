@@ -164,19 +164,18 @@ export const useBookingLogic = () => {
         }
     }, [couponsData]);
 
+    const urlCouponId = searchParams.get('couponId');
+
     // Auto-select coupon from URL (once coupons are available)
     useEffect(() => {
-        if (!coupons.length) return;
-        const urlCouponId = searchParams.get('couponId');
-        if (urlCouponId) {
-            const target = coupons.find(c => c.id === urlCouponId);
-            if (target) {
-                if (target.category === 'ONTOP') setManualOntopCoupon(target as Coupon);
-                else setManualMainCoupon(target as Coupon);
-            }
+        if (!coupons.length || !urlCouponId) return;
+        
+        const target = coupons.find(c => c.id === urlCouponId);
+        if (target) {
+            if (target.category === 'ONTOP') setManualOntopCoupon(target as Coupon);
+            else setManualMainCoupon(target as Coupon);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [couponsQuery.dataUpdatedAt]);
+    }, [couponsQuery.dataUpdatedAt, urlCouponId]);
 
     // Auto-select flash deal slot from URL (once bookings are available)
     useEffect(() => {
@@ -212,9 +211,10 @@ export const useBookingLogic = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bookingsQuery.dataUpdatedAt, fieldsQuery.dataUpdatedAt]);
 
+    const urlPromoCode = searchParams.get('promoCode');
+
     // Auto-collect promo code from URL (once user is identified)
     useEffect(() => {
-        const urlPromoCode = searchParams.get('promoCode');
         if (!urlPromoCode || !userId) return;
 
         const doPromoCollect = async () => {
@@ -247,7 +247,7 @@ export const useBookingLogic = () => {
         };
         doPromoCollect();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId]);
+    }, [userId, urlPromoCode]);
 
     // Validate referral code from URL (once user is identified)
     useEffect(() => {
