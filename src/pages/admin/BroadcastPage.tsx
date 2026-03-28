@@ -715,7 +715,7 @@ export default function BroadcastPage() {
 
     // Auto-recalculate discountPrice for all slots when campaign or slots' normalPrice changes
     useEffect(() => {
-        const campaign = campaigns.find(c => c.id === selectedCampaignId);
+        const campaign = campaigns.find(c => String(c.id) === String(selectedCampaignId));
         if (!campaign) return;
         setSlots(prev => prev.map(sl => ({
             ...sl,
@@ -731,7 +731,7 @@ export default function BroadcastPage() {
     // Auto-sync forcePayment from campaign's payment_methods setting
     useEffect(() => {
         if (!selectedCampaignId) return;
-        const campaign = campaigns.find(c => c.id === selectedCampaignId);
+        const campaign = campaigns.find(c => String(c.id) === String(selectedCampaignId));
         if (!campaign?.payment_methods?.length) return;
         const pm = campaign.payment_methods;
         if (pm.length === 1 && pm[0] === 'QR') setForcePayment('QR');
@@ -885,7 +885,7 @@ export default function BroadcastPage() {
     };
 
     // ── Build message object for preview + sending ──
-    const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+    const selectedCampaign = campaigns.find(c => String(c.id) === String(selectedCampaignId));
     // Use: manual code > campaign secret_codes[0] > empty
     const effectivePromoCode = promoCode || (selectedCampaign?.secret_codes?.[0] ?? '');
 
@@ -923,7 +923,7 @@ export default function BroadcastPage() {
         const newStart = last?.endTime || '19:00';
         const h = parseInt(newStart.split(':')[0]);
         const newEnd = `${String(h + 1).padStart(2, '0')}:00`;
-        const campaign = campaigns.find(c => c.id === selectedCampaignId);
+        const campaign = campaigns.find(c => String(c.id) === String(selectedCampaignId));
         const nPrice = fieldPrices ? calcSlotPrice(fieldPrices.pre, fieldPrices.post, newStart, newEnd) : (last?.normalPrice || 1000);
         const dPrice = campaign && (campaign.discount_amount || 0) > 0
             ? Math.max(0, nPrice - (campaign.discount_amount || 0))
@@ -940,7 +940,7 @@ export default function BroadcastPage() {
             // If time changed and we have field prices, recalculate normalPrice and discountPrice
             if ((field === 'startTime' || field === 'endTime') && fieldPrices) {
                 const newNormal = calcSlotPrice(fieldPrices.pre, fieldPrices.post, updated.startTime, updated.endTime);
-                const campaign = campaigns.find(c => c.id === selectedCampaignId);
+                const campaign = campaigns.find(c => String(c.id) === String(selectedCampaignId));
                 const newDiscount = campaign && (campaign.discount_amount || 0) > 0
                     ? Math.max(0, newNormal - (campaign.discount_amount || 0))
                     : campaign && (campaign.discount_percent || 0) > 0
@@ -1270,7 +1270,7 @@ export default function BroadcastPage() {
                                             <Lock size={11} /> บังคับวิธีชำระเงิน
                                         </label>
                                         {(() => {
-                                            const c = campaigns.find(x => x.id === selectedCampaignId);
+                                            const c = campaigns.find(x => String(x.id) === String(selectedCampaignId));
                                             const pm = c?.payment_methods;
                                             if (pm?.length === 1) return (
                                                 <span className="text-[10px] text-orange-500 font-medium">
