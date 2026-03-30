@@ -78,16 +78,9 @@ export default function WalletPage() {
 
             if (!uid && liffUser?.userId) uid = liffUser.userId;
 
-            // If external mobile browser and not logged in, force LINE app redirect instead of Web Login
+            // If external mobile browser and not logged in, force show LINE app redirect UI instead of Web Login
             if (!uid && !liff.isInClient() && liff.getOS() !== 'web' && action === 'collect') {
                 setShowLineRedirect(true);
-                
-                // Try auto redirect to universal link first
-                const liffId = import.meta.env.VITE_LIFF_ID;
-                if (liffId) {
-                    const extraParams = window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '';
-                    window.location.href = `https://liff.line.me/${liffId}/#/wallet${extraParams}`;
-                }
                 return; 
             }
 
@@ -250,8 +243,16 @@ export default function WalletPage() {
                     <button 
                         onClick={() => {
                             const liffId = import.meta.env.VITE_LIFF_ID;
-                            const extraParams = window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '';
-                            window.location.href = `https://liff.line.me/${liffId}/#/wallet${extraParams}`;
+                            const params = new URLSearchParams(window.location.search);
+                            if (window.location.hash.includes('?')) {
+                                const hashQuery = window.location.hash.split('?')[1];
+                                const hashParams = new URLSearchParams(hashQuery);
+                                hashParams.forEach((val, key) => params.append(key, val));
+                            }
+                            const cid = params.get('id') || params.get('campaignId') || '';
+                            const code = params.get('code') || '';
+                            const codeStr = code ? `&code=${code}` : '';
+                            window.location.href = `https://line.me/R/app/${liffId}?redirect=wallet&action=collect&id=${cid}${codeStr}`;
                         }}
                         className="w-full bg-[#00B900] hover:bg-[#00A000] text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-green-200"
                     >
@@ -262,8 +263,16 @@ export default function WalletPage() {
                         <button 
                             onClick={() => {
                                 const liffId = import.meta.env.VITE_LIFF_ID;
-                                const extraParams = window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '';
-                                navigator.clipboard.writeText(`https://liff.line.me/${liffId}/#/wallet${extraParams}`);
+                                const params = new URLSearchParams(window.location.search);
+                                if (window.location.hash.includes('?')) {
+                                    const hashQuery = window.location.hash.split('?')[1];
+                                    const hashParams = new URLSearchParams(hashQuery);
+                                    hashParams.forEach((val, key) => params.append(key, val));
+                                }
+                                const cid = params.get('id') || params.get('campaignId') || '';
+                                const code = params.get('code') || '';
+                                const codeStr = code ? `&code=${code}` : '';
+                                navigator.clipboard.writeText(`https://line.me/R/app/${liffId}?redirect=wallet&action=collect&id=${cid}${codeStr}`);
                                 alert("คัดลอกลิงก์แล้ว นำไปวางใน Safari หรือ Chrome ได้เลย (เพื่อเด้งเข้าแอป LINE)");
                             }}
                             className="bg-gray-100 font-medium text-gray-600 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-200"
