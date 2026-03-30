@@ -371,36 +371,31 @@ export default function CampaignPage() {
                             </button>
                         </div>
                         <div className="p-6 space-y-6 bg-gray-50 text-sm overflow-y-auto">
+                            {/* Option 1 */}
                             <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                 <h3 className="font-semibold text-green-700 flex items-center mb-2">
                                     <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                                    1. ลิงก์สำหรับส่งใน LINE (แนะนำ)
+                                    1. ลิงก์สำหรับ Broadcast/Rich Menu (LIFF URL)
                                 </h3>
                                 <p className="text-gray-500 text-xs mb-3">
-                                    ใช้สำหรับส่งให้ลูกค้าผ่าน LINE OA, Rich Menu หรือ Broadcast ระบบจะเปิดหน้าต่างขึ้นมาทันทีโดยไม่ต้องเข้าสู่ระบบใหม่
+                                    ใช้สำหรับส่งให้ลูกค้าผ่าน LINE OA ระบบจะเปิดหน้าต่าง LIFF ขึ้นมาทันที
                                 </p>
                                 <div className="flex">
                                     <input 
                                         readOnly 
                                         value={(() => {
                                             const liffId = import.meta.env.VITE_LIFF_ID;
-                                            const baseUrl = liffId ? `https://liff.line.me/${liffId}` : window.location.origin;
-                                            let url = `${baseUrl}/#/wallet?id=${shareCampaign.id}&action=collect`;
-                                            if (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) url += `&code=${shareCampaign.secret_codes[0]}`;
-                                            else if (shareCampaign.is_public) url += `&code=`;
-                                            return url;
+                                            const codeStr = (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) ? `&code=${shareCampaign.secret_codes[0]}` : `&code=`;
+                                            return `https://liff.line.me/${liffId}?redirect=wallet&action=collect&id=${shareCampaign.id}${codeStr}`;
                                         })()}
                                         className="flex-1 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-l-lg px-3 py-2 outline-none w-0"
                                     />
                                     <button 
                                         onClick={() => {
                                             const liffId = import.meta.env.VITE_LIFF_ID;
-                                            const baseUrl = liffId ? `https://liff.line.me/${liffId}` : window.location.origin;
-                                            let url = `${baseUrl}/#/wallet?id=${shareCampaign.id}&action=collect`;
-                                            if (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) url += `&code=${shareCampaign.secret_codes[0]}`;
-                                            else if (shareCampaign.is_public) url += `&code=`;
-                                            navigator.clipboard.writeText(url);
-                                            alert("คัดลอกลิงก์สำหรับ LINE แล้ว!");
+                                            const codeStr = (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) ? `&code=${shareCampaign.secret_codes[0]}` : `&code=`;
+                                            navigator.clipboard.writeText(`https://liff.line.me/${liffId}?redirect=wallet&action=collect&id=${shareCampaign.id}${codeStr}`);
+                                            alert("คัดลอกลิงก์ LIFF สำหรับ LINE แล้ว!");
                                         }}
                                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-r-lg font-medium transition-colors flex items-center whitespace-nowrap"
                                     >
@@ -409,39 +404,72 @@ export default function CampaignPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                <h3 className="font-semibold text-blue-700 flex items-center mb-2">
-                                    <div className="w-2 h-2 rounded-full bg-blue-500 mr-2"></div>
-                                    2. ลิงก์สำหรับช่องทางอื่นๆ (Messenger, FB, Web)
+                            {/* Option 2 */}
+                            <div className="bg-white p-4 rounded-lg border border-indigo-200 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">แนะนำสำหรับ Messenger</div>
+                                <h3 className="font-semibold text-indigo-700 flex items-center mb-2">
+                                    <div className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></div>
+                                    2. ลิงก์บังคับเปิดแอป LINE (ส่งในแอพอื่น)
                                 </h3>
                                 <p className="text-gray-500 text-xs mb-3">
-                                    สำหรับแชร์นอกแอป LINE (เช่น หน้าเพจ Facebook หรือส่งทางแชทอื่น) ลูกค้าสามารถกดเปิดผ่านบราวเซอร์ทั่วไปได้ตามปกติ
+                                    ใช้สำหรับส่งใน Messenger, FB หรือที่อื่นๆ เมื่อลูกค้ากดลิงก์นี้ ระบบจะเด้งไปเปิดแอปพลิเคชัน LINE อัตโนมัติ!
                                 </p>
                                 <div className="flex">
                                     <input 
                                         readOnly 
                                         value={(() => {
-                                            const baseUrl = window.location.origin;
-                                            let url = `${baseUrl}/#/wallet?id=${shareCampaign.id}&action=collect`;
-                                            if (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) url += `&code=${shareCampaign.secret_codes[0]}`;
-                                            else if (shareCampaign.is_public) url += `&code=`;
-                                            return url;
+                                            const liffId = import.meta.env.VITE_LIFF_ID;
+                                            const codeStr = (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) ? `&code=${shareCampaign.secret_codes[0]}` : `&code=`;
+                                            return `https://line.me/R/app/${liffId}?redirect=wallet&action=collect&id=${shareCampaign.id}${codeStr}`;
                                         })()}
                                         className="flex-1 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-l-lg px-3 py-2 outline-none w-0"
                                     />
                                     <button 
                                         onClick={() => {
-                                            const baseUrl = window.location.origin;
-                                            let url = `${baseUrl}/#/wallet?id=${shareCampaign.id}&action=collect`;
-                                            if (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) url += `&code=${shareCampaign.secret_codes[0]}`;
-                                            else if (shareCampaign.is_public) url += `&code=`;
-                                            navigator.clipboard.writeText(url);
-                                            alert("คัดลอกลิงก์เว็บไซต์แล้ว!");
+                                            const liffId = import.meta.env.VITE_LIFF_ID;
+                                            const codeStr = (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) ? `&code=${shareCampaign.secret_codes[0]}` : `&code=`;
+                                            navigator.clipboard.writeText(`https://line.me/R/app/${liffId}?redirect=wallet&action=collect&id=${shareCampaign.id}${codeStr}`);
+                                            alert("คัดลอกลิงก์เปิดแอป LINE แล้ว!");
                                         }}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-lg font-medium transition-colors flex items-center whitespace-nowrap"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-r-lg font-medium transition-colors flex items-center whitespace-nowrap"
                                     >
                                         <Copy className="w-4 h-4 mr-1" /> คัดลอก
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* Option 3 */}
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm box-opacity-50">
+                                <h3 className="font-semibold text-gray-700 flex items-center mb-2">
+                                    <div className="w-2 h-2 rounded-full bg-gray-400 mr-2"></div>
+                                    3. ลิงก์เว็บไซต์หน้าเว็บปกติ
+                                </h3>
+                                <p className="text-gray-500 text-xs mb-3">
+                                    ลิงก์เว็บตรง สำหรับนำไปแปะตามเว็บบอร์ดหรือปุ่มบนเว็บไซต์อื่นๆ
+                                </p>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex">
+                                        <input 
+                                            readOnly 
+                                            value={(() => {
+                                                const baseUrl = window.location.origin;
+                                                const codeStr = (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) ? `&code=${shareCampaign.secret_codes[0]}` : `&code=`;
+                                                return `${baseUrl}/?redirect=wallet&action=collect&id=${shareCampaign.id}${codeStr}`;
+                                            })()}
+                                            className="flex-1 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-l-lg px-3 py-2 outline-none w-0"
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                const baseUrl = window.location.origin;
+                                                const codeStr = (!shareCampaign.is_public && shareCampaign.secret_codes?.length > 0) ? `&code=${shareCampaign.secret_codes[0]}` : `&code=`;
+                                                navigator.clipboard.writeText(`${baseUrl}/?redirect=wallet&action=collect&id=${shareCampaign.id}${codeStr}`);
+                                                alert("คัดลอกลิงก์เว็บไซต์แล้ว!");
+                                            }}
+                                            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-r-lg font-medium transition-colors flex items-center whitespace-nowrap"
+                                        >
+                                            <Copy className="w-4 h-4 mr-1" /> คัดลอก
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
