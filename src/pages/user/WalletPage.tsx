@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/api';
 import { useLiff } from '../../providers/LiffProvider';
 import { getLiffUser } from '../../lib/liff';
+import liff from '@line/liff';
 import { Loader2, Ticket, Clock, AlertCircle, Share2, Award, Store } from 'lucide-react';
 import CouponDetailModal from '../../components/ui/CouponDetailModal';
 import MerchantCouponPopup from '../../components/ui/MerchantCouponPopup';
@@ -51,6 +52,8 @@ export default function WalletPage() {
     // Market (available campaigns to collect)
     const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
 
+    const [showLineRedirect, setShowLineRedirect] = useState(false);
+
     const { isReady, liffUser } = useLiff();
 
     // --- React Query: cached coupons ---
@@ -74,6 +77,19 @@ export default function WalletPage() {
             const cid = params.get('id') || params.get('campaignId');
 
             if (!uid && liffUser?.userId) uid = liffUser.userId;
+
+            // If external mobile browser and not logged in, force LINE app redirect instead of Web Login
+            if (!uid && !liff.isInClient() && liff.getOS() !== 'web' && action === 'collect') {
+                setShowLineRedirect(true);
+                
+                // Try auto redirect to universal link first
+                const liffId = import.meta.env.VITE_LIFF_ID;
+                if (liffId) {
+                    const extraParams = window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '';
+                    window.location.href = `https://liff.line.me/${liffId}/#/wallet${extraParams}`;
+                }
+                return; 
+            }
 
             if (!uid) {
                 console.log("Wallet: No User ID found, enforcing LIFF login...");
@@ -219,6 +235,47 @@ export default function WalletPage() {
     //   1. userId not yet resolved (LIFF still initializing) → !userId
     //   2. Query is loading AND no cached data to show yet
     const hasNoData = wallet.main.length === 0 && wallet.on_top.length === 0;
+
+    if (showLineRedirect) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.122.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186 1.039.647 1.281-.54 6.911-4.069 9.428-6.967 1.739-1.907 2.572-3.843 2.572-5.992z"/></svg>
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">เปิดในแอป LINE</h2>
+                    <p className="text-gray-500 text-sm mb-6">
+                        แอปพลิเคชันที่คุณใช้งานอยู่ไม่สามารถเปิดเก็บคูปองได้โดยตรง กรุณากดปุ่มด้านล่างเพื่อสลับไปเก็บคูปองในแอป LINE
+                    </p>
+                    <button 
+                        onClick={() => {
+                            const liffId = import.meta.env.VITE_LIFF_ID;
+                            const extraParams = window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '';
+                            window.location.href = `https://liff.line.me/${liffId}/#/wallet${extraParams}`;
+                        }}
+                        className="w-full bg-[#00B900] hover:bg-[#00A000] text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-green-200"
+                    >
+                        เปิดแอป LINE เพื่อเก็บคูปอง
+                    </button>
+                    <div className="mt-4 flex flex-col items-center justify-center opacity-60">
+                        <span className="text-xs text-gray-400 mb-1">หรือหากปุ่มใช้ไม่ได้ ให้คัดลอกลิงก์ไปเปิดเอง:</span>
+                        <button 
+                            onClick={() => {
+                                const liffId = import.meta.env.VITE_LIFF_ID;
+                                const extraParams = window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '';
+                                navigator.clipboard.writeText(`https://liff.line.me/${liffId}/#/wallet${extraParams}`);
+                                alert("คัดลอกลิงก์แล้ว นำไปวางใน Safari หรือ Chrome ได้เลย (เพื่อเด้งเข้าแอป LINE)");
+                            }}
+                            className="bg-gray-100 font-medium text-gray-600 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-200"
+                        >
+                            คัดลอกลิงก์
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!userId || (loading && hasNoData)) {
         return <WalletSkeleton />;
     }
