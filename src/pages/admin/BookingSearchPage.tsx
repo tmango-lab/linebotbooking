@@ -163,6 +163,9 @@ export default function BookingSearchPage() {
             if (filterPayment !== 'all') {
                 if (filterPayment === 'cash') {
                     query = query.or('payment_method.eq.cash,payment_method.is.null');
+                } else if (filterPayment === 'stripe') {
+                    // Check for bookings with stripe payment intents (deposits)
+                    query = query.not('stripe_payment_intent_id', 'is', null);
                 } else {
                     query = query.eq('payment_method', filterPayment);
                 }
@@ -533,6 +536,7 @@ export default function BookingSearchPage() {
                             <option value="all">ทั้งหมด</option>
                             <option value="cash">เงินสด</option>
                             <option value="qr">QR โอน</option>
+                            <option value="stripe">QR(Stripe)</option>
                         </select>
                     </div>
 
