@@ -11,6 +11,8 @@ import BookingV3Page from './pages/liff/BookingV3Page';
 import BookingSuccessPage from './pages/liff/BookingSuccessPage';
 import AffiliateRegisterPage from './pages/user/AffiliateRegisterPage';
 import AffiliateDashboardPage from './pages/user/AffiliateDashboardPage';
+import SetupMatchPage from './pages/liff/SetupMatchPage';
+import MatchBoardPage from './pages/liff/MatchBoardPage';
 
 // Lazy Load Admin Components ONLY (To keep client bundle small)
 const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
@@ -29,6 +31,7 @@ const PartnerCampaignPage = lazy(() => import('./pages/admin/PartnerCampaignPage
 const MerchantPortal = lazy(() => import('./pages/merchant/MerchantPortal'));
 const BroadcastPage = lazy(() => import('./pages/admin/BroadcastPage'));
 const ExportPage = lazy(() => import('./pages/admin/ExportPage'));
+const OpenMatchPage = lazy(() => import('./pages/admin/OpenMatchPage'));
 
 // Branded Loader (used by Suspense for lazy admin pages)
 const PageLoader = ({ text = "Loading..." }) => (
@@ -130,6 +133,8 @@ function RootRedirect() {
   if (redirect === 'booking-v3') return <Navigate to={`/booking-v3${searchStr}`} replace />;
   if (redirect === 'affiliate-dashboard') return <Navigate to={`/affiliate-dashboard${searchStr}`} replace />;
   if (redirect === 'affiliate-register') return <Navigate to={`/affiliate-register${searchStr}`} replace />;
+  if (redirect === 'setup-match') return <Navigate to={`/setup-match${searchStr}`} replace />;
+  if (redirect === 'match-board') return <Navigate to={`/match-board${searchStr}`} replace />;
 
   if (appMode === 'booking') return <Navigate to={`/booking-v2${searchStr}`} replace />;
   if (appMode === 'wallet') return <Navigate to={`/wallet${searchStr}`} replace />;
@@ -163,6 +168,8 @@ function AppRouter() {
         <Route path="/booking-success" element={<BookingSuccessPage />} />
         <Route path="/affiliate-register" element={<AffiliateRegisterPage />} />
         <Route path="/affiliate-dashboard" element={<AffiliateDashboardPage />} />
+        <Route path="/setup-match" element={<SetupMatchPage />} />
+        <Route path="/match-board" element={<MatchBoardPage />} />
         <Route path="/merchant" element={<MerchantPortal />} />
 
         {/* Admin Routes */}
@@ -182,6 +189,7 @@ function AppRouter() {
           <Route path="system-settings" element={<SystemSettingsPage />} />
           <Route path="broadcast" element={<BroadcastPage />} />
           <Route path="export" element={<ExportPage />} />
+          <Route path="open-matches" element={<OpenMatchPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

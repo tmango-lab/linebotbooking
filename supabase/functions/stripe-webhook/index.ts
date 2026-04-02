@@ -101,6 +101,81 @@ serve(async (req) => {
         // 3. Handle payment_intent.succeeded
         if (event.type === 'payment_intent.succeeded') {
             const paymentIntent = event.data.object;
+            const metadataType = paymentIntent.metadata?.type;
+
+            // ─── [OPEN MATCH] Handle Joiner deposit payment ───────
+            if (metadataType === 'match_join') {
+                const matchId = paymentIntent.metadata?.match_id;
+                const joinUserId = paymentIntent.metadata?.user_id;
+                const depositPaid = paymentIntent.amount / 100;
+
+                console.log(`[Stripe Webhook] Match Join payment: match=${matchId} user=${joinUserId} amount=${depositPaid}`);
+
+                if (!matchId || !joinUserId) {
+                    console.error('[Stripe Webhook] Missing match_id or user_id in match_join metadata');
+                    return new Response('Missing match metadata', { status: 400 });
+                }
+
+                // Find the joiner record by match_id + user_id
+                const { data: joiner } = await supabase
+                    .from('match_joiners')
+                    .select('id, match_id')
+                    .eq('match_id', matchId)
+                    .eq('user_id', joinUserId)
+                    .eq('status', 'pending_payment')
+                    .maybeSingle();
+
+                if (!joiner) {
+                    console.error(`[Stripe Webhook] No pending joiner found for match=${matchId} user=${joinUserId}`);
+                    return new Response(JSON.stringify({ received: true, warning: 'No pending joiner' }), { status: 200 });
+                }
+
+                // Atomic confirm via RPC
+                const { data: confirmResult, error: confirmError } = await supabase.rpc('confirm_match_joiner', {
+                    p_joiner_id: joiner.id,
+                });
+
+                if (confirmError) {
+                    console.error('[Stripe Webhook] confirm_match_joiner RPC error:', confirmError);
+                    return new Response('RPC error', { status: 500 });
+                }
+
+                console.log(`[Stripe Webhook] Joiner confirmed:`, confirmResult);
+
+                // Notify Joiner via LINE
+                try {
+                    const fieldName = paymentIntent.metadata?.field_name || 'สนาม';
+                    const matchDate = paymentIntent.metadata?.date || '';
+                    await pushMessage(joinUserId, {
+                        type: 'text',
+                        text: `✅ เข้าร่วมสำเร็จ!\n\n${fieldName}\n📅 ${matchDate}\n💰 มัดจำ ${depositPaid} บาท\n\nขอบคุณที่เข้าร่วม แล้วพบกันที่สนามนะครับ!`,
+                    });
+                } catch (lineErr) {
+                    console.error('[Stripe Webhook] Joiner LINE notify error:', lineErr);
+                }
+
+                // Notify Host via LINE
+                if (confirmResult?.host_user_id) {
+                    try {
+                        const customerName = paymentIntent.metadata?.customer_name || 'ผู้เล่นใหม่';
+                        const slotsInfo = `${confirmResult.slots_filled}/${confirmResult.slots_total}`;
+                        const fullMsg = confirmResult.is_full
+                            ? `\n\n🎉 ครบแล้ว! พบกันทุกคนที่สนามนะครับ!`
+                            : `\n\n⏳ ยังขาดอีก ${confirmResult.slots_total - confirmResult.slots_filled} คน`;
+
+                        await pushMessage(confirmResult.host_user_id, {
+                            type: 'text',
+                            text: `⚽ มีคนเข้าร่วมแจมแล้ว!\n\n👤 ${customerName}\n💰 จ่ายมัดจำ ${depositPaid} บาท\n📊 เข้าร่วมแล้ว ${slotsInfo} คน${fullMsg}`,
+                        });
+                    } catch (lineErr) {
+                        console.error('[Stripe Webhook] Host LINE notify error:', lineErr);
+                    }
+                }
+
+                return new Response(JSON.stringify({ received: true }), { status: 200 });
+            }
+            // ─── [END OPEN MATCH] ────────────────────────────────
+
             const bookingId = paymentIntent.metadata?.booking_id;
 
             if (!bookingId) {
