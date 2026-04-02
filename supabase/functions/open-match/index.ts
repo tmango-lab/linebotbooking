@@ -28,6 +28,16 @@ serve(async (req) => {
                 throw new Error('Missing required fields: bookingId, userId, hostTeamSize, slotsTotal');
             }
 
+            // ─── [BETA GATE] เปิดให้เฉพาะ test users ───
+            const BETA_USER_IDS = [
+                'Ua636ab14081b483636896549d2026398',
+                'Uf5d3d661f3d0a7150a814471e1a3adad',
+            ];
+            if (!BETA_USER_IDS.includes(userId)) {
+                throw new Error('ฟีเจอร์ "เปิดตี้หาทีมแจม" ยังไม่เปิดให้ใช้งานในขณะนี้ กรุณารอการประกาศเปิดใช้งานอย่างเป็นทางการ');
+            }
+            // ─── [END BETA GATE] ──────────────────────────
+
             if (hostTeamSize < 1 || hostTeamSize > 30) throw new Error('hostTeamSize must be 1-30');
             if (slotsTotal < 1 || slotsTotal > 20) throw new Error('slotsTotal must be 1-20');
 

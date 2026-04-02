@@ -22,6 +22,16 @@ serve(async (req) => {
         // 1. Validate
         if (!matchId || !userId) throw new Error('Missing matchId or userId');
 
+        // ─── [BETA GATE] เปิดให้เฉพาะ test users ───
+        const BETA_USER_IDS = [
+            'Ua636ab14081b483636896549d2026398',
+            'Uf5d3d661f3d0a7150a814471e1a3adad',
+        ];
+        if (!BETA_USER_IDS.includes(userId)) {
+            throw new Error('ฟีเจอร์ "หาทีมแจม" ยังไม่เปิดให้ใช้งานในขณะนี้');
+        }
+        // ─── [END BETA GATE] ──────────────────────────
+
         // 2. ดึงข้อมูล match
         const { data: match, error: matchError } = await supabase
             .from('open_matches')

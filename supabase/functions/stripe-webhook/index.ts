@@ -343,6 +343,9 @@ serve(async (req) => {
                     console.log(`[Stripe Webhook] LINE notification sent to ${booking.user_id}`);
 
                     // ─── [OPEN MATCH] ส่ง Flex ถามว่าจะเปิดตี้หาทีมแจมไหม ───
+                    // [BETA] เปิดให้เฉพาะ test users เท่านั้น
+                    const BETA_USER_IDS = ['Ua636ab14081b483636896549d2026398', 'Uf5d3d661f3d0a7150a814471e1a3adad'];
+                    if (BETA_USER_IDS.includes(booking.user_id)) {
                     try {
                         const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
                         const setupMatchUrl = `https://liff.line.me/${LIFF_ID}/?redirect=setup-match&bookingId=${bookingId}`;
@@ -410,6 +413,7 @@ serve(async (req) => {
                     } catch (matchPromptErr) {
                         console.error('[Stripe Webhook] Open Match prompt error:', matchPromptErr);
                     }
+                    } // [END BETA GATE]
                     // ─── [END OPEN MATCH] ───────────────────────────────
 
                 } catch (lineErr) {

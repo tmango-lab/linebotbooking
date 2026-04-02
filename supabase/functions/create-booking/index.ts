@@ -421,7 +421,9 @@ serve(async (req) => {
 
                 // ─── [OPEN MATCH] ส่ง Flex "เปิดตี้หาทีมแจม" สำหรับ Cash bookings ───
                 // (QR bookings จะได้รับจาก stripe-webhook หลังจ่ายเงินสำเร็จแล้ว)
-                if (!isQR) {
+                // [BETA] เปิดให้เฉพาะ test users เท่านั้น
+                const BETA_USER_IDS = ['Ua636ab14081b483636896549d2026398', 'Uf5d3d661f3d0a7150a814471e1a3adad'];
+                if (!isQR && BETA_USER_IDS.includes(finalUserId)) {
                     try {
                         const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
                         const setupMatchUrl = `https://liff.line.me/${LIFF_ID}/?redirect=setup-match&bookingId=${booking.booking_id}`;
