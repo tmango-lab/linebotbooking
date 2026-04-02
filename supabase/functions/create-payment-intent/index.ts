@@ -60,9 +60,22 @@ serve(async (req) => {
         }
         const depositAmount = Math.min(DEPOSIT_AMOUNT, totalPrice); // Don't charge more than total
 
+        // ─── [TEST MODE] Override deposit for test users ───
+        const TEST_USER_IDS = [
+            'Ua636ab14081b483636896549d2026398',
+            'Uf5d3d661f3d0a7150a814471e1a3adad',
+        ];
+        const stripeChargeAmount = TEST_USER_IDS.includes(booking.user_id)
+            ? Math.min(11, totalPrice)  // Test users pay only 11 THB
+            : depositAmount;
+        if (stripeChargeAmount !== depositAmount) {
+            console.log(`[PaymentIntent] ⚡ TEST MODE: User ${booking.user_id} → charge ${stripeChargeAmount} THB instead of ${depositAmount} THB`);
+        }
+        // ─── [END TEST MODE] ──────────────────────────────
+
         // 2. Create PaymentIntent via Stripe REST API
         // Amount is in smallest currency unit (satang for THB), so multiply by 100
-        const amountInSatang = Math.round(depositAmount * 100);
+        const amountInSatang = Math.round(stripeChargeAmount * 100);
 
         const stripeResponse = await fetch('https://api.stripe.com/v1/payment_intents', {
             method: 'POST',

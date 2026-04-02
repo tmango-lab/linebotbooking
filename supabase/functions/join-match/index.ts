@@ -49,7 +49,21 @@ serve(async (req) => {
         if (!profile) throw new Error('กรุณาลงทะเบียนก่อนเข้าร่วม');
 
         const depositAmount = match.deposit_per_joiner;
-        const amountInSatang = Math.round(depositAmount * 100);
+
+        // ─── [TEST MODE] Override deposit for test users ───
+        const TEST_USER_IDS = [
+            'Ua636ab14081b483636896549d2026398',
+            'Uf5d3d661f3d0a7150a814471e1a3adad',
+        ];
+        const stripeChargeAmount = TEST_USER_IDS.includes(userId)
+            ? 11  // Test users pay only 11 THB
+            : depositAmount;
+        if (stripeChargeAmount !== depositAmount) {
+            console.log(`[Join Match] ⚡ TEST MODE: User ${userId} → charge ${stripeChargeAmount} THB instead of ${depositAmount} THB`);
+        }
+        // ─── [END TEST MODE] ──────────────────────────────
+
+        const amountInSatang = Math.round(stripeChargeAmount * 100);
 
         // 5. สร้าง Stripe PaymentIntent
         if (!STRIPE_SECRET_KEY) throw new Error('Stripe not configured');
