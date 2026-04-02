@@ -34,13 +34,19 @@ serve(async (req) => {
             // 2. ตรวจสอบว่า booking มีจริงและ status = confirmed
             const { data: booking, error: bookingError } = await supabase
                 .from('bookings')
-                .select('booking_id, user_id, status, price_total_thb, deposit_amount, date, time_from, time_to, field_no, display_name')
+                .select('booking_id, user_id, status, price_total_thb, deposit_amount, payment_status, payment_method, date, time_from, time_to, field_no, display_name')
                 .eq('booking_id', String(bookingId))
                 .single();
 
             if (bookingError || !booking) throw new Error('Booking not found');
             if (booking.status !== 'confirmed') throw new Error('Booking must be confirmed before opening a match');
             if (booking.user_id !== userId) throw new Error('You are not the owner of this booking');
+
+            // 2.5 ตรวจสอบว่ามีมัดจำในระบบแล้ว (ต้องจ่ายผ่าน Stripe ก่อนเปิดตี้)
+            const hasDeposit = booking.payment_status === 'deposit_paid' || booking.payment_status === 'paid';
+            if (!hasDeposit) {
+                throw new Error('กรุณาจ่ายมัดจำก่อนเปิดตี้ (ชำระผ่าน QR PromptPay ในหน้าตั้งค่า)');
+            }
 
             // 3. ตรวจสอบว่ายังไม่มี open match สำหรับ booking นี้
             const { data: existingMatch } = await supabase

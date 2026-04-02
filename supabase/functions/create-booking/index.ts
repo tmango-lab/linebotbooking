@@ -418,6 +418,80 @@ serve(async (req) => {
             if (finalUserId) {
                 await pushMessage(finalUserId, successFlex);
                 console.log(`[Notification Sent] User: ${finalUserId}`);
+
+                // ─── [OPEN MATCH] ส่ง Flex "เปิดตี้หาทีมแจม" สำหรับ Cash bookings ───
+                // (QR bookings จะได้รับจาก stripe-webhook หลังจ่ายเงินสำเร็จแล้ว)
+                if (!isQR) {
+                    try {
+                        const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
+                        const setupMatchUrl = `https://liff.line.me/${LIFF_ID}/?redirect=setup-match&bookingId=${booking.booking_id}`;
+
+                        const openMatchFlex = {
+                            type: 'flex',
+                            altText: '⚽ อยากเปิดตี้หาทีมแจมไหม?',
+                            contents: {
+                                type: 'bubble',
+                                size: 'kilo',
+                                body: {
+                                    type: 'box',
+                                    layout: 'vertical',
+                                    contents: [
+                                        {
+                                            type: 'text',
+                                            text: '⚽ เปิดตี้หาทีมแจม?',
+                                            weight: 'bold',
+                                            size: 'lg',
+                                            color: '#333333',
+                                        },
+                                        {
+                                            type: 'text',
+                                            text: 'ถ้ายังขาดคน กดเปิดตี้ได้เลย! ค่าสนามหารเท่ากันอัตโนมัติ 💰',
+                                            size: 'sm',
+                                            color: '#888888',
+                                            wrap: true,
+                                            margin: 'md',
+                                        },
+                                    ],
+                                    paddingAll: 'lg',
+                                },
+                                footer: {
+                                    type: 'box',
+                                    layout: 'vertical',
+                                    spacing: 'sm',
+                                    contents: [
+                                        {
+                                            type: 'button',
+                                            style: 'primary',
+                                            color: '#06C755',
+                                            action: {
+                                                type: 'uri',
+                                                label: '📢 เปิดตี้หาทีมแจม',
+                                                uri: setupMatchUrl,
+                                            },
+                                        },
+                                        {
+                                            type: 'button',
+                                            style: 'link',
+                                            action: {
+                                                type: 'message',
+                                                label: 'ไม่ต้อง ขอบคุณ',
+                                                text: 'ไม่เปิดตี้',
+                                            },
+                                        },
+                                    ],
+                                    paddingAll: 'lg',
+                                },
+                            },
+                        };
+
+                        await pushMessage(finalUserId, openMatchFlex);
+                        console.log(`[Open Match Prompt] Sent to ${finalUserId} (Cash booking)`);
+                    } catch (matchErr) {
+                        console.error('[Open Match Prompt Error]:', matchErr);
+                    }
+                }
+                // ─── [END OPEN MATCH] ──────────────────────────────
+
             } else {
                 console.log(`[Notification Skipped] No User ID provided (Admin Booking)`);
             }

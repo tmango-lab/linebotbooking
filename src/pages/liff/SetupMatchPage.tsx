@@ -17,6 +17,8 @@ interface BookingInfo {
     price_total_thb: number;
     display_name: string;
     deposit_amount: number;
+    payment_status: string;
+    payment_method: string;
     fieldLabel?: string;
 }
 
@@ -32,6 +34,10 @@ export default function SetupMatchPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
 
+    // Deposit gate state (สำหรับ Cash bookings ที่ยังไม่จ่ายมัดจำ)
+    const [needsDeposit, setNeedsDeposit] = useState(false);
+    const [depositLoading, setDepositLoading] = useState(false);
+
     // Form state
     const [hostTeamSize, setHostTeamSize] = useState(5);
     const [slotsTotal, setSlotsTotal] = useState(2);
@@ -46,7 +52,7 @@ export default function SetupMatchPage() {
 
             const { data, error: fetchErr } = await supabase
                 .from('bookings')
-                .select('booking_id, date, time_from, time_to, field_no, price_total_thb, display_name, deposit_amount')
+                .select('booking_id, date, time_from, time_to, field_no, price_total_thb, display_name, deposit_amount, payment_status, payment_method')
                 .eq('booking_id', bookingId)
                 .single();
 
@@ -59,11 +65,46 @@ export default function SetupMatchPage() {
             // Get field label
             const { data: field } = await supabase.from('fields').select('label').eq('id', data.field_no).single();
 
-            setBooking({ ...data, fieldLabel: field?.label || `สนาม ${data.field_no}` });
+            const bookingData = { ...data, fieldLabel: field?.label || `สนาม ${data.field_no}` };
+            setBooking(bookingData);
+
+            // ตรวจสอบว่า booking นี้จ่ายมัดจำผ่าน Stripe แล้วหรือยัง
+            const hasDeposit = data.payment_status === 'deposit_paid' || data.payment_status === 'paid';
+            if (!hasDeposit) {
+                setNeedsDeposit(true);
+            }
+
             setLoading(false);
         }
         fetchBooking();
     }, [bookingId]);
+
+    // Handle deposit payment for Cash bookings
+    const handlePayDeposit = async () => {
+        setDepositLoading(true);
+        setError('');
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/create-payment-intent`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({ bookingId }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || 'ไม่สามารถสร้าง QR ชำระเงินได้');
+
+            // Redirect ไปหน้า BookingSuccess สำหรับ render QR PromptPay
+            window.location.hash = `/booking-success?payment_intent_client_secret=${data.clientSecret}&bookingId=${bookingId}&returnTo=setup-match`;
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setDepositLoading(false);
+        }
+    };
 
     // Auto-calculated deposit
     const depositCalc = useMemo(() => {
@@ -137,6 +178,65 @@ export default function SetupMatchPage() {
                     </div>
                     <p style={{ textAlign: 'center' as const, color: '#666', fontSize: 14, marginTop: 16 }}>
                         สามารถปิดหน้านี้ได้เลยครับ 👋
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── Deposit Gate (Cash bookings ต้องจ่ายมัดจำก่อน) ────────────
+    if (needsDeposit && booking) {
+        return (
+            <div style={styles.container}>
+                <div style={styles.card}>
+                    <div style={{ fontSize: 48, textAlign: 'center' as const }}>💳</div>
+                    <h2 style={styles.title}>จ่ายมัดจำก่อนเปิดตี้</h2>
+                    <p style={{ textAlign: 'center' as const, color: '#666', fontSize: 14, margin: '0 0 16px' }}>
+                        การเปิดตี้หาทีมแจมต้องมีมัดจำในระบบก่อน เพื่อเป็นหลักประกันให้ผู้เข้าร่วม
+                    </p>
+
+                    <div style={styles.bookingBanner}>
+                        <p style={{ margin: 0, fontWeight: 600 }}>{booking.fieldLabel}</p>
+                        <p style={{ margin: 0, color: '#666', fontSize: 14 }}>
+                            📅 {booking.date} | ⏰ {booking.time_from} - {booking.time_to}
+                        </p>
+                        <p style={{ margin: 0, color: '#06C755', fontWeight: 700, fontSize: 18 }}>
+                            ฿{booking.price_total_thb?.toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div style={{
+                        background: '#fff3e0',
+                        border: '1px solid #ffcc80',
+                        borderRadius: 12,
+                        padding: 16,
+                        marginBottom: 16,
+                    }}>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e65100' }}>
+                            ⚠️ สิ่งที่จะเกิดขึ้น:
+                        </p>
+                        <ul style={{ margin: '8px 0 0', paddingLeft: 20, fontSize: 13, color: '#333', lineHeight: 2 }}>
+                            <li>ระบบจะให้สแกนจ่ายมัดจำ <b>200 บาท</b> ผ่าน PromptPay QR</li>
+                            <li>มัดจำนี้ <b>หักจากราคาสนาม</b> ไม่ใช่จ่ายเพิ่ม</li>
+                            <li>เมื่อจ่ายสำเร็จ จะสามารถเปิดตี้หาทีมแจมได้ทันที</li>
+                        </ul>
+                    </div>
+
+                    {error && <p style={styles.error}>❌ {error}</p>}
+
+                    <button
+                        onClick={handlePayDeposit}
+                        disabled={depositLoading}
+                        style={{
+                            ...styles.submitBtn,
+                            opacity: depositLoading ? 0.5 : 1,
+                        }}
+                    >
+                        {depositLoading ? '⏳ กำลังสร้าง QR...' : '💳 จ่ายมัดจำ 200 บาท → เปิดตี้'}
+                    </button>
+
+                    <p style={{ textAlign: 'center' as const, color: '#999', fontSize: 12, marginTop: 12 }}>
+                        ชำระผ่าน PromptPay QR Code (Stripe)
                     </p>
                 </div>
             </div>

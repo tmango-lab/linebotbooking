@@ -321,7 +321,45 @@ export async function handleMessage(event: LineEvent) {
         }
     }
 
-    // [MODIFIED] Unify 'จองสนาม' and 'ค้นหาเวลา' to trigger Search All
+    // [DISABLED] LINE Bot จองสนาม — ย้ายไปใช้ LIFF (BookingV2/V3) แทน
+    // ยังเก็บ code ไว้ไม่ลบ หากต้องการเปิดใช้งานใหม่ให้ uncomment
+    if (text === 'จองสนาม' || text === 'ค้นหาเวลา') {
+        const LIFF_ID = Deno.env.get('LIFF_ID') || '2009013698-RcmHMN8h';
+        const bookingUrl = `https://liff.line.me/${LIFF_ID}/?redirect=booking-v3&userId=${userId}`;
+
+        await replyMessage(event.replyToken!, {
+            type: 'flex',
+            altText: 'จองสนามผ่าน LIFF',
+            contents: {
+                type: 'bubble',
+                size: 'kilo',
+                body: {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                        { type: 'text', text: '⚽ จองสนาม', weight: 'bold', size: 'lg', color: '#1a1a1a' },
+                        { type: 'text', text: 'กดปุ่มด้านล่างเพื่อเข้าสู่ระบบจองสนาม พร้อมเลือกวัน เวลา และชำระเงินได้เลยครับ', size: 'sm', color: '#666666', wrap: true, margin: 'md' },
+                    ],
+                    paddingAll: 'lg',
+                },
+                footer: {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                        {
+                            type: 'button',
+                            style: 'primary',
+                            color: '#06C755',
+                            action: { type: 'uri', label: '📅 จองสนามที่นี่', uri: bookingUrl },
+                        },
+                    ],
+                    paddingAll: 'lg',
+                },
+            },
+        });
+        return;
+    }
+    /* ──── [ORIGINAL CODE - DISABLED] ────────────────────────────────────
     if (text === 'จองสนาม' || text === 'ค้นหาเวลา') {
         // [PROFILE CHECK]
         const profile = await getProfile(userId);
@@ -348,6 +386,7 @@ export async function handleMessage(event: LineEvent) {
         });
         return;
     }
+    ──── [END ORIGINAL CODE] ──────────────────────────────────────────── */
 
     // [NEW] View Bookings
     if (text === 'ดูตารางจอง') {
