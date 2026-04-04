@@ -4,6 +4,9 @@
 
 import { useState, useEffect } from 'react';
 import { useLiff } from '../../providers/LiffProvider';
+import { loadStripe } from '@stripe/stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
+import liff from '@line/liff';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -61,8 +64,10 @@ export default function MatchBoardPage() {
     const [isLoadingJoin, setIsLoadingJoin] = useState(false);
     const [joinConsent, setJoinConsent] = useState(false);
     const [joinError, setJoinError] = useState('');
-    const [joinSuccess, setJoinSuccess] = useState(false);
-    const [paymentUrl, setPaymentUrl] = useState('');
+    // Stripe payment state
+    const [paymentPhase, setPaymentPhase] = useState<'idle' | 'loading_stripe' | 'qr_open' | 'success' | 'error'>('idle');
+    const [paymentMatchInfo, setPaymentMatchInfo] = useState<any>(null);
+    const [stripeError, setStripeError] = useState('');
 
     useEffect(() => { fetchMatches(); }, []);
 
@@ -118,8 +123,15 @@ export default function MatchBoardPage() {
             if (!res.ok || data.error) throw new Error(data.error || 'ไม่สามารถเข้าร่วมได้');
 
             if (data.clientSecret && data.paymentIntentId) {
-                setPaymentUrl(`/booking-success?payment_intent_client_secret=${data.clientSecret}&type=match_join&matchId=${matchId}&amount=${data.amount}`);
-                setJoinSuccess(true);
+                // Save match info for payment screen
+                setPaymentMatchInfo({
+                    clientSecret: data.clientSecret,
+                    publicKey: data.publicKey,
+                    amount: data.amount,
+                    match: data.match,
+                });
+                // Immediately open Stripe PromptPay QR
+                await openStripeQR(data.clientSecret, data.publicKey || import.meta.env.VITE_STRIPE_PUBLIC_KEY);
             } else {
                 throw new Error('ไม่สามารถสร้าง QR ชำระเงินได้');
             }
@@ -130,14 +142,104 @@ export default function MatchBoardPage() {
         }
     }
 
-    // ─── Redirect to payment ────────
-    if (joinSuccess && paymentUrl) {
-        window.location.hash = paymentUrl;
+    async function openStripeQR(clientSecret: string, publicKey: string) {
+        setPaymentPhase('loading_stripe');
+        setStripeError('');
+        try {
+            const stripe: Stripe | null = await loadStripe(publicKey);
+            if (!stripe) throw new Error('ไม่สามารถโหลดระบบชำระเงินได้');
+
+            setPaymentPhase('qr_open');
+            const result = await stripe.confirmPromptPayPayment(clientSecret, {
+                payment_method: {
+                    billing_details: {
+                        email: `${userId}@match.local`,
+                    },
+                },
+            });
+
+            if (result.error) {
+                if (result.error.code === 'payment_intent_unexpected_state') {
+                    setPaymentPhase('success');
+                } else {
+                    setStripeError(result.error.message || 'การชำระเงินถูกยกเลิก');
+                    setPaymentPhase('error');
+                }
+            } else if (result.paymentIntent?.status === 'succeeded') {
+                setPaymentPhase('success');
+            } else {
+                setStripeError('การชำระเงินถูกยกเลิก กรุณาลองใหม่');
+                setPaymentPhase('error');
+            }
+        } catch (err: any) {
+            setStripeError(err.message);
+            setPaymentPhase('error');
+        }
+    }
+
+    // ─── Payment Screen ────────
+    if (paymentPhase !== 'idle') {
         return (
             <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center max-w-sm w-full">
-                    <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p className="text-gray-500 mt-4 text-sm">กำลังพาไปหน้าชำระเงิน...</p>
+                <div className="bg-white rounded-2xl p-6 shadow-sm text-center max-w-sm w-full">
+                    {paymentPhase === 'loading_stripe' && (
+                        <>
+                            <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                            <p className="text-gray-600 font-bold text-sm">กำลังเปิด QR ชำระเงิน...</p>
+                            <p className="text-gray-400 text-xs mt-2">กรุณารอสักครู่</p>
+                        </>
+                    )}
+                    {paymentPhase === 'qr_open' && (
+                        <>
+                            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                            <p className="text-gray-600 font-bold text-sm">รอการชำระเงิน...</p>
+                            <p className="text-gray-400 text-xs mt-2">สแกน QR Code แล้วรอจนกว่าจะสำเร็จ</p>
+                        </>
+                    )}
+                    {paymentPhase === 'success' && (
+                        <>
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="text-3xl">✅</span>
+                            </div>
+                            <h2 className="text-xl font-extrabold text-gray-800 mb-2">เข้าร่วมสำเร็จ!</h2>
+                            <p className="text-gray-500 text-sm mb-4">ชำระค่ามัดจำเรียบร้อยแล้ว</p>
+                            {paymentMatchInfo?.match && (
+                                <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-left text-sm space-y-2 mb-6">
+                                    <div className="flex justify-between"><span className="text-gray-500">สนาม</span><span className="font-bold text-gray-800">{paymentMatchInfo.match.fieldLabel}</span></div>
+                                    <div className="flex justify-between"><span className="text-gray-500">วันที่</span><span className="font-bold text-gray-800">{formatDateThai(paymentMatchInfo.match.date)}</span></div>
+                                    <div className="flex justify-between"><span className="text-gray-500">เวลา</span><span className="font-bold text-gray-800">{paymentMatchInfo.match.timeFrom?.substring(0,5)} - {paymentMatchInfo.match.timeTo?.substring(0,5)}</span></div>
+                                    <div className="border-t border-dashed border-green-200 pt-2 flex justify-between"><span className="text-gray-500">ยอดชำระ</span><span className="font-bold text-green-600 text-lg">฿{paymentMatchInfo.amount}</span></div>
+                                </div>
+                            )}
+                            <button
+                                onClick={() => { try { liff.closeWindow(); } catch { window.location.hash = '/match-board'; } }}
+                                className="w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
+                            >
+                                ✕ ปิดหน้าต่าง
+                            </button>
+                            <p className="text-xs text-gray-400 mt-3">กรุณากลับไปที่หน้าแชทเพื่อรอรับการยืนยัน</p>
+                        </>
+                    )}
+                    {paymentPhase === 'error' && (
+                        <>
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="text-3xl">❌</span>
+                            </div>
+                            <h2 className="text-xl font-extrabold text-gray-800 mb-2">ชำระเงินไม่สำเร็จ</h2>
+                            <p className="text-red-500 text-sm mb-6">{stripeError}</p>
+                            <button
+                                onClick={() => {
+                                    setPaymentPhase('idle');
+                                    setStripeError('');
+                                    setJoiningId(null);
+                                    fetchMatches();
+                                }}
+                                className="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold active:scale-95 transition-all"
+                            >
+                                🔄 กลับไปหน้าหาตี้
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
         );
