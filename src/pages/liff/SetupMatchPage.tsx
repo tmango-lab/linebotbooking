@@ -409,15 +409,10 @@ export default function SetupMatchPage() {
                                     <span className="text-sm font-bold text-amber-800">จ่ายเพิ่มหน้าสนาม</span>
                                     <span className="font-black text-amber-600 text-2xl tracking-tighter">฿{depositCalc.hostRemaining?.toLocaleString()}</span>
                                 </div>
-                                <div className="bg-white/60 rounded-lg p-2.5 text-[10px] text-amber-900/80 leading-relaxed border border-amber-100/50">
-                                    ⚠️ <b>ยอดชำระหน้าสนามจะเปลี่ยนไป</b> หากสิ้นสุดเวลาแล้วได้คนมาแจมไม่ครบตามเป้าหมาย ({slotsTotal} คน)
+                                <div className="bg-white/60 rounded-lg p-2.5 text-[11px] text-amber-900/80 leading-relaxed border border-amber-100/50 font-medium mt-1">
+                                    ⚠️ <b className="text-amber-800">ยอดนี้ไม่ใช่ยอดจ่ายจริง</b> หากคุณได้คนมาแจมไม่ครบตามที่ตั้งไว้
                                 </div>
                             </div>
-                            
-                            <p className="text-[11px] text-gray-500 mt-3.5 px-1.5 flex gap-1.5 font-medium leading-relaxed">
-                                <span>💡</span>
-                                <span>สรุปต้นทุนค่าสนามสุทธิในส่วนของกลุ่มคุณ ({hostTeamSize} คน) คือ <b>฿{((booking?.price_total_thb || 0) - depositCalc.joinerTotal).toLocaleString()}</b> <span className="opacity-70 font-normal">(มัดจำ + จ่ายหน้าสนาม)</span></span>
-                            </p>
                         </div>
                     </div>
                 </div>
