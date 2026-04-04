@@ -205,14 +205,39 @@ export default function SetupMatchPage() {
                         การเปิดตี้หาทีมแจมต้องมีมัดจำในระบบก่อน<br/>เพื่อเป็นหลักประกันให้ผู้เข้าร่วม
                     </p>
 
-                    <div className="bg-gray-50 border-l-4 border-green-500 rounded-lg p-3 mb-6">
-                        <p className="text-gray-800 font-bold text-sm mb-1">{booking.fieldLabel}</p>
-                        <p className="text-gray-500 text-xs mb-1">
-                            📅 {booking.date} | ⏰ {booking.time_from} - {booking.time_to}
-                        </p>
-                        <p className="text-green-600 font-bold text-lg">
-                            ฿{booking.price_total_thb?.toLocaleString()}
-                        </p>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative mb-6">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-green-500"></div>
+                        <div className="p-4">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest mb-1">ข้อมูลการจองสนาม</p>
+                                    <h2 className="text-base font-extrabold text-gray-800 leading-tight">{booking.fieldLabel}</h2>
+                                </div>
+                                <div className="bg-green-50 text-green-600 rounded-full w-8 h-8 flex items-center justify-center shrink-0 border border-green-100">
+                                    <span className="text-sm">🏟️</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2.5 mb-3 border border-gray-100/50">
+                                <div className="flex flex-col gap-0.5 w-1/2 border-r border-gray-200">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">วันที่</span>
+                                    <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-xs">
+                                        <span>📅</span> {booking.date}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-0.5 w-1/2 pl-3">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">เวลา</span>
+                                    <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-xs">
+                                        <span>⏰</span> {booking.time_from.substring(0, 5)} - {booking.time_to.substring(0, 5)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 border-dashed">
+                                <span className="text-[11px] text-gray-500 font-medium">ราคาสนามรวม</span>
+                                <span className="text-green-600 font-black text-lg tracking-tight">฿{booking.price_total_thb?.toLocaleString()}</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
@@ -258,25 +283,40 @@ export default function SetupMatchPage() {
             </header>
 
             <main className="max-w-md mx-auto p-4 flex flex-col gap-5 mt-2">
-                {/* Booking Summary Card */}
+                {/* Premium Booking Summary Card */}
                 {booking && (
-                    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div className="flex flex-col gap-2">
-                            <p className="text-gray-800 font-extrabold text-base">{booking.fieldLabel}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-2 py-1.5 rounded-lg text-gray-600 font-medium">
-                                    <span className="text-sm">📅</span> {booking.date}
-                                </span>
-                                <span className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-2 py-1.5 rounded-lg text-gray-600 font-medium">
-                                    <span className="text-sm">⏰</span> {booking.time_from.substring(0, 5)} - {booking.time_to.substring(0, 5)}
-                                </span>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-green-500"></div>
+                        <div className="p-5">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest mb-1.5">เปิดหาตี้สำหรับสนามนี้</p>
+                                    <h2 className="text-lg font-extrabold text-gray-800 leading-tight">{booking.fieldLabel}</h2>
+                                </div>
+                                <div className="bg-green-50 text-green-600 rounded-full w-10 h-10 flex items-center justify-center shrink-0 border border-green-100">
+                                    <span className="text-xl">🏟️</span>
+                                </div>
                             </div>
-                        </div>
-                        <div className="text-right pl-4 pr-1 border-l border-gray-100 shrink-0">
-                            <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">ราคาสนาม</p>
-                            <p className="text-green-600 font-black text-2xl tracking-tighter leading-none">
-                                ฿{booking.price_total_thb?.toLocaleString()}
-                            </p>
+
+                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3 mb-4 border border-gray-100/50">
+                                <div className="flex flex-col gap-1 w-1/2 border-r border-gray-200">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">วันที่</span>
+                                    <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-sm">
+                                        <span className="text-sm">📅</span> {booking.date}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-1 w-1/2 pl-4">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">เวลา</span>
+                                    <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-sm">
+                                        <span className="text-sm">⏰</span> {booking.time_from.substring(0, 5)} - {booking.time_to.substring(0, 5)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-gray-100 border-dashed">
+                                <span className="text-xs text-gray-500 font-medium">ราคาสนามรวม</span>
+                                <span className="text-green-600 font-black text-2xl tracking-tighter">฿{booking.price_total_thb?.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
                 )}
