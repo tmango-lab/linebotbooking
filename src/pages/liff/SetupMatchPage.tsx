@@ -368,22 +368,46 @@ export default function SetupMatchPage() {
                     </div>
                 </div>
 
-                {/* Calculation Result */}
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border border-green-100 shadow-sm">
-                    <p className="text-gray-500 text-xs font-semibold mb-3">การคำนวณ (ระบบหารเท่ากันอัตโนมัติ)</p>
+                {/* Calculation Result - Premium Receipt Style */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-2">
+                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                        <span className="text-sm">📊</span>
+                        <p className="text-gray-600 text-[11px] font-bold tracking-wide uppercase">สรุปบิลค่าสนาม (ยอดรวม ฿{booking?.price_total_thb?.toLocaleString()})</p>
+                    </div>
                     
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">จำนวนผู้เล่นทั้งหมด</span>
-                            <span className="font-bold text-gray-800">{depositCalc.totalPlayers} คน</span>
+                    <div className="p-5">
+                        <p className="text-center text-xs text-gray-500 mb-5 pb-5 border-b border-gray-100 border-dashed">
+                            หารเฉลี่ยจำนวนผู้เล่น <span className="font-bold text-gray-800">{depositCalc.totalPlayers} คน</span><br/>
+                            <span className="text-[10px] opacity-70">(ตี้คุณ {hostTeamSize} คน + หาคนแจม {slotsTotal} คน)</span>
+                        </p>
+
+                        <div className="mb-6">
+                            <h3 className="flex items-center gap-2 text-sm font-extrabold text-gray-700 mb-2"><span className="text-base text-blue-500">🎯</span> สมาชิกที่มาแจม</h3>
+                            <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100/50">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-sm font-medium text-gray-700">แจมผ่านระบบ (ต่อคน)</span>
+                                    <span className="font-black text-blue-600 text-xl tracking-tighter">฿{depositCalc.perPerson}</span>
+                                </div>
+                                <p className="text-[11px] text-gray-400 text-right">*(รวมรับช่วยจ่ายค่าสนาม ฿{depositCalc.joinerTotal})</p>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">หารคนละ</span>
-                            <span className="font-black text-green-600 text-xl">฿{depositCalc.perPerson}</span>
-                        </div>
-                        <div className="pt-3 border-t border-green-200 border-dashed flex justify-between items-center text-sm mt-1">
-                            <span className="text-gray-600">ยอดที่คุณเหลือจ่ายที่สนาม</span>
-                            <span className="font-bold text-amber-600">฿{depositCalc.hostRemaining?.toLocaleString()}</span>
+
+                        <div>
+                            <h3 className="flex items-center gap-2 text-sm font-extrabold text-gray-700 mb-2"><span className="text-base text-amber-500">👑</span> สรุปยอดของคุณ (เจ้าของตี้)</h3>
+                            <div className="space-y-2.5 text-xs mb-3 px-1.5 mt-3">
+                                <div className="flex justify-between text-gray-500 font-medium">
+                                    <span>มัดจำที่คุณชำระแล้ว</span>
+                                    <span>฿{booking?.deposit_amount || 0}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-500 font-medium">
+                                    <span>หักเงินระบบเก็บให้ (คนแจม)</span>
+                                    <span className="text-blue-600">- ฿{depositCalc.joinerTotal}</span>
+                                </div>
+                            </div>
+                            <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-200/60 flex justify-between items-center shadow-sm">
+                                <span className="text-sm font-bold text-amber-800">จ่ายเพิ่มหน้าสนาม</span>
+                                <span className="font-black text-amber-600 text-2xl tracking-tighter">฿{depositCalc.hostRemaining?.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
