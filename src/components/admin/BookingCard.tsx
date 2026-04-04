@@ -19,6 +19,7 @@ interface BookingCardProps {
     top: number;
     height: number;
     isDragging?: boolean;
+    hasOpenMatch?: boolean;
     onClick: (e: React.MouseEvent) => void;
     onMoveStart: (e: React.MouseEvent) => void;
     onResizeStart: (e: React.MouseEvent, direction: 'TOP' | 'BOTTOM') => void;
@@ -29,6 +30,7 @@ export default function BookingCard({
     top,
     height,
     isDragging,
+    hasOpenMatch,
     onClick,
     onMoveStart,
     onResizeStart
@@ -163,6 +165,13 @@ export default function BookingCard({
         >
             {/* Attendance Status Indicator */}
             {attendanceIcon}
+
+            {/* Open Match Badge */}
+            {hasOpenMatch && (
+                <div className="absolute top-0.5 left-0.5 bg-purple-100/90 rounded px-1 py-0 text-[8px] font-bold text-purple-700 border border-purple-200 z-20 pointer-events-none" title="เปิดตี้">
+                    🏟️
+                </div>
+            )}
 
             {/* Top Resize Handle */}
             <div

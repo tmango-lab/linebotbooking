@@ -69,6 +69,7 @@ export default function DashboardPage() {
     const [bookings, setBookings] = useState<MatchdayMatch[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [openMatchMap, setOpenMatchMap] = useState<Record<string, any>>({});
     const containerRef = useRef<HTMLDivElement>(null);
 
     // --- Interaction State ---
@@ -309,6 +310,20 @@ export default function DashboardPage() {
                 return { ...b, name: name || desc, tel: tel, price: finalPrice };
             });
             setBookings(parsed);
+
+            // Fetch open_matches for this date's bookings
+            if (parsed.length > 0) {
+                const bookingIds = parsed.map((b: any) => String(b.id));
+                const { data: matches } = await supabase
+                    .from('open_matches')
+                    .select('*')
+                    .in('booking_id', bookingIds);
+                const map: Record<string, any> = {};
+                (matches || []).forEach((m: any) => { map[m.booking_id] = m; });
+                setOpenMatchMap(map);
+            } else {
+                setOpenMatchMap({});
+            }
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -733,6 +748,7 @@ export default function DashboardPage() {
                                                 booking={b}
                                                 top={calculatePosition(b.time_start)}
                                                 height={calculateHeight(b.time_start, b.time_end)}
+                                                hasOpenMatch={!!openMatchMap[String(b.id)]}
                                                 onClick={() => setViewingBooking(b)}
                                                 onMoveStart={(e) => handleBookingMoveStart(e, b)}
                                                 onResizeStart={(_, dir) => handleBookingResizeStart(b, dir)}
@@ -817,6 +833,7 @@ export default function DashboardPage() {
             <BookingDetailModal
                 isOpen={!!viewingBooking}
                 booking={viewingBooking ? { ...viewingBooking, court_name: COURTS.find(c => c.id === viewingBooking.court_id)?.name || 'ไม่ระบุ' } : null}
+                openMatch={viewingBooking ? openMatchMap[String(viewingBooking.id)] || null : null}
                 onClose={() => setViewingBooking(null)}
                 onBookingCancelled={() => { setViewingBooking(null); fetchBookings(selectedDate); }}
                 onBookingUpdated={() => fetchBookings(selectedDate, true)}
