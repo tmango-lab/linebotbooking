@@ -58,6 +58,7 @@ export default function MatchBoardPage() {
 
     // Join state
     const [joiningId, setJoiningId] = useState<string | null>(null);
+    const [isLoadingJoin, setIsLoadingJoin] = useState(false);
     const [joinConsent, setJoinConsent] = useState(false);
     const [joinError, setJoinError] = useState('');
     const [joinSuccess, setJoinSuccess] = useState(false);
@@ -89,6 +90,8 @@ export default function MatchBoardPage() {
     }
 
     async function handleJoin(matchId: string) {
+        setJoiningId(matchId);
+        
         if (!joinConsent) {
             setJoinError('กรุณากดยอมรับเงื่อนไขก่อน');
             return;
@@ -99,7 +102,7 @@ export default function MatchBoardPage() {
         }
 
         setJoinError('');
-        setJoiningId(matchId);
+        setIsLoadingJoin(true);
 
         try {
             const res = await fetch(`${SUPABASE_URL}/functions/v1/join-match`, {
@@ -122,7 +125,8 @@ export default function MatchBoardPage() {
             }
         } catch (err: any) {
             setJoinError(err.message);
-            setJoiningId(null);
+        } finally {
+            setIsLoadingJoin(false);
         }
     }
 
@@ -189,7 +193,8 @@ export default function MatchBoardPage() {
                         {matches.map(match => {
                             const skill = SKILL_MAP[match.skill_level] || SKILL_MAP.casual;
                             const slotsLeft = match.slots_total - match.slots_filled;
-                            const isJoining = joiningId === match.id;
+                            const isJoiningThis = joiningId === match.id;
+                            const isSpinningThis = isLoadingJoin && isJoiningThis;
                             const fillPercent = (match.slots_filled / match.slots_total) * 100;
 
                             return (
@@ -288,7 +293,7 @@ export default function MatchBoardPage() {
 
                                         <button
                                             onClick={() => handleJoin(match.id)}
-                                            disabled={isJoining || slotsLeft <= 0}
+                                            disabled={isSpinningThis || slotsLeft <= 0}
                                             className={`
                                                 w-full py-3.5 rounded-xl text-white font-bold text-sm
                                                 transition-all active:scale-[0.98]
@@ -296,10 +301,10 @@ export default function MatchBoardPage() {
                                                     ? 'bg-gray-300 cursor-not-allowed'
                                                     : 'bg-gradient-to-r from-green-600 to-green-500 hover:shadow-lg hover:shadow-green-200'
                                                 }
-                                                ${isJoining ? 'opacity-50 cursor-wait' : ''}
+                                                ${isSpinningThis ? 'opacity-50 cursor-wait' : ''}
                                             `}
                                         >
-                                            {isJoining
+                                            {isSpinningThis
                                                 ? '⏳ กำลังเข้าร่วม...'
                                                 : slotsLeft <= 0
                                                     ? '🔒 เต็มแล้ว'
