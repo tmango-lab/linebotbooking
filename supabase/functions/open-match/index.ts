@@ -66,7 +66,7 @@ serve(async (req) => {
                 .in('status', ['open', 'full'])
                 .maybeSingle();
 
-            if (existingMatch) throw new Error('This booking already has an active Open Match');
+            if (existingMatch) throw new Error('คิวจองนี้มีการเปิดหาตี้อยู่แล้ว (ไม่สามารถเปิดซ้ำได้)');
 
             // 4. คำนวณ deposit_per_joiner (Auto-Split)
             const totalPrice = booking.price_total_thb || 0;

@@ -30,6 +30,18 @@ interface MatchItem {
     };
 }
 
+const formatDateThai = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return dateStr;
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+};
+
 const SKILL_MAP: Record<string, { label: string; color: string; bg: string }> = {
     casual: { label: '🟢 สบายๆ', color: '#16a34a', bg: '#f0fdf4' },
     intermediate: { label: '🟡 ซ้อมทีมๆ', color: '#d97706', bg: '#fffbeb' },
@@ -183,36 +195,53 @@ export default function MatchBoardPage() {
                             return (
                                 <div
                                     key={match.id}
-                                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100"
+                                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 relative"
                                 >
+                                    <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-green-500"></div>
+
                                     {/* Card Header — สนาม + ระดับ */}
-                                    <div className="px-5 pt-5 pb-3 flex justify-between items-center">
-                                        <span className="text-base font-bold text-gray-800">{match.fieldLabel}</span>
+                                    <div className="px-5 pt-4 pb-3 flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest mb-1.5">เปิดรับคนแจม</p>
+                                            <h2 className="text-lg font-extrabold text-gray-800 leading-tight">{match.fieldLabel}</h2>
+                                        </div>
                                         <span
-                                            className="text-xs font-semibold px-3 py-1 rounded-full"
-                                            style={{ backgroundColor: skill.bg, color: skill.color }}
+                                            className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+                                            style={{ backgroundColor: skill.bg, color: skill.color, borderColor: skill.color + '30' }}
                                         >
                                             {skill.label}
                                         </span>
                                     </div>
 
-                                    {/* Info Grid */}
-                                    <div className="px-5 pb-3 grid grid-cols-2 gap-y-2 gap-x-4 text-sm text-gray-600">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-base">📅</span>
-                                            <span>{match.booking?.date}</span>
+                                    {/* Date and Time (Grey Card) */}
+                                    <div className="mx-5 mb-4 flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-100/50">
+                                        <div className="flex flex-col gap-1 w-1/2 border-r border-gray-200">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">วันที่</span>
+                                            <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-sm">
+                                                <span className="text-sm">📅</span> {formatDateThai(match.booking?.date)}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-base">⏰</span>
-                                            <span>{match.booking?.time_from} - {match.booking?.time_to}</span>
+                                        <div className="flex flex-col gap-1 w-1/2 pl-4">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">เวลา</span>
+                                            <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-sm">
+                                                <span className="text-sm">⏰</span> {match.booking?.time_from?.substring(0, 5)} - {match.booking?.time_to?.substring(0, 5)}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-base">👥</span>
-                                            <span>ขาดอีก <b className="text-green-600">{slotsLeft}</b> คน</span>
+                                    </div>
+
+                                    {/* Details (Price & Slots) */}
+                                    <div className="mx-5 pb-4 mb-2 grid grid-cols-2 gap-4 border-b border-gray-100 border-dashed">
+                                        <div className="flex flex-col gap-1 justify-end">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ต้องการเพิ่ม</span>
+                                            <div className="flex items-center gap-1 text-gray-700 font-medium text-sm">
+                                                👥 ขาดอีก <b className="text-blue-600 ml-1">{slotsLeft}</b> คน
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-base">💰</span>
-                                            <span>มัดจำ <b className="text-green-600 text-lg">฿{match.deposit_per_joiner}</b></span>
+                                        <div className="flex flex-col gap-1 pl-4 border-l border-gray-100">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">มัดจำสัดส่วน (ต่อคน)</span>
+                                            <div className="flex items-center gap-1.5 text-green-600 font-black text-2xl tracking-tighter leading-none">
+                                                ฿{match.deposit_per_joiner}
+                                            </div>
                                         </div>
                                     </div>
 
