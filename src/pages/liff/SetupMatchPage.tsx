@@ -422,8 +422,8 @@ export default function SetupMatchPage() {
                     <label className="block text-gray-700 font-bold text-sm mb-3">🎮 ระดับการเล่น</label>
                     <div className="flex gap-2">
                         {[
-                            { value: 'casual', label: '🟢 ลำลอง', activeColor: 'bg-green-50 border-green-500 text-green-700', inactiveColor: 'bg-white border-gray-200 text-gray-600' },
-                            { value: 'intermediate', label: '🟡 ปานกลาง', activeColor: 'bg-amber-50 border-amber-500 text-amber-700', inactiveColor: 'bg-white border-gray-200 text-gray-600' },
+                            { value: 'casual', label: '🟢 สบายๆ', activeColor: 'bg-green-50 border-green-500 text-green-700', inactiveColor: 'bg-white border-gray-200 text-gray-600' },
+                            { value: 'intermediate', label: '🟡 ซ้อมทีมๆ', activeColor: 'bg-amber-50 border-amber-500 text-amber-700', inactiveColor: 'bg-white border-gray-200 text-gray-600' },
                             { value: 'competitive', label: '🔴 จริงจัง', activeColor: 'bg-red-50 border-red-500 text-red-700', inactiveColor: 'bg-white border-gray-200 text-gray-600' },
                         ].map(opt => (
                             <button

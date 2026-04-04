@@ -31,8 +31,8 @@ interface MatchItem {
 }
 
 const SKILL_MAP: Record<string, { label: string; color: string; bg: string }> = {
-    casual: { label: '🟢 ลำลอง', color: '#16a34a', bg: '#f0fdf4' },
-    intermediate: { label: '🟡 ปานกลาง', color: '#d97706', bg: '#fffbeb' },
+    casual: { label: '🟢 สบายๆ', color: '#16a34a', bg: '#f0fdf4' },
+    intermediate: { label: '🟡 ซ้อมทีมๆ', color: '#d97706', bg: '#fffbeb' },
     competitive: { label: '🔴 จริงจัง', color: '#dc2626', bg: '#fef2f2' },
 };
 
