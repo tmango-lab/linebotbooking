@@ -217,6 +217,22 @@ System sends a standardized confirmation message via LINE:
 | `get-bookings/index.ts` | **Core**: Fetch daily schedule (Local DB) |
 | `bookingService.ts` / `searchService.ts` | Shared logic for slot availability (Bot) |
 | `validate-promo-code/index.ts` | Check code validity & slot status |
+| `open-match/index.ts` | **Open Match**: Host creates a shared booking room |
+| `join-match/index.ts` | **Open Match**: Joiner requests to join + Stripe payment |
+| `stripe-webhook/index.ts` | **Open Match**: Handles Stripe payment confirmation for joiners |
+
+### Frontend Pages (LIFF)
+| File | Purpose |
+|------|---------|
+| `src/pages/liff/SetupMatchPage.tsx` | Host creates Open Match (select skill level, team size, slots) |
+| `src/pages/liff/MatchBoardPage.tsx` | Public board + inline Stripe PromptPay payment for joiners |
+
+### Frontend Pages (Admin)
+| File | Purpose |
+|------|---------|
+| `src/pages/admin/DashboardPage.tsx` | Main booking grid with Open Match badge on BookingCard |
+| `src/components/admin/BookingCard.tsx` | Visual card with 🏟️ badge for Open Match bookings |
+| `src/components/ui/BookingDetailModal.tsx` | Detail modal with Open Match section (joiners, deposits) |
 
 ---
 
@@ -1165,3 +1181,114 @@ To prevent spam, the function ignores updates that do not change critical bookin
 
 ---
 
+## 27. Open Match — Shared Booking (เปิดตี้) (2026-04)
+
+### 27.1 Overview
+Allows a **Host** (ผู้ถือจอง) to open their existing booking for others to join and share the cost. The system splits the field rental fee among participants.
+
+**Key Terminology**:
+- **Host**: The booking owner who opens a match
+- **Joiner**: Other users who pay a deposit to join
+- **Match Board**: Public page listing open matches
+
+### 27.2 Database Schema
+**Migration**: `supabase/migrations/20260402_open_match.sql`
+
+#### `open_matches` Table
+```sql
+CREATE TABLE public.open_matches (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    booking_id TEXT NOT NULL,                      -- FK → bookings.booking_id
+    host_user_id TEXT NOT NULL,                    -- LINE user ID of Host
+    host_team_size INT NOT NULL DEFAULT 1,         -- Host's group size
+    slots_total INT NOT NULL DEFAULT 1,            -- How many joiners needed
+    slots_filled INT NOT NULL DEFAULT 0,           -- Confirmed joiners count
+    deposit_per_joiner INT NOT NULL,               -- Per-joiner deposit (THB)
+    deposit_mode TEXT NOT NULL DEFAULT 'auto',     -- 'auto' = system calculates
+    note TEXT,                                     -- Host's message
+    skill_level TEXT NOT NULL DEFAULT 'casual',    -- casual, intermediate, competitive
+    status TEXT NOT NULL DEFAULT 'open',           -- open, full, cancelled, expired
+    expires_at TIMESTAMPTZ NOT NULL,               -- Auto-expire 1hr before match
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Unique constraint: 1 booking → 1 active open_match
+CREATE UNIQUE INDEX unique_active_match ON open_matches(booking_id) WHERE status IN ('open', 'full');
+```
+
+#### `match_joiners` Table
+```sql
+CREATE TABLE public.match_joiners (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    match_id UUID NOT NULL REFERENCES open_matches(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,                         -- LINE user ID of Joiner
+    status TEXT NOT NULL DEFAULT 'pending_payment', -- pending_payment, joined, refunded
+    deposit_paid INT,                              -- Amount paid (THB)
+    stripe_payment_intent_id TEXT,                 -- For Stripe refund
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(match_id, user_id)
+);
+```
+
+### 27.3 Atomic RPC Functions
+1. **`try_join_match(p_match_id, p_user_id, p_deposit, p_stripe_pi)`**: Atomically locks the match row, validates slots, and inserts a `pending_payment` joiner. Prevents race conditions.
+2. **`confirm_match_joiner(p_joiner_id)`**: Called by Stripe webhook after payment succeeds. Updates joiner to `joined`, increments `slots_filled`, and auto-sets match to `full` if all slots filled.
+
+### 27.4 Edge Functions
+
+| Function | Purpose |
+|----------|---------|
+| `open-match` | Host creates an open match. Validates booking ownership, calculates `deposit_per_joiner`, inserts into `open_matches`. |
+| `join-match` | Joiner requests to join. Creates Stripe PaymentIntent (PromptPay), calls `try_join_match` RPC. **Beta-gated** via `TEST_USER_IDS`. |
+| `stripe-webhook` | Handles `payment_intent.succeeded` for match joiners. Calls `confirm_match_joiner` RPC, sends LINE notifications to both Host and Joiner. |
+
+### 27.5 LIFF Pages
+
+#### SetupMatchPage (`/liff/setup-match`)
+- Host selects: skill level (สบายๆ/ซ้อมทีมๆ/จริงจัง), host team size, joiner slots, optional note
+- System auto-calculates `deposit_per_joiner = price / (host_team_size + slots_total)`
+- Validates: booking must belong to user, no existing active match
+
+#### MatchBoardPage (`/liff/match-board`)
+- Public board showing all open matches with booking details
+- **Inline Stripe PromptPay** payment flow (no redirect):
+  1. Loading Stripe → 2. QR Code Display → 3. Payment Success/Error
+- Payment states managed entirely within the page
+
+### 27.6 Admin Dashboard Integration
+- **BookingCard** (`src/components/admin/BookingCard.tsx`): Shows 🏟️ badge (purple) on bookings with active open matches
+- **BookingDetailModal**: When opening a booking with an open match, shows a purple "ข้อมูลเปิดตี้" section:
+  - Match status (🟢 เปิดอยู่ / 🔵 เต็มแล้ว / ⚫ หมดเวลา)
+  - Skill level, participant count, host group size
+  - Per-joiner deposit, total collected deposit
+  - **Joiner list** with name, phone, payment status, amount paid
+- Data is fetched via Supabase direct query (`open_matches` + `match_joiners` + `profiles`)
+
+### 27.7 Payment Flow (Joiner)
+```mermaid
+sequenceDiagram
+    participant J as Joiner (LIFF)
+    participant JM as join-match
+    participant S as Stripe
+    participant SW as stripe-webhook
+    participant DB as Supabase DB
+    participant L as LINE
+
+    J->>JM: POST (matchId, userId)
+    JM->>S: Create PaymentIntent (PromptPay)
+    JM->>DB: try_join_match() → pending_payment
+    JM-->>J: clientSecret
+    J->>J: Show QR Code (Stripe.js)
+    J->>S: User pays via PromptPay
+    S->>SW: payment_intent.succeeded
+    SW->>DB: confirm_match_joiner() → joined
+    SW->>L: Notify Host + Joiner
+```
+
+### 27.8 Known Limitations & Next Steps
+- **Beta Gate**: `join-match` currently restricted to `TEST_USER_IDS`. Remove for public launch.
+- **Stripe Charge Amount**: Currently charges a test amount. Update to full `depositAmount` for production.
+- **No Refund Flow**: Joiner cancellation/refund is not yet implemented.
+- **No Expiry Cron**: No cron job to auto-expire matches past `expires_at`. Need to add.
+
+---
