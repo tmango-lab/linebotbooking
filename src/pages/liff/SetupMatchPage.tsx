@@ -22,6 +22,18 @@ interface BookingInfo {
     fieldLabel?: string;
 }
 
+const formatDateThai = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return dateStr;
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+};
+
 export default function SetupMatchPage() {
     const { liffUser } = useLiff();
     const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
@@ -222,7 +234,7 @@ export default function SetupMatchPage() {
                                 <div className="flex flex-col gap-0.5 w-1/2 border-r border-gray-200">
                                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">วันที่</span>
                                     <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-xs">
-                                        <span>📅</span> {booking.date}
+                                        <span>📅</span> {formatDateThai(booking.date)}
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-0.5 w-1/2 pl-3">
@@ -302,7 +314,7 @@ export default function SetupMatchPage() {
                                 <div className="flex flex-col gap-1 w-1/2 border-r border-gray-200">
                                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">วันที่</span>
                                     <div className="flex items-center gap-1.5 text-gray-700 font-semibold text-sm">
-                                        <span className="text-sm">📅</span> {booking.date}
+                                        <span className="text-sm">📅</span> {formatDateThai(booking.date)}
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-1 w-1/2 pl-4">
@@ -366,7 +378,7 @@ export default function SetupMatchPage() {
                             <span className="font-bold text-gray-800">{depositCalc.totalPlayers} คน</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">ค่าสนามผู้เข้าร่วม (ต่อคน)</span>
+                            <span className="text-gray-600">หารคนละ</span>
                             <span className="font-black text-green-600 text-xl">฿{depositCalc.perPerson}</span>
                         </div>
                         <div className="pt-3 border-t border-green-200 border-dashed flex justify-between items-center text-sm mt-1">
