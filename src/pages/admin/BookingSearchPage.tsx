@@ -81,6 +81,20 @@ interface BookingRow {
     updated_at?: string;
 }
 
+interface OpenMatchInfo {
+    id: string;
+    booking_id: string;
+    status: string;
+    slots_total: number;
+    slots_filled: number;
+    host_team_size: number;
+    deposit_per_joiner: number;
+    skill_level: string;
+    note: string | null;
+    host_user_id: string;
+    expires_at: string;
+}
+
 // Helper to check if set has id
 function useSelection() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -132,6 +146,9 @@ export default function BookingSearchPage() {
 
     // State to track if initial search has been done
     const [hasSearched, setHasSearched] = useState(false);
+
+    // Open Match data map: booking_id → OpenMatchInfo
+    const [openMatchMap, setOpenMatchMap] = useState<Record<string, OpenMatchInfo>>({});
 
     async function fetchBookings() {
         setLoading(true);
@@ -197,6 +214,20 @@ export default function BookingSearchPage() {
             setBookings(data || []);
             setPage(1);
             setHasSearched(true);
+
+            // Fetch open_matches for all returned bookings
+            if (data && data.length > 0) {
+                const bookingIds = data.map((b: any) => b.booking_id);
+                const { data: matches } = await supabase
+                    .from('open_matches')
+                    .select('*')
+                    .in('booking_id', bookingIds);
+                const map: Record<string, OpenMatchInfo> = {};
+                (matches || []).forEach((m: any) => { map[m.booking_id] = m; });
+                setOpenMatchMap(map);
+            } else {
+                setOpenMatchMap({});
+            }
         } catch (err: any) {
             console.error('Fetch error:', err);
             setError(err.message || 'Failed to fetch bookings');
@@ -691,6 +722,11 @@ export default function BookingSearchPage() {
                                                     <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(b.status)}`}>
                                                         {b.status}
                                                     </span>
+                                                    {openMatchMap[b.booking_id] && (
+                                                        <span className="ml-1 inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-700">
+                                                            🏟️ เปิดตี้
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                                     {formatSource(b.source || b.booking_source)}
@@ -742,6 +778,7 @@ export default function BookingSearchPage() {
                 isOpen={modalOpen}
                 onClose={() => setModalOpen(false)}
                 booking={selectedBooking}
+                openMatch={selectedBooking ? openMatchMap[selectedBooking.id] || null : null}
                 onBookingCancelled={() => { setModalOpen(false); fetchBookings(); }}
                 onBookingUpdated={() => { setModalOpen(false); fetchBookings(); }}
                 onReschedule={handleReschedule}

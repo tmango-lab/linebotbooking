@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatDate, formatDateTime, formatTime } from '../../utils/date';
-import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift } from 'lucide-react';
+import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift, Users } from 'lucide-react';
+import { supabase } from '../../lib/api';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
@@ -40,9 +41,22 @@ interface BookingDetailModalProps {
     onBookingCancelled: () => void;
     onBookingUpdated?: () => void;
     onReschedule?: (date: string) => void;
+    openMatch?: {
+        id: string;
+        booking_id: string;
+        status: string;
+        slots_total: number;
+        slots_filled: number;
+        host_team_size: number;
+        deposit_per_joiner: number;
+        skill_level: string;
+        note: string | null;
+        host_user_id: string;
+        expires_at: string;
+    } | null;
 }
 
-export default function BookingDetailModal({ isOpen, onClose, booking, onBookingCancelled, onBookingUpdated, onReschedule }: BookingDetailModalProps) {
+export default function BookingDetailModal({ isOpen, onClose, booking, openMatch, onBookingCancelled, onBookingUpdated, onReschedule }: BookingDetailModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -58,6 +72,10 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
     const [isPaid, setIsPaid] = useState(false);
     const [isAttendanceConfirmed, setIsAttendanceConfirmed] = useState(false);
 
+    // Open Match joiner data
+    const [matchJoiners, setMatchJoiners] = useState<any[]>([]);
+    const [loadingJoiners, setLoadingJoiners] = useState(false);
+
     // Reset state when modal opens or booking changes
     useEffect(() => {
         if (isOpen && booking) {
@@ -66,9 +84,6 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setEditTel(booking.tel || '');
             setEditPrice(booking.price?.toString() || '0');
             setEditNote(booking.admin_note || '');
-            // Use paid_at as single source of truth (same as BookingCard)
-            // For Cash bookings: paid_at is null until admin confirms → shows "Unpaid"
-            // For QR bookings: deposit_paid means deposit received, not fully paid
             const ps = booking.payment_status;
             setIsPaid(ps === 'paid' || !!booking.paid_at);
             setIsAttendanceConfirmed(booking.attendance_status === 'confirmed');
@@ -76,8 +91,40 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
             setError(null);
             setIsConfirming(false);
             setCancelReason('');
+
+            // Fetch joiners if open match exists
+            if (openMatch?.id) {
+                const matchId = openMatch.id;
+                setLoadingJoiners(true);
+                (async () => {
+                    try {
+                        const { data: joiners } = await supabase
+                            .from('match_joiners')
+                            .select('*')
+                            .eq('match_id', matchId)
+                            .order('joined_at', { ascending: true });
+                        
+                        const userIds = (joiners || []).map((j: any) => j.user_id);
+                        let profileMap: Record<string, any> = {};
+                        if (userIds.length > 0) {
+                            const { data: profiles } = await supabase
+                                .from('profiles')
+                                .select('user_id, team_name, phone_number')
+                                .in('user_id', userIds);
+                            (profiles || []).forEach((p: any) => { profileMap[p.user_id] = p; });
+                        }
+                        setMatchJoiners((joiners || []).map((j: any) => ({
+                            ...j,
+                            profile: profileMap[j.user_id] || null,
+                        })));
+                    } catch { /* silent */ }
+                    setLoadingJoiners(false);
+                })();
+            } else {
+                setMatchJoiners([]);
+            }
         }
-    }, [isOpen, booking?.id]);
+    }, [isOpen, booking?.id, openMatch?.id]);
 
     if (!isOpen || !booking) return null;
 
@@ -714,6 +761,84 @@ export default function BookingDetailModal({ isOpen, onClose, booking, onBooking
                                 {booking.remark && (
                                     <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-800 italic">
                                         <span className="font-bold not-italic">Note ลูกค้า:</span> "{booking.remark}"
+                                    </div>
+                                )}
+
+                                {/* Open Match Section */}
+                                {openMatch && (
+                                    <div className="bg-purple-50 p-5 rounded-xl border border-purple-200">
+                                        <h4 className="text-sm uppercase tracking-wide text-purple-700 font-bold mb-3 flex items-center gap-2">
+                                            <Users className="w-4 h-4" /> 🏟️ ข้อมูลเปิดตี้
+                                        </h4>
+
+                                        <div className="space-y-2 text-sm mb-4">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">สถานะตี้</span>
+                                                <span className={`font-bold ${openMatch.status === 'open' ? 'text-green-600' : openMatch.status === 'full' ? 'text-blue-600' : 'text-gray-500'}`}>
+                                                    {openMatch.status === 'open' ? '🟢 เปิดอยู่' : openMatch.status === 'full' ? '🔵 เต็มแล้ว' : openMatch.status === 'expired' ? '⚫ หมดเวลา' : openMatch.status}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">ระดับการเล่น</span>
+                                                <span className="font-bold text-gray-800">
+                                                    {openMatch.skill_level === 'casual' ? '🟢 สบายๆ' : openMatch.skill_level === 'intermediate' ? '🟡 ซ้อมทีมๆ' : '🔴 จริงจัง'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">ผู้เข้าร่วม</span>
+                                                <span className="font-bold text-gray-800">{openMatch.slots_filled}/{openMatch.slots_total} คน</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">กลุ่มโฮส</span>
+                                                <span className="font-bold text-gray-800">{openMatch.host_team_size} คน</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">มัดจำต่อคน</span>
+                                                <span className="font-bold text-green-600">฿{openMatch.deposit_per_joiner}</span>
+                                            </div>
+                                            {(() => {
+                                                const confirmedJoiners = matchJoiners.filter(j => j.status === 'confirmed');
+                                                const totalJoinerDeposit = confirmedJoiners.length * openMatch.deposit_per_joiner;
+                                                return (
+                                                    <div className="flex justify-between pt-2 border-t border-purple-200">
+                                                        <span className="text-gray-600 font-semibold">มัดจำรวมที่เก็บได้</span>
+                                                        <span className="font-bold text-green-700 text-base">฿{totalJoinerDeposit} ({confirmedJoiners.length} คน)</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {openMatch.note && (
+                                                <div className="pt-2 border-t border-purple-200 text-xs text-gray-500">
+                                                    💬 {openMatch.note}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Joiners List */}
+                                        <h5 className="text-xs uppercase tracking-wide text-purple-600 font-bold mb-2">รายชื่อผู้เข้าร่วม</h5>
+                                        {loadingJoiners ? (
+                                            <div className="text-center py-3">
+                                                <Loader2 className="w-4 h-4 animate-spin mx-auto text-purple-400" />
+                                            </div>
+                                        ) : matchJoiners.length === 0 ? (
+                                            <p className="text-xs text-gray-400 text-center py-2">ยังไม่มีผู้เข้าร่วม</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {matchJoiners.map((j: any, idx: number) => (
+                                                    <div key={j.id || idx} className="bg-white rounded-lg p-3 border border-purple-100 flex justify-between items-center">
+                                                        <div>
+                                                            <div className="font-bold text-gray-800 text-sm">{j.profile?.team_name || 'ไม่ระบุชื่อ'}</div>
+                                                            <div className="text-xs text-gray-500">{j.profile?.phone_number || '-'}</div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${j.status === 'confirmed' ? 'bg-green-100 text-green-700' : j.status === 'pending_payment' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                                {j.status === 'confirmed' ? '✅ จ่ายแล้ว' : j.status === 'pending_payment' ? '⏳ รอจ่าย' : j.status}
+                                                            </span>
+                                                            <div className="text-xs font-bold text-gray-700 mt-1">฿{j.deposit_paid}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
