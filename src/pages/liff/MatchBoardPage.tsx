@@ -1,12 +1,12 @@
 // src/pages/liff/MatchBoardPage.tsx
 // LIFF: กระดานหาทีมแจม (Match Board สำหรับ Joiner)
+// Theme: Light — ให้ตรงกับ BookingV3Page
 
 import { useState, useEffect } from 'react';
 import { useLiff } from '../../providers/LiffProvider';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
 
 interface MatchItem {
     id: string;
@@ -30,10 +30,10 @@ interface MatchItem {
     };
 }
 
-const SKILL_MAP: Record<string, { label: string; color: string }> = {
-    casual: { label: '🟢 ลำลอง', color: '#4CAF50' },
-    intermediate: { label: '🟡 ปานกลาง', color: '#FF9800' },
-    competitive: { label: '🔴 จริงจัง', color: '#F44336' },
+const SKILL_MAP: Record<string, { label: string; color: string; bg: string }> = {
+    casual: { label: '🟢 ลำลอง', color: '#16a34a', bg: '#f0fdf4' },
+    intermediate: { label: '🟡 ปานกลาง', color: '#d97706', bg: '#fffbeb' },
+    competitive: { label: '🔴 จริงจัง', color: '#dc2626', bg: '#fef2f2' },
 };
 
 export default function MatchBoardPage() {
@@ -51,13 +51,11 @@ export default function MatchBoardPage() {
     const [joinSuccess, setJoinSuccess] = useState(false);
     const [paymentUrl, setPaymentUrl] = useState('');
 
-    // Fetch open matches
-    useEffect(() => {
-        fetchMatches();
-    }, []);
+    useEffect(() => { fetchMatches(); }, []);
 
     async function fetchMatches() {
         setLoading(true);
+        setError('');
         try {
             const res = await fetch(`${SUPABASE_URL}/functions/v1/open-match`, {
                 method: 'POST',
@@ -104,9 +102,7 @@ export default function MatchBoardPage() {
             const data = await res.json();
             if (!res.ok || data.error) throw new Error(data.error || 'ไม่สามารถเข้าร่วมได้');
 
-            // สร้าง PromptPay QR URL สำหรับ redirect ไปจ่าย
             if (data.clientSecret && data.paymentIntentId) {
-                // redirect ไปยังหน้า payment ของ Stripe
                 setPaymentUrl(`/booking-success?payment_intent_client_secret=${data.clientSecret}&type=match_join&matchId=${matchId}&amount=${data.amount}`);
                 setJoinSuccess(true);
             } else {
@@ -118,16 +114,14 @@ export default function MatchBoardPage() {
         }
     }
 
-    // ─── Success (redirect to payment) ────────
+    // ─── Redirect to payment ────────
     if (joinSuccess && paymentUrl) {
         window.location.hash = paymentUrl;
         return (
-            <div style={styles.container}>
-                <div style={styles.card}>
-                    <div style={{ textAlign: 'center' as const }}>
-                        <div style={styles.spinner} />
-                        <p style={{ marginTop: 16, color: '#666' }}>กำลังพาไปหน้าชำระเงิน...</p>
-                    </div>
+            <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl p-8 shadow-sm text-center max-w-sm w-full">
+                    <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="text-gray-500 mt-4 text-sm">กำลังพาไปหน้าชำระเงิน...</p>
                 </div>
             </div>
         );
@@ -136,251 +130,159 @@ export default function MatchBoardPage() {
     // ─── Loading ──────────────
     if (loading) {
         return (
-            <div style={styles.container}>
-                <div style={styles.spinner} />
-                <p style={{ color: '#aaa', marginTop: 16 }}>กำลังค้นหาห้องเตะบอล...</p>
+            <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center justify-center p-4">
+                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-gray-400 mt-4 text-sm">กำลังค้นหาห้องเตะบอล...</p>
             </div>
         );
     }
 
     return (
-        <div style={styles.container}>
-            <div style={{ width: '100%', maxWidth: 440 }}>
-                <h2 style={styles.pageTitle}>⚽ หาทีมแจม</h2>
-                <p style={styles.pageSubtitle}>เลือกห้องที่สนใจแล้วกดเข้าร่วมได้เลย!</p>
+        <div className="min-h-screen bg-[#F0F2F5] pb-8">
+            {/* Header — ตรงกับ BookingV3 */}
+            <header className="bg-white px-4 py-3 shadow-sm sticky top-0 z-50 border-b border-gray-100">
+                <div className="max-w-lg mx-auto flex items-center gap-3">
+                    <span className="text-2xl">⚽</span>
+                    <div>
+                        <h1 className="text-base font-extrabold text-gray-800 leading-tight">หาทีมแจม</h1>
+                        <p className="text-[11px] text-gray-400 font-medium">เลือกห้องที่สนใจแล้วกดเข้าร่วมได้เลย!</p>
+                    </div>
+                </div>
+            </header>
 
-                {error && <p style={styles.errorBox}>❌ {error}</p>}
+            <main className="max-w-lg mx-auto px-4 mt-4">
+                {/* Error Banner */}
+                {error && (
+                    <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm font-medium border border-red-100 flex items-center gap-2">
+                        <span>⚠️</span>
+                        <span>{error}</span>
+                    </div>
+                )}
 
+                {/* Empty State */}
                 {matches.length === 0 ? (
-                    <div style={styles.emptyCard}>
-                        <p style={{ fontSize: 48, margin: 0 }}>🏟️</p>
-                        <p style={{ color: '#666', margin: '8px 0 0' }}>ยังไม่มีห้องที่เปิดรับตอนนี้</p>
-                        <p style={{ color: '#999', fontSize: 13 }}>ลองเข้ามาดูใหม่ภายหลังนะครับ</p>
-                        <button onClick={fetchMatches} style={styles.refreshBtn}>🔄 รีเฟรช</button>
+                    <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
+                        <div className="text-5xl mb-3">🏟️</div>
+                        <p className="text-gray-600 font-semibold text-sm">ยังไม่มีห้องที่เปิดรับตอนนี้</p>
+                        <p className="text-gray-400 text-xs mt-1">ลองเข้ามาดูใหม่ภายหลังนะครับ</p>
+                        <button
+                            onClick={fetchMatches}
+                            className="mt-5 px-6 py-2.5 rounded-xl border-2 border-green-500 text-green-600 font-bold text-sm hover:bg-green-50 active:scale-95 transition-all"
+                        >
+                            🔄 รีเฟรช
+                        </button>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div className="flex flex-col gap-4">
                         {matches.map(match => {
                             const skill = SKILL_MAP[match.skill_level] || SKILL_MAP.casual;
                             const slotsLeft = match.slots_total - match.slots_filled;
                             const isJoining = joiningId === match.id;
-
+                            const fillPercent = (match.slots_filled / match.slots_total) * 100;
 
                             return (
-                                <div key={match.id} style={styles.matchCard}>
-                                    {/* Header */}
-                                    <div style={styles.matchHeader}>
-                                        <span style={{ fontSize: 16, fontWeight: 700 }}>{match.fieldLabel}</span>
-                                        <span style={{ ...styles.skillBadge, backgroundColor: `${skill.color}20`, color: skill.color }}>
+                                <div
+                                    key={match.id}
+                                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100"
+                                >
+                                    {/* Card Header — สนาม + ระดับ */}
+                                    <div className="px-5 pt-5 pb-3 flex justify-between items-center">
+                                        <span className="text-base font-bold text-gray-800">{match.fieldLabel}</span>
+                                        <span
+                                            className="text-xs font-semibold px-3 py-1 rounded-full"
+                                            style={{ backgroundColor: skill.bg, color: skill.color }}
+                                        >
                                             {skill.label}
                                         </span>
                                     </div>
 
-                                    {/* Info */}
-                                    <div style={styles.matchInfo}>
-                                        <div style={styles.infoRow}>
-                                            <span>📅</span>
+                                    {/* Info Grid */}
+                                    <div className="px-5 pb-3 grid grid-cols-2 gap-y-2 gap-x-4 text-sm text-gray-600">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base">📅</span>
                                             <span>{match.booking?.date}</span>
                                         </div>
-                                        <div style={styles.infoRow}>
-                                            <span>⏰</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base">⏰</span>
                                             <span>{match.booking?.time_from} - {match.booking?.time_to}</span>
                                         </div>
-                                        <div style={styles.infoRow}>
-                                            <span>👥</span>
-                                            <span>ทีม {match.host_team_size} คน ขาดอีก <b style={{ color: '#06C755' }}>{slotsLeft}</b> คน</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base">👥</span>
+                                            <span>ขาดอีก <b className="text-green-600">{slotsLeft}</b> คน</span>
                                         </div>
-                                        <div style={styles.infoRow}>
-                                            <span>💰</span>
-                                            <span>มัดจำ <b style={{ color: '#06C755', fontSize: 18 }}>฿{match.deposit_per_joiner}</b></span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base">💰</span>
+                                            <span>มัดจำ <b className="text-green-600 text-lg">฿{match.deposit_per_joiner}</b></span>
                                         </div>
                                     </div>
 
+                                    {/* Note */}
                                     {match.note && (
-                                        <div style={styles.noteBox}>
-                                            <span>💬 {match.note}</span>
+                                        <div className="mx-5 mb-3 bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-500 border border-gray-100">
+                                            💬 {match.note}
                                         </div>
                                     )}
 
-                                    {/* Slots bar */}
-                                    <div style={styles.slotsBar}>
-                                        <div style={{ ...styles.slotsFill, width: `${(match.slots_filled / match.slots_total) * 100}%` }} />
+                                    {/* Slots Progress Bar */}
+                                    <div className="mx-5 mb-1">
+                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-500"
+                                                style={{ width: `${fillPercent}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-center text-[11px] text-gray-400 mt-1">
+                                            เข้าร่วมแล้ว {match.slots_filled}/{match.slots_total} คน
+                                        </p>
                                     </div>
-                                    <p style={{ fontSize: 12, color: '#999', textAlign: 'center' as const, margin: '4px 0 12px' }}>
-                                        เข้าร่วมแล้ว {match.slots_filled}/{match.slots_total} คน
-                                    </p>
 
                                     {/* Consent + CTA */}
-                                    <div style={styles.consentBox}>
-                                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={joinConsent}
-                                                onChange={e => { setJoinConsent(e.target.checked); setJoinError(''); }}
-                                                style={{ marginTop: 2, width: 18, height: 18, accentColor: '#F44336' }}
-                                            />
-                                            <span style={{ fontSize: 12, color: '#333', lineHeight: 1.5 }}>
-                                                ⚠️ ยอมรับว่ามัดจำ {match.deposit_per_joiner} บาท (ซึ่งเป็นค่าสนามแบบหารเท่ากัน) <b style={{ color: '#F44336' }}>ไม่สามารถยกเลิก ถอนตัว หรือขอคืนเงินได้ทุกกรณี</b>
-                                            </span>
-                                        </label>
+                                    <div className="px-5 pb-5 pt-2">
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
+                                            <label className="flex items-start gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={joinConsent}
+                                                    onChange={e => { setJoinConsent(e.target.checked); setJoinError(''); }}
+                                                    className="mt-0.5 w-4 h-4 accent-red-500 shrink-0"
+                                                />
+                                                <span className="text-[11px] text-gray-700 leading-relaxed">
+                                                    ⚠️ ยอมรับว่ามัดจำ {match.deposit_per_joiner} บาท (ค่าสนามหารเท่ากัน){' '}
+                                                    <b className="text-red-500">ไม่สามารถยกเลิก หรือขอคืนเงินได้ทุกกรณี</b>
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        {joinError && joiningId === match.id && (
+                                            <p className="text-red-500 text-xs text-center mb-2">❌ {joinError}</p>
+                                        )}
+
+                                        <button
+                                            onClick={() => handleJoin(match.id)}
+                                            disabled={isJoining || slotsLeft <= 0}
+                                            className={`
+                                                w-full py-3.5 rounded-xl text-white font-bold text-sm
+                                                transition-all active:scale-[0.98]
+                                                ${slotsLeft <= 0
+                                                    ? 'bg-gray-300 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-green-600 to-green-500 hover:shadow-lg hover:shadow-green-200'
+                                                }
+                                                ${isJoining ? 'opacity-50 cursor-wait' : ''}
+                                            `}
+                                        >
+                                            {isJoining
+                                                ? '⏳ กำลังเข้าร่วม...'
+                                                : slotsLeft <= 0
+                                                    ? '🔒 เต็มแล้ว'
+                                                    : `🤝 เข้าร่วมและชำระเงิน ฿${match.deposit_per_joiner}`}
+                                        </button>
                                     </div>
-
-                                    {joinError && joiningId === match.id && (
-                                        <p style={{ color: '#d32f2f', fontSize: 13, textAlign: 'center' as const, margin: '0 0 8px' }}>❌ {joinError}</p>
-                                    )}
-
-                                    <button
-                                        onClick={() => handleJoin(match.id)}
-                                        disabled={isJoining || slotsLeft <= 0}
-                                        style={{
-                                            ...styles.joinBtn,
-                                            opacity: isJoining || slotsLeft <= 0 ? 0.5 : 1,
-                                            background: slotsLeft <= 0
-                                                ? '#ccc'
-                                                : 'linear-gradient(135deg, #06C755, #05a547)',
-                                        }}
-                                    >
-                                        {isJoining ? '⏳ กำลังเข้าร่วม...' : slotsLeft <= 0 ? '🔒 เต็มแล้ว' : `🤝 เข้าร่วมและชำระเงิน ฿${match.deposit_per_joiner}`}
-                                    </button>
                                 </div>
                             );
                         })}
                     </div>
                 )}
-            </div>
+            </main>
         </div>
     );
 }
-
-// ─── Styles ────────────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-    container: {
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0d1117 0%, #161b22 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: 16,
-        fontFamily: "'Inter', 'Noto Sans Thai', sans-serif",
-    },
-    pageTitle: {
-        color: '#fff',
-        textAlign: 'center' as const,
-        fontSize: 24,
-        fontWeight: 800,
-        margin: '16px 0 4px',
-    },
-    pageSubtitle: {
-        color: '#aaa',
-        textAlign: 'center' as const,
-        fontSize: 14,
-        margin: '0 0 20px',
-    },
-    errorBox: {
-        color: '#ff6b6b',
-        textAlign: 'center' as const,
-        fontSize: 14,
-        marginBottom: 12,
-    },
-    card: {
-        background: '#fff',
-        borderRadius: 16,
-        padding: 24,
-        width: '100%',
-        maxWidth: 420,
-    },
-    emptyCard: {
-        background: '#fff',
-        borderRadius: 16,
-        padding: 32,
-        textAlign: 'center' as const,
-    },
-    refreshBtn: {
-        marginTop: 16,
-        padding: '10px 24px',
-        borderRadius: 8,
-        border: '2px solid #06C755',
-        background: '#fff',
-        color: '#06C755',
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontSize: 14,
-    },
-    matchCard: {
-        background: '#fff',
-        borderRadius: 16,
-        padding: 20,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-    },
-    matchHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    skillBadge: {
-        padding: '4px 10px',
-        borderRadius: 20,
-        fontSize: 12,
-        fontWeight: 600,
-    },
-    matchInfo: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-        marginBottom: 12,
-    },
-    infoRow: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 14,
-        color: '#333',
-    },
-    noteBox: {
-        background: '#f8f9fa',
-        borderRadius: 8,
-        padding: '8px 12px',
-        fontSize: 13,
-        color: '#666',
-        marginBottom: 12,
-    },
-    slotsBar: {
-        height: 8,
-        background: '#e8e8e8',
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    slotsFill: {
-        height: '100%',
-        background: 'linear-gradient(90deg, #06C755, #4CAF50)',
-        borderRadius: 4,
-        transition: 'width 0.3s ease',
-    },
-    consentBox: {
-        background: '#fff8e1',
-        border: '1px solid #ffe082',
-        borderRadius: 8,
-        padding: 10,
-        marginBottom: 12,
-    },
-    joinBtn: {
-        width: '100%',
-        padding: 14,
-        borderRadius: 12,
-        border: 'none',
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 700,
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    spinner: {
-        width: 40,
-        height: 40,
-        border: '4px solid #06C755',
-        borderTopColor: 'transparent',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite',
-    },
-};
