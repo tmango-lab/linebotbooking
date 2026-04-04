@@ -170,11 +170,11 @@ export default function SetupMatchPage() {
                 <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-sm border border-gray-100 text-center">
                     <div className="text-6xl mb-4">⚽</div>
                     <h2 className="text-gray-800 text-2xl font-extrabold mb-1">ประกาศสำเร็จ!</h2>
-                    <p className="text-gray-500 text-sm mb-6">เปิดตี้หาทีมแจมเรียบร้อยแล้ว</p>
+                    <p className="text-gray-500 text-sm mb-6">เปิดตี้หาสมาชิกเรียบร้อยแล้ว</p>
                     
                     <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-left space-y-2 text-sm text-gray-700">
                         <p className="flex justify-between">
-                            <span>💰 มัดจำ Joiner:</span>
+                            <span>💰 ค่าสนามผู้เข้าร่วม:</span>
                             <span className="font-bold text-green-700">{depositCalc.perPerson} บาท/คน</span>
                         </p>
                         <p className="flex justify-between">
@@ -254,21 +254,30 @@ export default function SetupMatchPage() {
         <div className="min-h-screen bg-[#F0F2F5] pb-12">
             {/* Header เหมือน BookingV3 */}
             <header className="bg-white px-4 py-3 shadow-sm sticky top-0 z-50 border-b border-gray-100 text-center relative">
-                <h1 className="text-base font-extrabold text-gray-800">⚽ เปิดตี้หาทีมแจม</h1>
+                <h1 className="text-base font-extrabold text-gray-800">⚽ เปิดตี้หาสมาชิก</h1>
             </header>
 
             <main className="max-w-md mx-auto p-4 flex flex-col gap-5 mt-2">
                 {/* Booking Summary Card */}
                 {booking && (
-                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 border-l-4 border-l-green-500 flex flex-col gap-1">
-                        <p className="text-gray-800 font-bold text-sm">{booking.fieldLabel}</p>
-                        <p className="text-gray-500 text-xs flex items-center gap-2">
-                             <span className="py-0.5 px-1.5 bg-gray-100 rounded text-[10px] font-medium text-gray-600">📅 {booking.date}</span>
-                             <span className="py-0.5 px-1.5 bg-gray-100 rounded text-[10px] font-medium text-gray-600">⏰ {booking.time_from} - {booking.time_to}</span>
-                        </p>
-                        <p className="text-green-600 font-extrabold text-lg mt-1 tracking-tight">
-                            ฿{booking.price_total_thb?.toLocaleString()}
-                        </p>
+                    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div className="flex flex-col gap-2">
+                            <p className="text-gray-800 font-extrabold text-base">{booking.fieldLabel}</p>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-2 py-1.5 rounded-lg text-gray-600 font-medium">
+                                    <span className="text-sm">📅</span> {booking.date}
+                                </span>
+                                <span className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-2 py-1.5 rounded-lg text-gray-600 font-medium">
+                                    <span className="text-sm">⏰</span> {booking.time_from.substring(0, 5)} - {booking.time_to.substring(0, 5)}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="text-right pl-4 pr-1 border-l border-gray-100 shrink-0">
+                            <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">ราคาสนาม</p>
+                            <p className="text-green-600 font-black text-2xl tracking-tighter leading-none">
+                                ฿{booking.price_total_thb?.toLocaleString()}
+                            </p>
+                        </div>
                     </div>
                 )}
 
@@ -276,7 +285,7 @@ export default function SetupMatchPage() {
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-6">
                     {/* Host Team */}
                     <div>
-                        <label className="block text-gray-700 font-bold text-sm mb-3">👥 กลุ่มของคุณมีกี่คนแล้ว?</label>
+                        <label className="block text-gray-700 font-bold text-sm mb-3">👥 กลุ่มของคุณมีกี่คน (รวมตัวคุณ) ?</label>
                         <div className="flex items-center justify-center gap-6">
                             <button 
                                 className="w-12 h-12 rounded-full border-2 border-green-500 bg-white text-green-500 text-2xl font-bold flex items-center justify-center hover:bg-green-50 active:scale-90 transition-all focus:outline-none"
@@ -317,7 +326,7 @@ export default function SetupMatchPage() {
                             <span className="font-bold text-gray-800">{depositCalc.totalPlayers} คน</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">ค่ามัดจำ Joiner (ต่อคน)</span>
+                            <span className="text-gray-600">ค่าสนามผู้เข้าร่วม (ต่อคน)</span>
                             <span className="font-black text-green-600 text-xl">฿{depositCalc.perPerson}</span>
                         </div>
                         <div className="pt-3 border-t border-green-200 border-dashed flex justify-between items-center text-sm mt-1">
