@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Tag, QrCode, Banknote, UserCheck, UserX } from 'lucide-react';
+import { CheckCircle2, Clock, Tag, QrCode, Banknote, UserCheck, UserX, Users } from 'lucide-react';
 
 interface BookingCardProps {
     booking: {
@@ -127,27 +127,29 @@ export default function BookingCard({
             break;
     }
 
-    // Attendance Status Overlay or Icon
-    // Confirmed -> Green Check User
-    // Cancel Request -> Red User X
-    const attendanceIcon = (() => {
-        if (!booking.attendance_status) return null;
-        if (booking.attendance_status === 'confirmed') {
-            return (
-                <div className="absolute top-0.5 right-0.5 bg-white/80 rounded-full p-0.5 shadow-sm" title="ยืนยันการมาแล้ว">
+    // Top Right Overlay Icons (Attendance & Open Match)
+    const topRightIcons = (
+        <div className="absolute top-0.5 right-0.5 flex items-center gap-1 z-20 pointer-events-none">
+            {/* Open Match Badge */}
+            {hasOpenMatch && (
+                <div className="bg-purple-100/90 rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-purple-200" title="เปิดตี้">
+                    <Users className="w-3.5 h-3.5 text-purple-700" />
+                </div>
+            )}
+            
+            {/* Attendance Status Icon */}
+            {booking.attendance_status === 'confirmed' && (
+                <div className="bg-white/90 rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-green-200/50" title="ยืนยันการมาแล้ว">
                     <UserCheck className="w-3.5 h-3.5 text-green-600 fill-green-100" />
                 </div>
-            );
-        }
-        if (booking.attendance_status === 'cancel_requested') {
-            return (
-                <div className="absolute top-0.5 right-0.5 bg-red-100/90 rounded-full p-0.5 shadow-sm animate-pulse border border-red-200" title="ลูกค้าขอยกเลิก">
+            )}
+            {booking.attendance_status === 'cancel_requested' && (
+                <div className="bg-red-100/90 rounded-full w-5 h-5 flex items-center justify-center shadow-sm animate-pulse border border-red-200" title="ลูกค้าขอยกเลิก">
                     <UserX className="w-3.5 h-3.5 text-red-600" />
                 </div>
-            );
-        }
-        return null;
-    })();
+            )}
+        </div>
+    );
 
     return (
         <div
@@ -163,15 +165,8 @@ export default function BookingCard({
                 if (!isDragging) onClick(e);
             }}
         >
-            {/* Attendance Status Indicator */}
-            {attendanceIcon}
-
-            {/* Open Match Badge */}
-            {hasOpenMatch && (
-                <div className="absolute top-0.5 left-0.5 bg-purple-100/90 rounded px-1 py-0 text-[8px] font-bold text-purple-700 border border-purple-200 z-20 pointer-events-none" title="เปิดตี้">
-                    🏟️
-                </div>
-            )}
+            {/* Top Right Overlay Icons */}
+            {topRightIcons}
 
             {/* Top Resize Handle */}
             <div

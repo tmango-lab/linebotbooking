@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatDate, formatDateTime, formatTime } from '../../utils/date';
-import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift, Users } from 'lucide-react';
+import { X, Loader2, Calendar, Clock, User, Phone, AlertTriangle, Edit, Save, MessageSquare, CheckCircle2, Circle, Smartphone, Monitor, Tag, ExternalLink, QrCode, Banknote, Image as ImageIcon, ArrowRightLeft, Gift, Users, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/api';
 
 interface BookingDetailModalProps {
@@ -75,6 +75,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
     // Open Match joiner data
     const [matchJoiners, setMatchJoiners] = useState<any[]>([]);
     const [loadingJoiners, setLoadingJoiners] = useState(false);
+    const [isJoinerListOpen, setIsJoinerListOpen] = useState(false);
+
+    // Option B testing states
+    const [viewMode, setViewMode] = useState<'A' | 'B'>('A');
+    const [activeTab, setActiveTab] = useState<'booking' | 'match'>('booking');
 
     // Reset state when modal opens or booking changes
     useEffect(() => {
@@ -386,21 +391,28 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
         const isDepositPaid = (isQr && (!!booking.paid_at || booking.payment_status === 'paid' || booking.payment_status === 'deposit_paid'));
         const depositAmount = isDepositPaid ? parsedDeposit : 0;
 
-        // Balance Logic
+        // Joiner deposit calculation (Open Match)
+        const confirmedJoiners = matchJoiners.filter((j: any) => j.status === 'confirmed' || j.status === 'joined');
+        const totalJoinerDeposit = openMatch
+            ? confirmedJoiners.reduce((sum, j) => sum + (j.deposit_paid || openMatch.deposit_per_joiner || 0), 0)
+            : 0;
+        const joinerCount = confirmedJoiners.length;
+
+        // Balance Logic (includes joiner deposit deduction)
         let balance = 0;
 
         if (isPaid) {
             balance = 0;
         } else if (isDepositPaid) {
-            balance = Math.max(0, netPrice - depositAmount);
+            balance = Math.max(0, netPrice - depositAmount - totalJoinerDeposit);
         } else {
-            balance = netPrice;
+            balance = Math.max(0, netPrice - totalJoinerDeposit);
         }
 
-        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit };
+        return { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit, totalJoinerDeposit, joinerCount };
     };
 
-    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit } = getFinancials();
+    const { basePrice, discount, netPrice, depositAmount, balance, isDepositPaid, coupons, parsedDeposit, totalJoinerDeposit, joinerCount } = getFinancials();
 
     const isPendingPayment = booking.status === 'pending_payment';
 
@@ -430,6 +442,24 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                         </div>
 
                         <div className="flex items-center gap-2">
+                            {/* A/B Switcher */}
+                            {openMatch && (
+                                <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200 mr-2">
+                                    <button 
+                                        onClick={() => setViewMode('A')} 
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'A' ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        A (รวม)
+                                    </button>
+                                    <button 
+                                        onClick={() => { setViewMode('B'); setActiveTab('booking'); }} 
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'B' ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        B (แยกแท็บ)
+                                    </button>
+                                </div>
+                            )}
+
                             {!isEditingDetails && !isConfirming && (
                                 <button
                                     type="button"
@@ -446,12 +476,31 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                         </div>
                     </div>
 
-                    <div className="px-6 py-6">
-                        {/* 2-Column Layout */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="px-6 py-6 border-b border-gray-100">
+                        {/* Tab Headers for Option B */}
+                        {viewMode === 'B' && openMatch && (
+                            <div className="flex border border-gray-200 mb-6 bg-gray-50 rounded-lg overflow-hidden p-1 gap-1">
+                                <button
+                                    onClick={() => setActiveTab('booking')}
+                                    className={`flex-1 py-2.5 text-sm font-bold rounded-md transition-colors ${activeTab === 'booking' ? 'text-indigo-700 bg-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    📋 ข้อมูลการจอง
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('match')}
+                                    className={`flex-1 py-2.5 text-sm font-bold rounded-md transition-colors flex items-center justify-center gap-2 ${activeTab === 'match' ? 'text-purple-700 bg-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    🏟️ ข้อมูลเปิดตี้ 
+                                    <span className="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full">{openMatch.slots_filled}/{openMatch.slots_total}</span>
+                                </button>
+                            </div>
+                        )}
 
-                            {/* LEFT COLUMN: Customer & Payment Data */}
-                            <div className="space-y-6">
+                        {/* Rendering Content Below */}
+                        {(viewMode === 'A' || (viewMode === 'B' && activeTab === 'booking')) && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* LEFT COLUMN: Customer & Payment Data */}
+                                <div className="space-y-6">
                                 {/* Customer Info Card */}
                                 <div className="space-y-4">
                                     <h4 className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-2 border-b pb-1">ข้อมูลลูกค้า</h4>
@@ -620,6 +669,72 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Open Match Compact Section (Left Column) - ONLY IN MODE A */}
+                                {viewMode === 'A' && openMatch && (
+                                    <div className="bg-purple-50/70 rounded-xl border border-purple-200 overflow-hidden">
+                                        {/* Simplified Status Bar */}
+                                        <div className="px-4 py-3 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-base">🏟️</span>
+                                                <span className="font-bold text-purple-800 text-sm">เปิดตี้</span>
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs text-purple-700 font-bold bg-white px-2 py-1 rounded-md shadow-sm border border-purple-100">
+                                                <span><Users className="inline w-3 h-3 mr-1 mb-0.5"/> {openMatch.slots_filled}/{openMatch.slots_total} คน</span>
+                                            </div>
+                                        </div>
+
+                                        {openMatch.note && (
+                                            <div className="px-4 pb-2 text-xs text-gray-500">
+                                                💬 {openMatch.note}
+                                            </div>
+                                        )}
+
+                                        {/* Expandable Joiner List */}
+                                        <div className="border-t border-purple-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsJoinerListOpen(!isJoinerListOpen)}
+                                                className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-purple-700 hover:bg-purple-100/50 transition-colors"
+                                            >
+                                                <span className="flex items-center gap-1.5">
+                                                    <Users className="w-3.5 h-3.5" />
+                                                    ดูรายชื่อผู้เข้าร่วม ({matchJoiners.length} คน)
+                                                </span>
+                                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isJoinerListOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+
+                                            {isJoinerListOpen && (
+                                                <div className="px-4 pb-3">
+                                                    {loadingJoiners ? (
+                                                        <div className="text-center py-3">
+                                                            <Loader2 className="w-4 h-4 animate-spin mx-auto text-purple-400" />
+                                                        </div>
+                                                    ) : matchJoiners.length === 0 ? (
+                                                        <p className="text-xs text-gray-400 text-center py-2">ยังไม่มีผู้เข้าร่วม</p>
+                                                    ) : (
+                                                        <div className="space-y-1.5">
+                                                            {matchJoiners.map((j: any, idx: number) => (
+                                                                <div key={j.id || idx} className="bg-white rounded-lg px-3 py-2 border border-purple-100 flex justify-between items-center">
+                                                                    <div>
+                                                                        <div className="font-bold text-gray-800 text-sm">{j.profile?.team_name || 'ไม่ระบุชื่อ'}</div>
+                                                                        <div className="text-xs text-gray-500">{j.profile?.phone_number || '-'}</div>
+                                                                    </div>
+                                                                    <div className="text-right flex items-center gap-2">
+                                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${(j.status === 'confirmed' || j.status === 'joined') ? 'bg-green-100 text-green-700' : j.status === 'pending_payment' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                                            {(j.status === 'confirmed' || j.status === 'joined') ? '✅ จ่ายแล้ว' : j.status === 'pending_payment' ? '⏳ รอจ่าย' : j.status}
+                                                                        </span>
+                                                                        <span className="text-xs font-bold text-gray-700">฿{j.deposit_paid}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* RIGHT COLUMN: Booking Details & Finance */}
@@ -694,8 +809,15 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
 
                                         {isDepositPaid && (
                                             <div className="flex justify-between text-sm text-green-700 font-medium bg-green-50 p-2 rounded border border-green-100">
-                                                <span className="flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> จ่ายมัดจำแล้ว</span>
+                                                <span className="flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> จ่ายมัดจำแล้ว{openMatch ? ' (Host)' : ''}</span>
                                                 <span>- {depositAmount.toLocaleString()} ฿</span>
+                                            </div>
+                                        )}
+
+                                        {openMatch && totalJoinerDeposit > 0 && (
+                                            <div className="flex justify-between text-sm text-purple-700 font-medium bg-purple-50 p-2 rounded border border-purple-100">
+                                                <span className="flex items-center"><Users className="w-3 h-3 mr-1" /> มัดจำ Joiner ({joinerCount} คน)</span>
+                                                <span>- {totalJoinerDeposit.toLocaleString()} ฿</span>
                                             </div>
                                         )}
 
@@ -708,6 +830,8 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Old Open Match section was moved to Left Column */}
 
                                 {/* Status Toggles */}
                                 <div>
@@ -764,85 +888,112 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                                     </div>
                                 )}
 
-                                {/* Open Match Section */}
-                                {openMatch && (
-                                    <div className="bg-purple-50 p-5 rounded-xl border border-purple-200">
-                                        <h4 className="text-sm uppercase tracking-wide text-purple-700 font-bold mb-3 flex items-center gap-2">
-                                            <Users className="w-4 h-4" /> 🏟️ ข้อมูลเปิดตี้
-                                        </h4>
+                                {/* Old Open Match section removed — now integrated into Financial Summary above */}
+                            </div>
+                        </div>
+                        )}
 
-                                        <div className="space-y-2 text-sm mb-4">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">สถานะตี้</span>
-                                                <span className={`font-bold ${openMatch.status === 'open' ? 'text-green-600' : openMatch.status === 'full' ? 'text-blue-600' : 'text-gray-500'}`}>
+                        {/* Option B: Open Match Tab Content */}
+                        {viewMode === 'B' && activeTab === 'match' && openMatch && (
+                            <div className="space-y-6">
+                                {/* Match Details Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-purple-50 p-5 rounded-xl border border-purple-100">
+                                        <h4 className="font-bold text-purple-900 mb-4 flex items-center gap-2">
+                                            <span className="text-xl">🏟️</span> สถานะตี้
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-purple-700">สถานะ:</span>
+                                                <span className={`px-3 py-1 rounded-full font-bold text-xs ${openMatch.status === 'open' ? 'bg-green-100 text-green-700' : openMatch.status === 'full' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
                                                     {openMatch.status === 'open' ? '🟢 เปิดอยู่' : openMatch.status === 'full' ? '🔵 เต็มแล้ว' : openMatch.status === 'expired' ? '⚫ หมดเวลา' : openMatch.status}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">ระดับการเล่น</span>
-                                                <span className="font-bold text-gray-800">
-                                                    {openMatch.skill_level === 'casual' ? '🟢 สบายๆ' : openMatch.skill_level === 'intermediate' ? '🟡 ซ้อมทีมๆ' : '🔴 จริงจัง'}
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-purple-700">ระดับฝีมือ:</span>
+                                                <span className="font-bold text-purple-900 bg-white px-3 py-1 rounded-lg border border-purple-100">
+                                                    {openMatch.skill_level === 'casual' ? '🟢 สบายๆ' : openMatch.skill_level === 'intermediate' ? '🟡 ซ้อมทีม' : '🔴 จริงจัง'}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">ผู้เข้าร่วม</span>
-                                                <span className="font-bold text-gray-800">{openMatch.slots_filled}/{openMatch.slots_total} คน</span>
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-purple-700">จำนวนคน:</span>
+                                                <span className="font-bold text-purple-900">
+                                                    เข้าร่วมแล้ว {openMatch.slots_filled} / {openMatch.slots_total} คน
+                                                </span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">กลุ่มโฮส</span>
-                                                <span className="font-bold text-gray-800">{openMatch.host_team_size} คน</span>
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-purple-700">ลาน/ขนาดกลุ่มตั้งต้น:</span>
+                                                <span className="font-bold text-purple-900">กลุ่มโฮส {openMatch.host_team_size} คน</span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">มัดจำต่อคน</span>
-                                                <span className="font-bold text-green-600">฿{openMatch.deposit_per_joiner}</span>
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-purple-700">มัดจำต่อคน:</span>
+                                                <span className="font-bold text-green-700 bg-green-50 px-3 py-1 rounded-lg border border-green-200">
+                                                    ฿{openMatch.deposit_per_joiner}
+                                                </span>
                                             </div>
-                                            {(() => {
-                                                const confirmedJoiners = matchJoiners.filter(j => j.status === 'confirmed');
-                                                const totalJoinerDeposit = confirmedJoiners.length * openMatch.deposit_per_joiner;
-                                                return (
-                                                    <div className="flex justify-between pt-2 border-t border-purple-200">
-                                                        <span className="text-gray-600 font-semibold">มัดจำรวมที่เก็บได้</span>
-                                                        <span className="font-bold text-green-700 text-base">฿{totalJoinerDeposit} ({confirmedJoiners.length} คน)</span>
-                                                    </div>
-                                                );
-                                            })()}
-                                            {openMatch.note && (
-                                                <div className="pt-2 border-t border-purple-200 text-xs text-gray-500">
-                                                    💬 {openMatch.note}
-                                                </div>
-                                            )}
                                         </div>
+                                    </div>
 
-                                        {/* Joiners List */}
-                                        <h5 className="text-xs uppercase tracking-wide text-purple-600 font-bold mb-2">รายชื่อผู้เข้าร่วม</h5>
+                                    {/* Note */}
+                                    <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 h-full">
+                                        <h4 className="font-bold text-gray-800 mb-3 text-sm">💬 รายละเอียดตี้ (จากผู้จัด)</h4>
+                                        <div className="bg-white p-4 rounded-lg border border-gray-100 text-sm text-gray-600 min-h-[120px] whitespace-pre-wrap">
+                                            {openMatch.note ? openMatch.note : <span className="text-gray-400 italic">ไม่มีรายละเอียดเพิ่มเติม</span>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Joiners List (Full View) */}
+                                <div className="mt-6 border border-purple-100 rounded-xl overflow-hidden shadow-sm">
+                                    <div className="bg-purple-100/50 px-5 py-4 border-b border-purple-100 flex justify-between items-center">
+                                        <h4 className="font-bold text-purple-900 flex items-center gap-2">
+                                            <Users className="w-5 h-5" /> 
+                                            รายชื่อผู้เข้าร่วม ({matchJoiners.length} คน)
+                                        </h4>
+                                    </div>
+                                    <div className="bg-white p-5">
                                         {loadingJoiners ? (
-                                            <div className="text-center py-3">
-                                                <Loader2 className="w-4 h-4 animate-spin mx-auto text-purple-400" />
+                                            <div className="text-center py-6">
+                                                <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-400" />
+                                                <p className="text-sm text-purple-600 mt-2">กำลังโหลดรายชื่อ...</p>
                                             </div>
                                         ) : matchJoiners.length === 0 ? (
-                                            <p className="text-xs text-gray-400 text-center py-2">ยังไม่มีผู้เข้าร่วม</p>
+                                            <div className="text-center py-10 border-2 border-dashed border-gray-100 rounded-xl">
+                                                <Users className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+                                                <p className="text-gray-500 font-medium">ยังไม่มีผู้เข้าร่วม</p>
+                                                <p className="text-xs text-gray-400 mt-1">ลูกค้ารอยืนยันการชำระเงินผ่าน LINE</p>
+                                            </div>
                                         ) : (
-                                            <div className="space-y-2">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 {matchJoiners.map((j: any, idx: number) => (
-                                                    <div key={j.id || idx} className="bg-white rounded-lg p-3 border border-purple-100 flex justify-between items-center">
-                                                        <div>
-                                                            <div className="font-bold text-gray-800 text-sm">{j.profile?.team_name || 'ไม่ระบุชื่อ'}</div>
-                                                            <div className="text-xs text-gray-500">{j.profile?.phone_number || '-'}</div>
+                                                    <div key={j.id || idx} className="flex justify-between items-center p-3 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-purple-50/50 transition-colors">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                                                                {idx + 1}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-gray-900 text-sm">{j.profile?.team_name || 'ไม่ระบุชื่อ'}</div>
+                                                                <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                                                    <Smartphone className="w-3 h-3" /> {j.profile?.phone_number || '-'}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${j.status === 'confirmed' ? 'bg-green-100 text-green-700' : j.status === 'pending_payment' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                                {j.status === 'confirmed' ? '✅ จ่ายแล้ว' : j.status === 'pending_payment' ? '⏳ รอจ่าย' : j.status}
-                                                            </span>
-                                                            <div className="text-xs font-bold text-gray-700 mt-1">฿{j.deposit_paid}</div>
+                                                            <div className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-full mb-1 ${(j.status === 'confirmed' || j.status === 'joined') ? 'bg-green-100 text-green-700' : j.status === 'pending_payment' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                                {(j.status === 'confirmed' || j.status === 'joined') ? '✅ จ่ายแล้ว' : j.status === 'pending_payment' ? '⏳ รอจ่าย' : j.status}
+                                                            </div>
+                                                            <div className="text-sm font-bold text-gray-800">
+                                                                ฿{j.deposit_paid}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Error Message */}
                         {error && (
