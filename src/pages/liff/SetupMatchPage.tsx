@@ -120,7 +120,7 @@ export default function SetupMatchPage() {
 
     // Auto-calculated deposit
     const depositCalc = useMemo(() => {
-        if (!booking) return { perPerson: 0, totalPlayers: 0, hostRemaining: 0 };
+        if (!booking) return { perPerson: 0, totalPlayers: 0, hostRemaining: 0, joinerTotal: 0 };
         const totalPlayers = hostTeamSize + slotsTotal;
         const perPerson = Math.ceil(booking.price_total_thb / totalPlayers);
         const joinerTotal = perPerson * slotsTotal;
@@ -404,10 +404,20 @@ export default function SetupMatchPage() {
                                     <span className="text-blue-600">- ฿{depositCalc.joinerTotal}</span>
                                 </div>
                             </div>
-                            <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-200/60 flex justify-between items-center shadow-sm">
-                                <span className="text-sm font-bold text-amber-800">จ่ายเพิ่มหน้าสนาม</span>
-                                <span className="font-black text-amber-600 text-2xl tracking-tighter">฿{depositCalc.hostRemaining?.toLocaleString()}</span>
+                            <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-200/60 flex flex-col justify-between shadow-sm">
+                                <div className="flex justify-between items-center mb-2.5">
+                                    <span className="text-sm font-bold text-amber-800">จ่ายเพิ่มหน้าสนาม</span>
+                                    <span className="font-black text-amber-600 text-2xl tracking-tighter">฿{depositCalc.hostRemaining?.toLocaleString()}</span>
+                                </div>
+                                <div className="bg-white/60 rounded-lg p-2.5 text-[10px] text-amber-900/80 leading-relaxed border border-amber-100/50">
+                                    ⚠️ <b>ยอดชำระหน้าสนามจะเปลี่ยนไป</b> หากสิ้นสุดเวลาแล้วได้คนมาแจมไม่ครบตามเป้าหมาย ({slotsTotal} คน)
+                                </div>
                             </div>
+                            
+                            <p className="text-[11px] text-gray-500 mt-3.5 px-1.5 flex gap-1.5 font-medium leading-relaxed">
+                                <span>💡</span>
+                                <span>สรุปต้นทุนค่าสนามสุทธิในส่วนของกลุ่มคุณ ({hostTeamSize} คน) คือ <b>฿{((booking?.price_total_thb || 0) - depositCalc.joinerTotal).toLocaleString()}</b> <span className="opacity-70 font-normal">(มัดจำ + จ่ายหน้าสนาม)</span></span>
+                            </p>
                         </div>
                     </div>
                 </div>
