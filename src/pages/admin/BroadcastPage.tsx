@@ -41,7 +41,8 @@ function buildFlashDealCarousel(
     slots: TimeSlot[],
     promoCode: string,
     date: string,
-    forcePayment: ForcePayment = ''
+    forcePayment: ForcePayment = '',
+    flashDealTitle: string = '⚡ FLASH DEAL TODAY'
 ) {
     const color = FIELD_COLORS[fieldId] || '#334155';
     
@@ -74,7 +75,7 @@ function buildFlashDealCarousel(
                 paddingAll: '16px',
                 contents: [{
                     type: 'text',
-                    text: '⚡ FLASH DEAL TODAY',
+                    text: flashDealTitle || '⚡ FLASH DEAL TODAY',
                     color: '#ffffff',
                     weight: 'bold',
                     size: 'sm',
@@ -620,6 +621,7 @@ export default function BroadcastPage() {
     // Flash Deal fields
     const [fieldId, setFieldId] = useState<number>(1);
     const [fieldName, setFieldName] = useState('สนาม 1');
+    const [flashDealTitle, setFlashDealTitle] = useState('⚡ FLASH DEAL TODAY');
     const [slots, setSlots] = useState<TimeSlot[]>([
         { startTime: '17:00', endTime: '18:00', normalPrice: 1000, discountPrice: 500 },
         { startTime: '18:00', endTime: '19:00', normalPrice: 1200, discountPrice: 600 },
@@ -770,6 +772,7 @@ export default function BroadcastPage() {
             { startTime: '17:00', endTime: '18:00', normalPrice: 1000, discountPrice: 500 },
             { startTime: '18:00', endTime: '19:00', normalPrice: 1200, discountPrice: 600 },
         ]);
+        setFlashDealTitle('⚡ FLASH DEAL TODAY');
         setPromoCode('');
         setSelectedCampaignId('');
         setDate(new Date().toISOString().split('T')[0]);
@@ -806,6 +809,7 @@ export default function BroadcastPage() {
                 normalPrice: s.normalPrice != null ? s.normalPrice : (p.normalPrice || 0),
                 discountPrice: s.discountPrice != null ? s.discountPrice : (p.discountPrice || 0),
             })));
+            setFlashDealTitle(p.flashDealTitle || '⚡ FLASH DEAL TODAY');
             setPromoCode(p.promoCode || '');
             setSelectedCampaignId(p.selectedCampaignId || '');
             setDate(p.date || new Date().toISOString().split('T')[0]);
@@ -828,6 +832,7 @@ export default function BroadcastPage() {
         const payload: any = {};
         if (template === 'flash_deal') {
             payload.fieldId = fieldId; payload.fieldName = fieldName; payload.slots = slots;
+            payload.flashDealTitle = flashDealTitle;
             payload.promoCode = promoCode; payload.selectedCampaignId = selectedCampaignId;
             payload.date = date; payload.forcePayment = forcePayment;
         } else if (template === 'simple_message') {
@@ -891,7 +896,7 @@ export default function BroadcastPage() {
 
     const builtMessage = useMemo(() => {
         if (template === 'flash_deal') {
-            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment);
+            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, flashDealTitle);
         }
         if (template === 'simple_message') {
             return buildSimpleMessage(msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor);
@@ -915,7 +920,7 @@ export default function BroadcastPage() {
             } catch { return null; }
         }
         return null;
-    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
+    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, flashDealTitle, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
 
     // ── Handlers ──
     const addSlot = () => {
@@ -1228,6 +1233,13 @@ export default function BroadcastPage() {
                                     <label className="block text-xs font-medium text-gray-600 mb-1">วันที่</label>
                                     <input type="date" value={date} onChange={e => setDate(e.target.value)}
                                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300" />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">ข้อความหัวโปรโมชั่น (ค่าเริ่มต้น: ⚡ FLASH DEAL TODAY)</label>
+                                    <input value={flashDealTitle} onChange={e => setFlashDealTitle(e.target.value)}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                                        placeholder="⚡ FLASH DEAL TODAY" />
                                 </div>
 
 
