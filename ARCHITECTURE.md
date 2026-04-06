@@ -628,7 +628,12 @@ A dedicated interface located at `/admin/broadcast` to empower marketing efforts
     - **👥 เฉพาะกลุ่ม (Multicast)**: Reaches specific User IDs entered manually.
     - **🏷️ ตาม Tag (Multicast by Tag)**: Reaches users in the `profiles` table that have the selected tags.
     - **🚫 ยกเว้น Tag (Narrowcast)**: Reaches everyone in LINE OA **EXCEPT** users in our system with the selected tags (e.g., to exclude staff).
-2.  **Flash Deal Automation**: Drops down to link active campaigns, extracts `secret_code`, and generates LIFF links with `&forcePayment=QR`.
+2.  **Flash Deal Automation**: 
+    - Admins can select an active Campaign to link.
+    - The Broadcast UI allows customizing the Flash Deal Header Title (default is "⚡ FLASH DEAL TODAY", but can be overridden, e.g. "โปรไฟไหม้ สนามหลุดจอง").
+    - **Auto-collect Payload**: Extracts `secret_code` (if defined in the campaign) or passes `campaignId` directly into the Flex Message button URL.
+    - When users click the button, `useBookingLogic.ts` intercepts `promoCode` or `campaignId` and calls `collect-coupon` Edge Function to auto-accumulate the reward before checkout.
+    - Also attaches `&forcePayment=QR` to enforce payment flow.
 
 ### 14.5 Narrowcast Exclude Logic (Backend)
 The "Exclude Tag" mode uses a specialized high-reliability flow in the `send-broadcast` Edge Function:
@@ -1256,13 +1261,12 @@ CREATE TABLE public.match_joiners (
 - Payment states managed entirely within the page
 
 ### 27.6 Admin Dashboard Integration
-- **BookingCard** (`src/components/admin/BookingCard.tsx`): Shows 🏟️ badge (purple) on bookings with active open matches
-- **BookingDetailModal**: When opening a booking with an open match, shows a purple "ข้อมูลเปิดตี้" section:
-  - Match status (🟢 เปิดอยู่ / 🔵 เต็มแล้ว / ⚫ หมดเวลา)
-  - Skill level, participant count, host group size
-  - Per-joiner deposit, total collected deposit
-  - **Joiner list** with name, phone, payment status, amount paid
-- Data is fetched via Supabase direct query (`open_matches` + `match_joiners` + `profiles`)
+- **BookingCard** (`src/components/admin/BookingCard.tsx`): Shows an "Open Match" status badge (purple text on light purple background) replacing the generic "Line" label.
+- **BookingDetailModal**: Redesigned to use a clean, **Tabbed Interface**:
+  - **Tab 1: ข้อมูลการจอง (Standard Info)**: Displays the standard customer, time, pricing, and admin notes UI without clutter.
+  - **Tab 2: ข้อมูลเปิดตี้ (Open Match Info)**: Displays Match details (skill level, participant count, status).
+  - Contains the **Joiner list** (Name, Phone, Deposit Paid amount) along with aggregate totals (Collected Deposit vs Required).
+- Data is fetched via Supabase direct query (`open_matches` + `match_joiners` + `profiles`).
 
 ### 27.7 Payment Flow (Joiner)
 ```mermaid
