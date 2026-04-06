@@ -42,7 +42,8 @@ function buildFlashDealCarousel(
     promoCode: string,
     date: string,
     forcePayment: ForcePayment = '',
-    flashDealTitle: string = '⚡ FLASH DEAL TODAY'
+    flashDealTitle: string = '⚡ FLASH DEAL TODAY',
+    campaignId: string = ''
 ) {
     const color = FIELD_COLORS[fieldId] || '#334155';
     
@@ -198,7 +199,7 @@ function buildFlashDealCarousel(
                     action: {
                         type: 'uri',
                         label: `จองรอบ ${slot.startTime} เลย!`,
-                        uri: `${LIFF_BASE}/?redirect=booking-v3&fieldId=${fieldId}&startTime=${slot.startTime}&endTime=${slot.endTime}${date ? `&date=${date}` : ''}${forcePayment ? `&forcePayment=${forcePayment}` : ''}${promoCode ? `&promoCode=${promoCode}` : ''}`
+                        uri: `${LIFF_BASE}/?redirect=booking-v3&fieldId=${fieldId}&startTime=${slot.startTime}&endTime=${slot.endTime}${date ? `&date=${date}` : ''}${forcePayment ? `&forcePayment=${forcePayment}` : ''}${promoCode ? `&promoCode=${promoCode}` : ''}${campaignId ? `&campaignId=${campaignId}` : ''}`
                     }
                 }]
             }
@@ -896,7 +897,7 @@ export default function BroadcastPage() {
 
     const builtMessage = useMemo(() => {
         if (template === 'flash_deal') {
-            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, flashDealTitle);
+            return buildFlashDealCarousel(fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, flashDealTitle, selectedCampaignId);
         }
         if (template === 'simple_message') {
             return buildSimpleMessage(msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor);
@@ -920,7 +921,7 @@ export default function BroadcastPage() {
             } catch { return null; }
         }
         return null;
-    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, flashDealTitle, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
+    }, [template, fieldId, fieldName, slots, effectivePromoCode, date, forcePayment, flashDealTitle, selectedCampaignId, msgHeader, msgBody, msgBtnLabel, msgBtnUrl, msgBgColor, customJson, customAltText]);
 
     // ── Handlers ──
     const addSlot = () => {

@@ -212,18 +212,19 @@ export const useBookingLogic = () => {
     }, [bookingsQuery.dataUpdatedAt, fieldsQuery.dataUpdatedAt]);
 
     const urlPromoCode = searchParams.get('promoCode');
+    const urlCampaignId = searchParams.get('campaignId');
 
     // Auto-collect promo code from URL (once user is identified)
     useEffect(() => {
-        if (!urlPromoCode || !userId) return;
+        if ((!urlPromoCode && !urlCampaignId) || !userId) return;
 
         const doPromoCollect = async () => {
-            console.log(`[Flash Deal] Auto-collecting promo code: ${urlPromoCode}`);
+            console.log(`[Flash Deal] Auto-collecting promo code/campaign: ${urlPromoCode || urlCampaignId}`);
             try {
                 const collectRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/collect-coupon`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-                    body: JSON.stringify({ userId, secretCode: urlPromoCode })
+                    body: JSON.stringify({ userId, secretCode: urlPromoCode || undefined, campaignId: urlCampaignId || undefined })
                 });
                 const collectData = await collectRes.json();
                 if (collectData.success && collectData.data) {
@@ -234,6 +235,7 @@ export const useBookingLogic = () => {
                     const newSearchParams = new URLSearchParams(searchParams);
                     newSearchParams.set('couponId', newCouponId);
                     newSearchParams.delete('promoCode');
+                    newSearchParams.delete('campaignId');
                     navigate(`?${newSearchParams.toString()}`, { replace: true });
                     
                     // Invalidate coupon cache so React Query re-fetches fresh data
@@ -247,7 +249,7 @@ export const useBookingLogic = () => {
         };
         doPromoCollect();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId, urlPromoCode]);
+    }, [userId, urlPromoCode, urlCampaignId]);
 
     // Validate referral code from URL (once user is identified)
     useEffect(() => {
