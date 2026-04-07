@@ -61,7 +61,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
     const [error, setError] = useState<string | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
-    const [isRefunded, setIsRefunded] = useState(false);
+    const [cancelMode, setCancelMode] = useState<'forfeit' | 'refund_stripe' | 'force_cancel' | null>(null);
 
     // State for editable fields
     const [isEditingDetails, setIsEditingDetails] = useState(false);
@@ -96,6 +96,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
             setError(null);
             setIsConfirming(false);
             setCancelReason('');
+            setCancelMode(null);
 
             // Fetch joiners if open match exists
             if (openMatch?.id) {
@@ -204,6 +205,11 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
         }
     };
 
+    // ─── Smart Cancel: detect booking context ───
+    const hasDeposit = booking.deposit_amount && booking.deposit_amount > 0;
+    const hasOpenMatch = openMatch && (openMatch.status === 'open' || openMatch.status === 'full');
+    const paidJoiners = matchJoiners.filter((j: any) => j.status === 'joined' || j.status === 'confirmed');
+
     const handleCancel = async () => {
         setLoading(true);
         setError(null);
@@ -211,6 +217,35 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
         try {
             const token = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+            // ─── Case 3: Open Match → force_cancel (refund 85% to all) ───
+            if (cancelMode === 'force_cancel' && openMatch) {
+                if (!cancelReason.trim()) {
+                    setError('กรุณาระบุเหตุผล เช่น ฝนตก, สนามปิด');
+                    setLoading(false);
+                    return;
+                }
+                const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/open-match`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'force_cancel',
+                        matchId: openMatch.id,
+                        reason: cancelReason,
+                    })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+                onBookingCancelled();
+                handleClose();
+                return;
+            }
+
+            // ─── Case 1 & 2: Normal cancel or deposit refund ───
             const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-booking`, {
                 method: 'POST',
                 headers: {
@@ -220,7 +255,8 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                 body: JSON.stringify({
                     matchId: booking.id,
                     reason: cancelReason || 'Admin cancelled via Dashboard',
-                    isRefunded: isRefunded
+                    isRefunded: cancelMode === 'refund_stripe',
+                    refundStripe: cancelMode === 'refund_stripe',
                 })
             });
 
@@ -337,7 +373,7 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
         setIsConfirming(false);
         setIsEditingDetails(false);
         setCancelReason('');
-        setIsRefunded(false);
+        setCancelMode(null);
         setError(null);
         onClose();
     };
@@ -1005,56 +1041,126 @@ export default function BookingDetailModal({ isOpen, onClose, booking, openMatch
                             </div>
                         )}
 
-                        {/* Cancellation Area (Expandable) */}
+                        {/* Smart Cancellation Area */}
                         {isConfirming && (
                             <div className="mt-8 bg-red-50 p-6 rounded-xl border border-red-100 animate-in fade-in slide-in-from-top-4 duration-300">
                                 <h4 className="text-red-800 font-bold mb-4 flex items-center">
-                                    <AlertTriangle className="w-5 h-5 mr-2" /> ยืนยันการยกเลิกการจอง
+                                    <AlertTriangle className="w-5 h-5 mr-2" /> ยกเลิกการจอง
                                 </h4>
 
-                                <label htmlFor="cancel_reason" className="block text-sm font-medium text-red-700 mb-2">
-                                    ระบุสาเหตุ (Optional)
-                                </label>
-                                <input
-                                    type="text"
-                                    id="cancel_reason"
-                                    className="block w-full rounded-md border-red-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm p-2 bg-white border"
-                                    placeholder="เช่น ลูกค้าแจ้งยกเลิก, จองผิด"
-                                    value={cancelReason}
-                                    onChange={(e) => setCancelReason(e.target.value)}
-                                />
-
-                                <div className="mt-4 flex items-center">
-                                    <input
-                                        id="refunded"
-                                        type="checkbox"
-                                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
-                                        checked={isRefunded}
-                                        onChange={(e) => setIsRefunded(e.target.checked)}
-                                    />
-                                    <label htmlFor="refunded" className="ml-2 block text-sm text-red-700 cursor-pointer font-medium">
-                                        คืนเงินลูกค้าแล้ว (Mark confirmed refund)
-                                    </label>
-                                </div>
-
-                                <div className="mt-6 flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={handleCancel}
-                                        disabled={loading}
-                                        className="inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm"
-                                    >
-                                        {loading ? <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" /> : null}
-                                        ยืนยันยกเลิกทันที
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsConfirming(false)}
-                                        className="inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm"
-                                    >
-                                        เปลี่ยนใจ (ไม่ยกเลิก)
-                                    </button>
-                                </div>
+                                {/* ─── Case 3: Open Match ─── */}
+                                {hasOpenMatch ? (
+                                    <div className="space-y-4">
+                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                            <p className="text-sm font-bold text-purple-900 mb-2">🏟️ คิวนี้เปิดตี้อยู่</p>
+                                            <div className="text-sm text-purple-700 space-y-1">
+                                                <p>ผู้เข้าร่วมที่จ่ายแล้ว: <b>{paidJoiners.length} คน</b></p>
+                                                <p>ยอดรวม: <b>฿{totalJoinerDeposit.toLocaleString()}</b></p>
+                                                <p className="text-xs text-purple-500 mt-2">การยกเลิกจะคืนเงินให้ทุกคน (หัก 15%)</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-red-700 mb-2">เหตุผลการยกเลิก <span className="text-red-500">*</span></label>
+                                            <input
+                                                type="text"
+                                                className="block w-full rounded-lg border-red-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm p-2.5 bg-white border"
+                                                placeholder="เช่น ฝนตก, สนามปิดซ่อม, ไฟดับ"
+                                                value={cancelReason}
+                                                onChange={(e) => { setCancelReason(e.target.value); setCancelMode('force_cancel'); }}
+                                            />
+                                        </div>
+                                        <div className="flex gap-3 pt-2">
+                                            <button type="button" onClick={() => { setCancelMode('force_cancel'); handleCancel(); }} disabled={loading || !cancelReason.trim()}
+                                                className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-40 shadow-sm transition-colors">
+                                                {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                                                ยืนยันยกเลิก & คืนเงิน 85%
+                                            </button>
+                                            <button type="button" onClick={() => { setIsConfirming(false); setCancelMode(null); }}
+                                                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                                                ไม่ยกเลิก
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : isDepositPaid && hasDeposit ? (
+                                    /* ─── Case 2: Deposit Paid ─── */
+                                    <div className="space-y-4">
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                            <p className="text-sm font-bold text-amber-900">💳 มัดจำ ฿{booking.deposit_amount?.toLocaleString()} (ผ่าน Stripe)</p>
+                                        </div>
+                                        <p className="text-sm text-red-700 font-medium">เลือกรูปแบบการยกเลิก:</p>
+                                        <div className="space-y-2">
+                                            <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                cancelMode === 'forfeit' ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                                            }`}>
+                                                <input type="radio" name="cancel_mode" value="forfeit" checked={cancelMode === 'forfeit'}
+                                                    onChange={() => setCancelMode('forfeit')} className="mt-0.5 text-red-600 focus:ring-red-500" />
+                                                <div>
+                                                    <span className="text-sm font-bold text-gray-900">ริบมัดจำ</span>
+                                                    <p className="text-xs text-gray-500">ลูกค้าผิดนัด / ไม่มาตามเวลา</p>
+                                                </div>
+                                            </label>
+                                            <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                cancelMode === 'refund_stripe' ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                                            }`}>
+                                                <input type="radio" name="cancel_mode" value="refund_stripe" checked={cancelMode === 'refund_stripe'}
+                                                    onChange={() => setCancelMode('refund_stripe')} className="mt-0.5 text-green-600 focus:ring-green-500" />
+                                                <div>
+                                                    <span className="text-sm font-bold text-gray-900">คืนเงิน 100% (เหตุสุดวิสัย)</span>
+                                                    <p className="text-xs text-gray-500">ฝนตก / สนามปิด — คืน ฿{booking.deposit_amount?.toLocaleString()} ผ่าน Stripe</p>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        {cancelMode === 'refund_stripe' && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-red-700 mb-2">เหตุผล <span className="text-red-500">*</span></label>
+                                                <input type="text" className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm p-2.5 bg-white border"
+                                                    placeholder="เช่น ฝนตก, สนามปิดซ่อม" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+                                            </div>
+                                        )}
+                                        {cancelMode === 'forfeit' && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-600 mb-2">หมายเหตุ (ไม่บังคับ)</label>
+                                                <input type="text" className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-gray-400 focus:ring-gray-400 sm:text-sm p-2.5 bg-white border"
+                                                    placeholder="เช่น ลูกค้าไม่มา" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+                                            </div>
+                                        )}
+                                        <div className="flex gap-3 pt-2">
+                                            <button type="button" onClick={handleCancel}
+                                                disabled={loading || !cancelMode || (cancelMode === 'refund_stripe' && !cancelReason.trim())}
+                                                className={`inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors disabled:opacity-40 ${
+                                                    cancelMode === 'refund_stripe' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                                                }`}>
+                                                {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                                                {cancelMode === 'refund_stripe' ? 'ยืนยัน & คืนเงิน' : cancelMode === 'forfeit' ? 'ยืนยัน & ริบมัดจำ' : 'เลือกรูปแบบก่อน'}
+                                            </button>
+                                            <button type="button" onClick={() => { setIsConfirming(false); setCancelMode(null); }}
+                                                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                                                ไม่ยกเลิก
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* ─── Case 1: No payment ─── */
+                                    <div className="space-y-4">
+                                        <p className="text-sm text-gray-600">คิวนี้ยังไม่มีการชำระเงิน</p>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-600 mb-2">หมายเหตุ (ไม่บังคับ)</label>
+                                            <input type="text" className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm p-2.5 bg-white border"
+                                                placeholder="เช่น ลูกค้าแจ้งยกเลิก" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+                                        </div>
+                                        <div className="flex gap-3 pt-2">
+                                            <button type="button" onClick={() => { setCancelMode('forfeit'); handleCancel(); }} disabled={loading}
+                                                className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-40 shadow-sm transition-colors">
+                                                {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                                                ยืนยันยกเลิก
+                                            </button>
+                                            <button type="button" onClick={() => { setIsConfirming(false); setCancelMode(null); }}
+                                                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                                                ไม่ยกเลิก
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

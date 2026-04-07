@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
 
-console.log("Cancel Booking Function Started (Local DB Only)");
+console.log("Cancel Booking Function Started (with Smart Refund)");
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -16,7 +16,7 @@ serve(async (req) => {
     }
 
     try {
-        const { matchId, reason, isRefunded, shouldReturnCoupon } = await req.json();
+        const { matchId, reason, isRefunded, shouldReturnCoupon, refundStripe } = await req.json();
 
         if (!matchId) {
             return new Response(JSON.stringify({ error: 'Missing matchId' }), {
@@ -25,7 +25,7 @@ serve(async (req) => {
             });
         }
 
-        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}, Refunded: ${isRefunded}, ReturnCoupon: ${shouldReturnCoupon}`);
+        console.log(`[Cancel Booking] Request to cancel booking ${matchId}. Reason: ${reason || 'N/A'}, Refunded: ${isRefunded}, RefundStripe: ${refundStripe}, ReturnCoupon: ${shouldReturnCoupon}`);
 
         // Fetch booking first to check for promo/campaign
         const { data: booking, error: fetchError } = await supabase
@@ -36,13 +36,70 @@ serve(async (req) => {
 
         if (fetchError || !booking) throw new Error('Booking not found');
 
+        // ─── Stripe Refund Logic ────────────────────────────────
+        let stripeRefundResult: any = null;
+        if (refundStripe && booking.stripe_payment_intent_id) {
+            const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') || '';
+            if (!STRIPE_SECRET_KEY) {
+                throw new Error('STRIPE_SECRET_KEY not configured');
+            }
+
+            const depositAmount = booking.deposit_amount || 0;
+            if (depositAmount > 0) {
+                // คืนเงินเต็มจำนวน 100% (สนามยอมแบกค่าธรรมเนียม Stripe)
+                const refundAmountSatang = Math.round(depositAmount * 100);
+
+                console.log(`[Cancel Booking] Initiating Stripe refund: ${depositAmount} THB (${refundAmountSatang} satang) for PI: ${booking.stripe_payment_intent_id}`);
+
+                try {
+                    const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            'payment_intent': booking.stripe_payment_intent_id,
+                            'amount': refundAmountSatang.toString(),
+                        }).toString(),
+                    });
+
+                    const refundData = await refundRes.json();
+
+                    if (refundData.error) {
+                        console.error(`[Cancel Booking] Stripe refund error:`, refundData.error);
+                        throw new Error(`Stripe refund failed: ${refundData.error.message}`);
+                    }
+
+                    console.log(`[Cancel Booking] Stripe refund SUCCESS: ${refundData.id} | Amount: ${depositAmount} THB`);
+                    stripeRefundResult = {
+                        refundId: refundData.id,
+                        amount: depositAmount,
+                        status: refundData.status,
+                    };
+                } catch (stripeErr: any) {
+                    console.error(`[Cancel Booking] Stripe refund error:`, stripeErr);
+                    throw new Error(`ไม่สามารถคืนเงินผ่าน Stripe ได้: ${stripeErr.message}`);
+                }
+            }
+        }
+        // ─── End Stripe Refund Logic ────────────────────────────
+
+        // Build admin note
+        let adminNote = reason || 'Cancelled via System';
+        if (stripeRefundResult) {
+            adminNote += ` [STRIPE REFUND: ฿${stripeRefundResult.amount}]`;
+        } else if (isRefunded) {
+            adminNote += ' [REFUNDED]';
+        }
+
         // Update booking status to cancelled in Local DB
         const { data, error } = await supabase
             .from('bookings')
             .update({
                 status: 'cancelled',
-                admin_note: (reason || 'Cancelled via System') + (isRefunded ? ' [REFUNDED]' : ''),
-                is_refunded: !!isRefunded,
+                admin_note: adminNote,
+                is_refunded: !!isRefunded || !!stripeRefundResult,
                 updated_at: new Date().toISOString()
             })
             .eq('booking_id', String(matchId))
@@ -104,8 +161,6 @@ serve(async (req) => {
                 campaignId = coupons[0].campaign_id;
             } else if (booking.admin_note?.includes('[Coupon:')) {
                 // Try to extract from note or matching user_coupons (which we already did)
-                // If it's a direct campaign booking without user_coupon id (admin override)
-                // we might need to find it by name or just hope it was in user_coupons.
             }
 
             if (campaignId) {
@@ -125,7 +180,8 @@ serve(async (req) => {
         return new Response(JSON.stringify({
             success: true,
             message: `Booking ${matchId} cancelled successfully`,
-            booking: data
+            booking: data,
+            stripeRefund: stripeRefundResult,
         }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
