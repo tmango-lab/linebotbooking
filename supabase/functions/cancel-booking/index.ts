@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
+import { pushMessage } from "../_shared/lineClient.ts";
 
 console.log("Cancel Booking Function Started (with Smart Refund)");
 
@@ -141,10 +142,8 @@ serve(async (req) => {
             }
         } else {
             // Case: Confirmed/Paid -> User Penalty (Burned)
-            // We do NOT update user_coupons status. It remains 'USED' (or whatever it was).
             console.log(`[Cancel Booking] Booking confirmed. NOT releasing coupon (User forfeits right).`);
 
-            // However, we MUST fetch campaign info to decrement the GLOBAL redemption count
             const { data: usedCoupons } = await supabase
                 .from('user_coupons')
                 .select('*, campaigns(*)')
@@ -153,14 +152,12 @@ serve(async (req) => {
         }
 
         // 2. Decrement Redemption Count (If confirmed)
-        // If the booking status was 'confirmed', it means the count was likely incremented.
-        // We decrement it so SOMEONE ELSE can use the quota.
         if (booking.status === 'confirmed') {
             let campaignId = null;
             if (coupons && coupons.length > 0) {
                 campaignId = coupons[0].campaign_id;
             } else if (booking.admin_note?.includes('[Coupon:')) {
-                // Try to extract from note or matching user_coupons (which we already did)
+                // Try to extract from note
             }
 
             if (campaignId) {
@@ -174,6 +171,48 @@ serve(async (req) => {
                 }
             }
         }
+
+        // ─── 3. LINE Notification to Customer ──────────────────────
+        if (booking.user_id) {
+            try {
+                // Fetch field label
+                const { data: fieldData } = await supabase
+                    .from('fields')
+                    .select('label')
+                    .eq('id', booking.field_no)
+                    .single();
+                const fieldLabel = fieldData?.label || `สนาม ${booking.field_no}`;
+                const timeFrom = (booking.time_from || '').substring(0, 5);
+                const timeTo = (booking.time_to || '').substring(0, 5);
+
+                let lineMsg = '';
+                if (stripeRefundResult) {
+                    // Refund case
+                    lineMsg = `❌ การจองของคุณถูกยกเลิก\n\n` +
+                        `📍 ${fieldLabel}\n` +
+                        `📅 ${booking.date}\n` +
+                        `⏰ ${timeFrom} - ${timeTo}\n\n` +
+                        `💰 คืนเงินมัดจำ ฿${stripeRefundResult.amount} เต็มจำนวน\n` +
+                        `📝 เหตุผล: ${reason || 'เหตุสุดวิสัย'}\n\n` +
+                        `เงินจะคืนเข้าบัญชีภายใน 5-10 วันทำการ ขออภัยในความไม่สะดวกค่ะ 🙏`;
+                } else {
+                    // Normal cancel (no refund)
+                    lineMsg = `❌ การจองของคุณถูกยกเลิก\n\n` +
+                        `📍 ${fieldLabel}\n` +
+                        `📅 ${booking.date}\n` +
+                        `⏰ ${timeFrom} - ${timeTo}\n\n` +
+                        `📝 ${reason || 'ยกเลิกโดยแอดมิน'}\n\n` +
+                        `หากมีข้อสงสัย ติดต่อสนามได้เลยค่ะ`;
+                }
+
+                await pushMessage(booking.user_id, { type: 'text', text: lineMsg });
+                console.log(`[Cancel Booking] LINE notification sent to ${booking.user_id}`);
+            } catch (lineErr) {
+                console.error(`[Cancel Booking] LINE notify error:`, lineErr);
+                // ไม่ throw — ให้การยกเลิกสำเร็จแม้ส่ง LINE ไม่ได้
+            }
+        }
+        // ─── End LINE Notification ──────────────────────────────
 
         console.log(`[Cancel Booking] Success: ${matchId}`);
 
