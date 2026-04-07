@@ -45,43 +45,41 @@ serve(async (req) => {
                 throw new Error('STRIPE_SECRET_KEY not configured');
             }
 
-            const depositAmount = booking.deposit_amount || 0;
-            if (depositAmount > 0) {
-                // คืนเงินเต็มจำนวน 100% (สนามยอมแบกค่าธรรมเนียม Stripe)
-                const refundAmountSatang = Math.round(depositAmount * 100);
+            console.log(`[Cancel Booking] Initiating Stripe FULL refund for PI: ${booking.stripe_payment_intent_id}`);
 
-                console.log(`[Cancel Booking] Initiating Stripe refund: ${depositAmount} THB (${refundAmountSatang} satang) for PI: ${booking.stripe_payment_intent_id}`);
+            try {
+                // ไม่ระบุ amount → Stripe คืนเต็มจำนวนที่ชาร์จจริงอัตโนมัติ
+                // ป้องกันกรณี deposit_amount ≠ ยอดที่ Stripe เก็บจริง (เช่น Test mode)
+                const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'payment_intent': booking.stripe_payment_intent_id,
+                    }).toString(),
+                });
 
-                try {
-                    const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: new URLSearchParams({
-                            'payment_intent': booking.stripe_payment_intent_id,
-                            'amount': refundAmountSatang.toString(),
-                        }).toString(),
-                    });
+                const refundData = await refundRes.json();
 
-                    const refundData = await refundRes.json();
-
-                    if (refundData.error) {
-                        console.error(`[Cancel Booking] Stripe refund error:`, refundData.error);
-                        throw new Error(`Stripe refund failed: ${refundData.error.message}`);
-                    }
-
-                    console.log(`[Cancel Booking] Stripe refund SUCCESS: ${refundData.id} | Amount: ${depositAmount} THB`);
-                    stripeRefundResult = {
-                        refundId: refundData.id,
-                        amount: depositAmount,
-                        status: refundData.status,
-                    };
-                } catch (stripeErr: any) {
-                    console.error(`[Cancel Booking] Stripe refund error:`, stripeErr);
-                    throw new Error(`ไม่สามารถคืนเงินผ่าน Stripe ได้: ${stripeErr.message}`);
+                if (refundData.error) {
+                    console.error(`[Cancel Booking] Stripe refund error:`, refundData.error);
+                    throw new Error(`Stripe refund failed: ${refundData.error.message}`);
                 }
+
+                // อ่านยอดคืนจริงจาก Stripe response (satang → บาท)
+                const actualRefundedTHB = (refundData.amount || 0) / 100;
+
+                console.log(`[Cancel Booking] Stripe refund SUCCESS: ${refundData.id} | Refunded: ${actualRefundedTHB} THB`);
+                stripeRefundResult = {
+                    refundId: refundData.id,
+                    amount: actualRefundedTHB,
+                    status: refundData.status,
+                };
+            } catch (stripeErr: any) {
+                console.error(`[Cancel Booking] Stripe refund error:`, stripeErr);
+                throw new Error(`ไม่สามารถคืนเงินผ่าน Stripe ได้: ${stripeErr.message}`);
             }
         }
         // ─── End Stripe Refund Logic ────────────────────────────
