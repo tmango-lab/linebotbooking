@@ -180,6 +180,7 @@ serve(async (req) => {
             paid_at: b.paid_at || null,
             source: b.source || 'admin',
             is_promo: b.is_promo || false,
+            is_refunded: b.is_refunded || false,
             // Attach discount if exists
             discount: promoMap[b.booking_id] || 0,
             // [NEW] Detailed Coupons List
@@ -188,8 +189,11 @@ serve(async (req) => {
             payment_method: b.payment_method || 'cash',
             payment_status: b.payment_status || 'unpaid',
             payment_slip_url: b.payment_slip_url || null,
+            deposit_amount: b.deposit_amount || null,
+            stripe_payment_intent_id: b.stripe_payment_intent_id || null,
             timeout_at: b.timeout_at || null,
             attendance_status: b.attendance_status || null, // [NEW] Pass attendance status
+            remark: b.remark || null,
             agreed_to_referral_terms: b.agreed_to_referral_terms || false, // [NEW] Referral consent
             created_at: b.created_at || null // [NEW] Pass booking creation time
         }));
