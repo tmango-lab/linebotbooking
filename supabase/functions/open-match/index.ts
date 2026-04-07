@@ -75,15 +75,15 @@ serve(async (req) => {
 
             if (depositPerJoiner <= 0) throw new Error('Calculated deposit is zero. Check booking price.');
 
-            // 5. คำนวณ expires_at (1 ชั่วโมงก่อนเวลาเล่น)
+            // 5. คำนวณ expires_at (30 นาทีก่อนเวลาเล่น)
             const [h, m] = (booking.time_from || '18:00').split(':').map(Number);
             const matchDate = new Date(`${booking.date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00+07:00`);
-            const expiresAt = new Date(matchDate.getTime() - (60 * 60 * 1000)); // 1 hr before
+            const expiresAt = new Date(matchDate.getTime() - (30 * 60 * 1000)); // 30 mins before
 
-            // ถ้า expires_at อยู่ในอดีต ให้ set เป็น 30 นาทีจากตอนนี้เป็นขั้นต่ำ
+            // ถ้า expires_at อยู่ในอดีต ให้ set เป็น 15 นาทีจากตอนนี้เป็นขั้นต่ำ
             const now = new Date();
             if (expiresAt <= now) {
-                expiresAt.setTime(now.getTime() + 30 * 60 * 1000);
+                expiresAt.setTime(now.getTime() + 15 * 60 * 1000);
             }
 
             // 6. Insert open_matches record
