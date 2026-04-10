@@ -257,17 +257,28 @@ serve(async (req) => {
                 .update({ status: 'cancelled', updated_at: new Date().toISOString() })
                 .eq('id', matchId);
 
-            // 3. Refund joiners (หัก 15% ค่าธรรมเนียม)
+            // 3. Refund joiners (หัก 15% ค่าธรรมเนียม — ใช้ยอดจริงจาก Stripe)
             const refundResults: any[] = [];
             for (const joiner of (match.joiners || [])) {
                 if (joiner.status === 'joined' && joiner.stripe_payment_intent_id && STRIPE_SECRET_KEY) {
-                    const depositPaid = joiner.deposit_paid || 0;
-                    const fee = Math.ceil(depositPaid * 0.15);
-                    const refundAmount = depositPaid - fee;
-                    const refundAmountSatang = Math.round(refundAmount * 100);
+                    try {
+                        // ดึงยอดจริงที่ Stripe ชาร์จ
+                        const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${joiner.stripe_payment_intent_id}`, {
+                            headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` },
+                        });
+                        const piData = await piRes.json();
+                        const actualCharged = piData.amount_received || piData.amount || 0; // satang
 
-                    if (refundAmountSatang > 0) {
-                        try {
+                        if (actualCharged <= 0) {
+                            console.log(`[Open Match] Joiner ${joiner.user_id}: no charge found, skipping refund`);
+                            continue;
+                        }
+
+                        // หัก 15% จากยอดจริง
+                        const feeSatang = Math.ceil(actualCharged * 0.15);
+                        const refundSatang = actualCharged - feeSatang;
+
+                        if (refundSatang > 0) {
                             const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
                                 method: 'POST',
                                 headers: {
@@ -276,12 +287,20 @@ serve(async (req) => {
                                 },
                                 body: new URLSearchParams({
                                     'payment_intent': joiner.stripe_payment_intent_id,
-                                    'amount': refundAmountSatang.toString(),
+                                    'amount': refundSatang.toString(),
                                 }).toString(),
                             });
 
                             const refundData = await refundRes.json();
-                            console.log(`[Open Match] Refund for joiner ${joiner.user_id}: ${refundAmount} THB (fee: ${fee} THB)`, refundData.id);
+                            if (refundData.error) {
+                                console.error(`[Open Match] Stripe refund error for joiner ${joiner.user_id}:`, refundData.error);
+                                refundResults.push({ userId: joiner.user_id, error: refundData.error.message });
+                                continue;
+                            }
+
+                            const refundTHB = refundSatang / 100;
+                            const feeTHB = feeSatang / 100;
+                            console.log(`[Open Match] Refund for joiner ${joiner.user_id}: ${refundTHB} THB (fee: ${feeTHB} THB) | Stripe: ${refundData.id}`);
 
                             // Update joiner status
                             await supabase
@@ -289,26 +308,26 @@ serve(async (req) => {
                                 .update({ status: 'refunded' })
                                 .eq('id', joiner.id);
 
-                            refundResults.push({ userId: joiner.user_id, refunded: refundAmount, fee });
+                            refundResults.push({ userId: joiner.user_id, refunded: refundTHB, fee: feeTHB });
 
                             // Notify joiner via LINE
                             try {
                                 await pushMessage(joiner.user_id, {
                                     type: 'text',
-                                    text: `ขอบคุณและขออภัยเป็นอย่างสูง การจองนี้ถูกยกเลิกเนื่องจากผู้ประกาศขอยกเลิกสนามเพราะเหตุสุดวิสัย (${reason || 'ไฟดับ / ฝนตก / น้ำท่วม'}) ระบบได้ทำการโอนมัดจำคืน ${refundAmount} บาท (โดยหัก 15% ตามเงื่อนไขและค่าธรรมเนียมการถอนเงินของระบบ) ไว้พบกันใหม่โอกาสหน้านะครับ`,
+                                    text: `❌ การเปิดตี้ถูกยกเลิก\n\nเหตุผล: ${reason || 'เหตุสุดวิสัย'}\n\n💰 คืนเงิน ฿${refundTHB} (หัก 15% ค่าธรรมเนียม ฿${feeTHB})\n\nเงินจะคืนเข้าบัญชีภายใน 5-10 วันทำการ ขออภัยในความไม่สะดวกครับ 🙏`,
                                 });
                             } catch (lineErr) {
                                 console.error(`[Open Match] LINE notify error for joiner ${joiner.user_id}:`, lineErr);
                             }
-                        } catch (refundErr) {
-                            console.error(`[Open Match] Stripe refund error for joiner ${joiner.user_id}:`, refundErr);
-                            refundResults.push({ userId: joiner.user_id, error: String(refundErr) });
                         }
+                    } catch (refundErr) {
+                        console.error(`[Open Match] Stripe refund error for joiner ${joiner.user_id}:`, refundErr);
+                        refundResults.push({ userId: joiner.user_id, error: String(refundErr) });
                     }
                 }
             }
 
-            // 4. Refund Host (หัก 15% ค่าธรรมเนียม) - จาก booking deposit
+            // 4. Refund Host (หัก 15% ค่าธรรมเนียม — ใช้ยอดจริงจาก Stripe)
             const { data: booking } = await supabase
                 .from('bookings')
                 .select('deposit_amount, stripe_payment_intent_id, user_id')
@@ -316,29 +335,43 @@ serve(async (req) => {
                 .single();
 
             if (booking?.stripe_payment_intent_id && STRIPE_SECRET_KEY) {
-                const hostDeposit = booking.deposit_amount || 0;
-                const hostFee = Math.ceil(hostDeposit * 0.15);
-                const hostRefund = hostDeposit - hostFee;
-                const hostRefundSatang = Math.round(hostRefund * 100);
+                try {
+                    // ดึงยอดจริงที่ Stripe ชาร์จ
+                    const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${booking.stripe_payment_intent_id}`, {
+                        headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` },
+                    });
+                    const piData = await piRes.json();
+                    const actualCharged = piData.amount_received || piData.amount || 0; // satang
 
-                if (hostRefundSatang > 0) {
-                    try {
-                        await fetch('https://api.stripe.com/v1/refunds', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: new URLSearchParams({
-                                'payment_intent': booking.stripe_payment_intent_id,
-                                'amount': hostRefundSatang.toString(),
-                            }).toString(),
-                        });
+                    if (actualCharged > 0) {
+                        const feeSatang = Math.ceil(actualCharged * 0.15);
+                        const refundSatang = actualCharged - feeSatang;
 
-                        console.log(`[Open Match] Host refund: ${hostRefund} THB (fee: ${hostFee} THB)`);
-                    } catch (hostRefundErr) {
-                        console.error('[Open Match] Host refund error:', hostRefundErr);
+                        if (refundSatang > 0) {
+                            const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({
+                                    'payment_intent': booking.stripe_payment_intent_id,
+                                    'amount': refundSatang.toString(),
+                                }).toString(),
+                            });
+
+                            const refundData = await refundRes.json();
+                            if (refundData.error) {
+                                console.error('[Open Match] Host refund Stripe error:', refundData.error);
+                            } else {
+                                const hostRefundTHB = refundSatang / 100;
+                                const hostFeeTHB = feeSatang / 100;
+                                console.log(`[Open Match] Host refund: ${hostRefundTHB} THB (fee: ${hostFeeTHB} THB) | Stripe: ${refundData.id}`);
+                            }
+                        }
                     }
+                } catch (hostRefundErr) {
+                    console.error('[Open Match] Host refund error:', hostRefundErr);
                 }
 
                 // Cancel the booking itself
@@ -354,9 +387,19 @@ serve(async (req) => {
 
                 // Notify Host
                 try {
+                    // ดึงยอดคืนจริงเพื่อแจ้ง HOST
+                    const piRes2 = await fetch(`https://api.stripe.com/v1/payment_intents/${booking.stripe_payment_intent_id}`, {
+                        headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` },
+                    });
+                    const piData2 = await piRes2.json();
+                    const hostActual = piData2.amount_received || piData2.amount || 0;
+                    const hostFeeFinal = Math.ceil(hostActual * 0.15);
+                    const hostRefundFinal = (hostActual - hostFeeFinal) / 100;
+                    const hostFeeFinalTHB = hostFeeFinal / 100;
+
                     await pushMessage(match.host_user_id, {
                         type: 'text',
-                        text: `ขอบคุณและขออภัยเป็นอย่างสูง การจองสนามของคุณถูกยกเลิกเนื่องจากเหตุสุดวิสัย (${reason || 'ไฟดับ / ฝนตก / น้ำท่วม'}) ระบบได้ทำการโอนมัดจำคืน ${hostRefund} บาท (โดยหัก 15% ตามเงื่อนไขและค่าธรรมเนียมการถอนเงินของระบบ) ไว้พบกันใหม่โอกาสหน้านะครับ`,
+                        text: `❌ การเปิดตี้ถูกยกเลิก\n\nเหตุผล: ${reason || 'เหตุสุดวิสัย'}\n\n💰 คืนเงินมัดจำ ฿${hostRefundFinal} (หัก 15% ค่าธรรมเนียม ฿${hostFeeFinalTHB})\n\nเงินจะคืนเข้าบัญชีภายใน 5-10 วันทำการ ขออภัยในความไม่สะดวกครับ 🙏`,
                     });
                 } catch (lineErr) {
                     console.error('[Open Match] Host LINE notify error:', lineErr);
